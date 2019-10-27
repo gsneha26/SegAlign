@@ -154,25 +154,20 @@ int main(int argc, char** argv)
     cfg.gact_sub_mat[1]  = cfg_file.Value("Scoring", "sub_AC");
     cfg.gact_sub_mat[2]  = cfg_file.Value("Scoring", "sub_AG");
     cfg.gact_sub_mat[3]  = cfg_file.Value("Scoring", "sub_AT");
-
     cfg.gact_sub_mat[4]  = cfg_file.Value("Scoring", "sub_CC");
     cfg.gact_sub_mat[5]  = cfg_file.Value("Scoring", "sub_CG");
     cfg.gact_sub_mat[6]  = cfg_file.Value("Scoring", "sub_CT");
-    
     cfg.gact_sub_mat[7]  = cfg_file.Value("Scoring", "sub_GG");
     cfg.gact_sub_mat[8]  = cfg_file.Value("Scoring", "sub_GT");
-    
     cfg.gact_sub_mat[9]  = cfg_file.Value("Scoring", "sub_TT");
-
     cfg.gact_sub_mat[10] = cfg_file.Value("Scoring", "sub_N");
-    
     cfg.gap_open         = cfg_file.Value("Scoring", "gap_open");
     cfg.gap_extend       = cfg_file.Value("Scoring", "gap_extend");
 
     // Banded GACT filter
-    cfg.first_tile_size            = cfg_file.Value("BSW_params", "first_tile_size");
-    cfg.first_tile_score_threshold = cfg_file.Value("BSW_params", "first_tile_score_threshold");
-    cfg.band_size                  = cfg_file.Value("BSW_params", "band_size");
+    cfg.xdrop                 = cfg_file.Value("BSW_params", "xdrop");
+    cfg.xdrop_limit           = cfg_file.Value("BSW_params", "xdrop_limit");
+    cfg.xdrop_score_threshold = cfg_file.Value("BSW_params", "xdrop_score_threshold");
 
     // GACT-X
     cfg.ydrop        = cfg_file.Value("GACTX_params", "ydrop");

@@ -62,9 +62,9 @@ struct Configuration {
 	int gap_extend;
 
     // Banded GACT filter
-    int first_tile_size;
-    int first_tile_score_threshold;
-    int band_size;
+    int xdrop; 
+    int xdrop_limit;
+    int xdrop_score_threshold;
 
     // GACT-X
     int tile_size;

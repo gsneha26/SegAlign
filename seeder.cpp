@@ -44,6 +44,13 @@ filter_input seeder_body::operator()(seeder_input input) {
         for (uint32_t j = i; j < e; j++) {
             index = GetKmerIndexAtPos(query, j);
             if (index != ((uint32_t) 1 << 31)) {
+                /*
+                printf("%d ", j);
+                for(int k = 0; k < 19; k++){
+                    printf("%c", query[j+k]);
+                }
+                printf("\n");
+                */
                 seed_offset = (index << 32) + j - i;
                 seed_offset_vector.push_back(seed_offset); 
 
@@ -58,8 +65,9 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
+//        std::cout << "Num seeds " << seed_offset_vector.size() << std::endl;
         int num_hits = g_SeedAndFilter(seed_offset_vector, i);
-		std::cout << "Num hits " << num_hits << std::endl;
+//		std::cout << "Num hits " << num_hits << std::endl;
   //      fprintf (stdout, "Num hits, seeds: %d, %d\n", num_hits, seed_offset_vector.size());
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
@@ -85,8 +93,9 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
+//        std::cout << "Num seeds " << seed_offset_vector.size() << std::endl;
         int num_hits = g_SeedAndFilter(seed_offset_vector, i);
-		std::cout << "Num hits " << num_hits << std::endl;
+//		std::cout << "Num hits " << num_hits << std::endl;
   //      fprintf (stdout, "Num hits, seeds: %d, %d\n", num_hits, seed_offset_vector.size());
   //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
     }
