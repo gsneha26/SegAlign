@@ -1,4 +1,4 @@
-# wga-gpu
+# WGA_GPU 
 ```
     $ git clone https://github.com/01org/tbb 
     $ cd build 

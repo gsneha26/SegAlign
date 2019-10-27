@@ -82,6 +82,28 @@ uint32_t GetKmerIndexAtPos (char* sequence, uint32_t pos) {
                 break;
             }
     }
+
+    /*
+    bool N_char = false;
+    uint32_t nt = 0;
+
+    for(int i = 0; i < 19; i++){
+        nt = NtChar2Int(sequence[pos+i]);
+        if (nt == N_NT) {
+            kmer = (1 << 31);
+            N_char = true;
+            break;
+        }
+    }
+
+    if(!N_char){
+        for (int i = 0; i < shape_size; i++) {
+            nt = NtChar2Int(sequence[pos+shape_pos[i]]);
+            kmer = (kmer << 2) + nt;
+        }
+    }
+    */
+
     return kmer;
 }
 

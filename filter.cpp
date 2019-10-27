@@ -46,11 +46,11 @@ extender_input filter_body::operator()(filter_input input){
                 const size_t read_len = read.seq.size();
                 char *read_char = (char *)read.seq.data();
 
-                uint32_t ref_tile_start = (hit < cfg.first_tile_size/2) ? 0 : hit - cfg.first_tile_size/2;
-                uint32_t query_tile_start = (offset < cfg.first_tile_size/2) ? 0 : offset - cfg.first_tile_size/2;
+                uint32_t ref_tile_start = (hit < cfg.xdrop_limit/2) ? 0 : hit - cfg.xdrop_limit/2;
+                uint32_t query_tile_start = (offset < cfg.xdrop_limit/2) ? 0 : offset - cfg.xdrop_limit/2;
                 
-                uint32_t ref_tile_size = std::min(uint32_t(cfg.first_tile_size), (chr_end - ref_tile_start));
-                uint32_t query_tile_size = std::min(size_t(cfg.first_tile_size), (read_len - query_tile_start));
+                uint32_t ref_tile_size = std::min(uint32_t(cfg.xdrop_limit), (chr_end - ref_tile_start));
+                uint32_t query_tile_size = std::min(size_t(cfg.xdrop_limit), (read_len - query_tile_start));
 
                 size_t ref_offset = ref_tile_start;
                 size_t query_offset = (read_char - g_DRAM->buffer) - g_DRAM->referenceSize + query_tile_start;
@@ -62,7 +62,7 @@ extender_input filter_body::operator()(filter_input input){
             }
 
 	    std::cout << num_filter_tiles << std::endl;
-            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.first_tile_score_threshold);
+            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_score_threshold);
             for (auto a: f_op) {
                 int batch_id = a.batch_id;
                 int score = a.tile_score;
@@ -96,11 +96,11 @@ extender_input filter_body::operator()(filter_input input){
                 const size_t read_len = read.seq.size();
                 char *read_char = (char *)read.seq.data();
 
-                uint32_t ref_tile_start = (hit < cfg.first_tile_size/2) ? 0 : hit - cfg.first_tile_size/2;
-                uint32_t query_tile_start = (offset < cfg.first_tile_size/2) ? 0 : offset - cfg.first_tile_size/2;
+                uint32_t ref_tile_start = (hit < cfg.xdrop_limit/2) ? 0 : hit - cfg.xdrop_limit/2;
+                uint32_t query_tile_start = (offset < cfg.xdrop_limit/2) ? 0 : offset - cfg.xdrop_limit/2;
                 
-                uint32_t ref_tile_size = std::min(uint32_t(cfg.first_tile_size), (chr_end - ref_tile_start));
-                uint32_t query_tile_size = std::min(size_t(cfg.first_tile_size), (read_len - query_tile_start));
+                uint32_t ref_tile_size = std::min(uint32_t(cfg.xdrop_limit), (chr_end - ref_tile_start));
+                uint32_t query_tile_size = std::min(size_t(cfg.xdrop_limit), (read_len - query_tile_start));
 
                 size_t ref_offset = ref_tile_start;
                 size_t query_offset = (read_char - g_DRAM->buffer) - g_DRAM->referenceSize + (read_len - (query_tile_start + query_tile_size));
@@ -111,7 +111,7 @@ extender_input filter_body::operator()(filter_input input){
 
             }
 
-            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.first_tile_score_threshold);
+            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_score_threshold);
             for (auto a: f_op) {
                 int batch_id = a.batch_id;
                 int score = a.tile_score;
