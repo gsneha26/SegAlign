@@ -21,11 +21,17 @@ int *d_sub_mat;
 int err;                            
 int check_status = 0;
 
+int ref_len;
+int query_len;
+
 char* d_ref_seq;
 char* d_query_seq;
 uint64_t* d_seed_offsets;
 uint32_t* d_index_table;
 uint64_t* d_pos_table;
+uint32_t* d_r_starts;
+uint32_t* d_q_starts;
+int32_t* d_score;
 
 __global__
 void compress_string (uint32_t n, char* src_seq, char* dst_seq){ 
@@ -55,7 +61,7 @@ void compress_string (uint32_t n, char* src_seq, char* dst_seq){
 }
 
 __global__
-void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_limit, int xdrop_score_threshold){
+void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_limit, int xdrop_score_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int* d_score, int ref_len, int query_len){
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -69,8 +75,8 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     uint64_t seed_offset;
     uint32_t seed;
 
-    int ref_loc;
-    int query_loc;
+    uint32_t ref_loc;
+    uint32_t query_loc;
     int seed_score;
     int right_ext_score;
     int left_ext_score;
@@ -79,23 +85,28 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     int max_score;
     int total_score;
     int don;
+    uint32_t curr_seed;
 
-    __shared__ uint32_t r_starts[4096];
-    __shared__ uint32_t q_starts[4096];
-    __shared__ uint32_t total[32];
+    __shared__ uint32_t r_starts[2048];
+    __shared__ uint32_t q_starts[2048];
+    __shared__ uint32_t q_st[2048];
+    __shared__ uint32_t hit_num[32];
+    __shared__ uint32_t anchor_num[32];
     __shared__ uint32_t total_hits;
+    __shared__ uint32_t final_hits;
+    __shared__ uint32_t total_anchors;
     total_hits = 0;
+    final_hits = 0;
+    total_anchors = 0;
 
+    anchor_num[thread_id] = 0;
     for (int id = id_start; id < num_seeds; id += stride) {
-        total[thread_id] = 0;
+        hit_num[thread_id] = 0;
 
         seed_offset = seed_offsets[id];
 
         seed = (seed_offset >> 32);
         q_start = ((seed_offset << 32) >> 32);
-        query_loc = q_start+query_start;
-
-        //printf("%d %d In1\n", query_loc, d_query_seq[query_loc]);
 
         // start and end from the seed block_id table
         end = d_index_table[seed];
@@ -107,91 +118,124 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
             start = 0;
             end = 0;
         }
-        total[thread_id] += end-start;
+        hit_num[thread_id] = end-start;
         __syncthreads();
         
         // cumulative sum
+        /*
         for(int k = 0; k < 5; k++){
             if(thread_id >= (1<<k)){
-                total[thread_id] = total[thread_id] + total[thread_id-(1<<k)];
+                hit_num[thread_id] = hit_num[thread_id] + hit_num[thread_id-(1<<k)];
             }
             __syncthreads();
         }
+        */
+        if (thread_id == 0) {
+            for (int k = 1; k < block_dim; k++) {
+                hit_num[k] += hit_num[k-1];
+            }
+        }
 
-        total_hits = total[31];
-        int addr_start = (thread_id == 0) ? 0 : total[thread_id-1];
+        __syncthreads();
+
+        total_hits = hit_num[31];
+        if(total_hits > 2048){
+            total_hits = 2048;
+        }
+        final_hits += total_hits; 
+        __syncthreads();
+
+        int addr_start = (thread_id == 0) ? 0 : hit_num[thread_id-1];
         for (uint32_t p = start; p < end; p++) { 
-            if (p+addr_start-start < 4096) { 
+            if ((p+addr_start-start < 2048) && (p+addr_start > start)) { 
                 int index_el = p+addr_start-start;
                 r_starts[index_el] = d_pos_table[p];
-                q_starts[index_el] = query_loc;
+                q_starts[index_el] = q_start;
+                q_st[index_el] = seed;
             }
+        }
+        __syncthreads();
+
+
+        for (int id1 = thread_id; id1 < total_hits; id1 += block_dim) {
+            ref_loc = r_starts[id1];
+            query_loc = q_starts[id1];
+            d_r_starts[id] = ref_loc;
+            d_q_starts[id] = query_loc;
+        }
+    }
+        /*
+            match_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
+            seed_score = match_score;
+
+            for(int i = 1; i < 19; i++){
+                match_score = d_sub_mat[d_ref_seq[ref_loc+i]*5+d_query_seq[query_loc+i]];
+                seed_score = seed_score + match_score;
+            }
+
+            ref_loc = ref_loc + 19;
+            query_loc = query_loc + 19;
+            ext_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
+            max_score = ext_score;
+            don = 0;
+
+            for(int i = 1; i < xdrop_limit; i++){
+                match_score = d_sub_mat[d_ref_seq[ref_loc+i]*5+d_query_seq[query_loc+i]];
+                ext_score = ext_score + match_score;
+                max_score = (ext_score > max_score) ? ext_score : max_score;
+
+                if((max_score - ext_score) > xdrop && don == 0){
+                    don = 1;
+                    right_ext_score = max_score;
+                }
+            }
+
+            if(ref_loc > 20 && query_loc > 20){
+                ref_loc = ref_loc - 20;
+                query_loc = query_loc - 20;
+                ext_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
+                max_score = ext_score;
+                don = 0;
+
+                int limit = (ref_loc < query_loc) ? ref_loc+1 : query_loc+1;
+                limit = (limit < xdrop_limit) ? limit : xdrop_limit;
+                for(int i = 1; i < limit; i++){
+                    match_score = d_sub_mat[d_ref_seq[ref_loc-i]*5+d_query_seq[query_loc-i]];
+                    ext_score = ext_score + match_score;
+                    max_score = (ext_score > max_score) ? ext_score : max_score;
+
+                    if((max_score - ext_score) > xdrop && don == 0){
+                        don = 1;
+                        left_ext_score = max_score;
+                    }
+                }
+            }
+            else{
+                left_ext_score = 0;
+            }
+
+            total_score = seed_score + right_ext_score + left_ext_score;
+        }
+
+        if(total_score >= xdrop_score_threshold){
+            d_r_starts[id] = ref_loc;
+            d_q_starts[id] = query_loc;
+            d_score[id] = total_score;
+            anchor_num[thread_id] = anchor_num[thread_id] + 1;
+        }
+    }
+    __syncthreads();
+
+    // cumulative sum
+    for(int k = 0; k < 5; k++){
+        if(thread_id >= (1<<k)){
+            anchor_num[thread_id] = anchor_num[thread_id] + anchor_num[thread_id-(1<<k)];
         }
         __syncthreads();
     }
 
-    //printf("Total_hits: %d, Total_seeds: %d\n", total_hits, num_seeds);
-
-    for (int id = id_start; id < total_hits; id += stride) {
-        ref_loc = r_starts[id];
-        query_loc = q_starts[id];
-        
-        match_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
-        seed_score = match_score;
-        
-        //printf("%d %d In2\n", query_loc, d_query_seq[query_loc]);
-        for(int i = 1; i < 19; i++){
-            match_score = d_sub_mat[d_ref_seq[ref_loc+i]*5+d_query_seq[query_loc+i]];
-            seed_score = seed_score + match_score;
-        }
-
-        ref_loc = r_starts[id] + 19;
-        query_loc = q_starts[id] + 19;
-        ext_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
-        max_score = ext_score;
-        don = 0;
-
-        //printf("%d %d Before_right\n", ref_loc, query_loc); 
-        for(int i = 1; i < xdrop_limit; i++){
-            match_score = d_sub_mat[d_ref_seq[ref_loc+i]*5+d_query_seq[query_loc+i]];
-            ext_score = ext_score + match_score;
-            max_score = (ext_score > max_score) ? ext_score : max_score;
-            //printf("%d %d %d %d %d %d\n", ref_loc, query_loc, i, match_score, ext_score, max_score);
-
-            if((max_score - ext_score) > xdrop && don == 0){
-                don = 1;
-                right_ext_score = max_score;
-                //printf("%d %d %d Yes\n", ref_loc, query_loc, i);
-            }
-        }
-
-        //printf("%d %d Before_left\n", ref_loc, query_loc); 
-        ref_loc = r_starts[id] - 1;
-        query_loc = q_starts[id] - 1;
-        ext_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
-        max_score = ext_score;
-        don = 0;
-        
-        for(int i = 1; i < xdrop_limit; i++){
-            match_score = d_sub_mat[d_ref_seq[ref_loc-i]*5+d_query_seq[query_loc-i]];
-            ext_score = ext_score + match_score;
-            max_score = (ext_score > max_score) ? ext_score : max_score;
-
-            if((max_score - ext_score) > xdrop && don == 0){
-                don = 1;
-                left_ext_score = max_score;
-            }
-        }
-
-        total_score = seed_score + right_ext_score + left_ext_score; 
-        /*
-        printf("%d %d %d %d\n", seed_score, right_ext_score, left_ext_score, total_score);
-        if(total_score >= xdrop_score_threshold){
-            printf("%d\n", total_score);
-        }
-        */
-        __syncthreads;
-    }
+    total_anchors = anchor_num[31];
+  */
 }
 
 int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
@@ -199,29 +243,79 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
     cudaError_t err;
 
     uint64_t h_seed_offsets[13*cfg.chunk_size];
-    
+    int32_t h_r_starts[13*cfg.chunk_size];
+    int32_t h_q_starts[13*cfg.chunk_size];
+    int32_t h_score[13*cfg.chunk_size];
+
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
     if (num_seeds == 0) {
         return ret;
     }
 
+    printf("num_seeds %d \n", num_seeds);
+
     gpu_lock.lock();
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
+        h_r_starts[i] = 0;
+        h_q_starts[i] = 0;
+        h_score[i] = 0;
+    }
+
+    err = cudaMemcpy(d_seed_offsets, h_seed_offsets, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
     }
     
-    err = cudaMemcpy(d_seed_offsets, h_seed_offsets, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_r_starts, h_r_starts, num_seeds*sizeof(uint32_t), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
+    }
+    
+    err = cudaMemcpy(d_q_starts, h_q_starts, num_seeds*sizeof(uint32_t), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
+    }
+    
+    err = cudaMemcpy(d_score, h_score, num_seeds*sizeof(int), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
 
     int blockSize = 32;
-    int numBlocks = 10;
+    int numBlocks = 512;
 
     //printf("Start find_hit_offsets\n");
-    find_hit_offsets <<<numBlocks, blockSize>>> (num_seeds, query_start, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_limit, cfg.xdrop_score_threshold);
+    find_hit_offsets <<<numBlocks, blockSize>>> (num_seeds, query_start, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_limit, cfg.xdrop_score_threshold, d_r_starts, d_q_starts, d_score, ref_len, query_len);
+
+    err = cudaMemcpy(h_r_starts, d_r_starts, num_seeds*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
+    }
+    
+    err = cudaMemcpy(h_q_starts, d_q_starts, num_seeds*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
+    }
+    
+    err = cudaMemcpy(h_score, d_score, num_seeds*sizeof(int), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        exit(1);
+    }
+
+    for (uint32_t i = 0; i < num_seeds; i++) {
+        if(h_q_starts[i] > query_len){
+            printf("Query exceeding %d %d %d\n", h_r_starts[i], h_q_starts[i], h_score[i]);
+        }
+    }
     gpu_lock.unlock();
 
     return ret;
@@ -237,11 +331,24 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
+    err = cudaMalloc(&d_r_starts, 13*cfg.chunk_size*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
-    
+
+    err = cudaMalloc(&d_q_starts, 13*cfg.chunk_size*sizeof(uint32_t)); 
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
+    err = cudaMalloc(&d_score, 13*cfg.chunk_size*sizeof(int)); 
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
     int *sub_mat = (int *)malloc(25 * sizeof(int)); 
 
     sub_mat[24] = cfg.gact_sub_mat[10];
@@ -275,6 +382,7 @@ size_t InitializeProcessor (int t, int f){
 
 void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
+    ref_len = len;
     
     char* d_ref_seq_tmp;
     err = cudaMalloc(&d_ref_seq_tmp, len*sizeof(char)); 
@@ -305,6 +413,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
 void SendQueryWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
+    query_len = len;
     
     char* d_query_seq_tmp;
     err = cudaMalloc(&d_query_seq_tmp, len*sizeof(char)); 
@@ -380,6 +489,9 @@ void ShutdownProcessor(){
     cudaFree(d_seed_offsets);
     cudaFree(d_index_table);
     cudaFree(d_pos_table);
+    cudaFree(d_r_starts);
+    cudaFree(d_q_starts);
+    cudaFree(d_score);
 }
 
 DRAM *g_DRAM = nullptr;
