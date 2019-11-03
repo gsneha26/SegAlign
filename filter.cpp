@@ -23,11 +23,8 @@ extender_input filter_body::operator()(filter_input input){
 
     uint8_t align_fields = 0;
 
-    std::cout << fwHits.size() << std::endl;
-
     for (size_t b = 0; b < fwHits.size(); b += max_requests) {
 
-	std::cout << "Inside" << std::endl;
         size_t first_hit = b;
         size_t last_hit = std::min(b + max_requests, fwHits.size());
 
@@ -61,7 +58,6 @@ extender_input filter_body::operator()(filter_input input){
 
             }
 
-	    std::cout << num_filter_tiles << std::endl;
             std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_score_threshold);
             for (auto a: f_op) {
                 int batch_id = a.batch_id;
