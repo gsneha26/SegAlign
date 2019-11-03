@@ -67,7 +67,7 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     int grid_dim = gridDim.x;
     int block_id = blockIdx.x;
 
-    int id_start = block_dim * block_id + thread_id;
+    int id_start = block_dim * block_id;
     int stride = block_dim * grid_dim;
 
     uint32_t start, end;
@@ -85,6 +85,7 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     int max_score;
     int total_score;
     int don;
+    int current_id;
     uint32_t curr_seed;
 
     __shared__ uint32_t r_starts[2048];
@@ -103,21 +104,26 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     for (int id = id_start; id < num_seeds; id += stride) {
         hit_num[thread_id] = 0;
 
-        seed_offset = seed_offsets[id];
+        current_id = id + thread_id;
 
-        seed = (seed_offset >> 32);
-        q_start = ((seed_offset << 32) >> 32);
+        if(current_id < num_seeds){
+            seed_offset = seed_offsets[id];
 
-        // start and end from the seed block_id table
-        end = d_index_table[seed];
-        start = 0;
-        if (seed > 0){
-            start = d_index_table[seed-1];
+            seed = (seed_offset >> 32);
+            q_start = ((seed_offset << 32) >> 32);
+
+            // start and end from the seed block_id table
+            end = d_index_table[seed];
+            start = 0;
+            if (seed > 0){
+                start = d_index_table[seed-1];
+            }
         }
         else{
             start = 0;
             end = 0;
         }
+
         hit_num[thread_id] = end-start;
         __syncthreads();
         
@@ -142,12 +148,13 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         if(total_hits > 2048){
             total_hits = 2048;
         }
+
         final_hits += total_hits; 
         __syncthreads();
 
         int addr_start = (thread_id == 0) ? 0 : hit_num[thread_id-1];
         for (uint32_t p = start; p < end; p++) { 
-            if ((p+addr_start-start < 2048) && (p+addr_start > start)) { 
+            if ((p+addr_start-start < total_hits) && (p+addr_start > start)) { 
                 int index_el = p+addr_start-start;
                 r_starts[index_el] = d_pos_table[p];
                 q_starts[index_el] = q_start;
