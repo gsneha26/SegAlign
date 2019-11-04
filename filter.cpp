@@ -6,16 +6,19 @@ std::atomic<uint64_t> filter_body::num_filter_tiles(0);
 std::atomic<uint64_t> filter_body::num_anchors(0);
 
 extender_input filter_body::operator()(filter_input input){
+    printf("in filter\n");
+
+    size_t token = get<1>(input);
+    filter_output fwOutput;
+    filter_output rcOutput;
+    
     auto &payload = get<0>(input);
 
     auto &read = get<0>(payload);
 
     auto &data = get<1>(payload);
 
-    size_t token = get<1>(input);
 
-    filter_output fwOutput;
-    filter_output rcOutput;
 
     auto &fwHits = data.fwHits;
     
@@ -121,5 +124,6 @@ extender_input filter_body::operator()(filter_input input){
 
     std::sort(fwOutput.begin(), fwOutput.end(), CompareAnchors);
     std::sort(rcOutput.begin(), rcOutput.end(), CompareAnchors);
+
     return extender_input(extender_payload(read, fwOutput, rcOutput), token);
 }
