@@ -90,9 +90,9 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
 
     __shared__ uint32_t r_starts[2048];
     __shared__ uint32_t q_starts[2048];
-    __shared__ uint32_t q_st[2048];
-    __shared__ uint32_t hit_num[32];
-    __shared__ uint32_t anchor_num[32];
+    __shared__ uint32_t hit_num[128];
+    __shared__ uint32_t anchor_num[128];
+    __shared__ uint32_t actual_num[128];
     __shared__ uint32_t total_hits;
     __shared__ uint32_t final_hits;
     __shared__ uint32_t total_anchors;
@@ -107,7 +107,7 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         current_id = id + thread_id;
 
         if(current_id < num_seeds){
-            seed_offset = seed_offsets[id];
+            seed_offset = seed_offsets[current_id];
 
             seed = (seed_offset >> 32);
             q_start = ((seed_offset << 32) >> 32);
@@ -125,26 +125,56 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         }
 
         hit_num[thread_id] = end-start;
+        anchor_num[thread_id] = end-start;
+        actual_num[thread_id] = end-start;
         __syncthreads();
-        
-        // cumulative sum
-        /*
-        for(int k = 0; k < 5; k++){
-            if(thread_id >= (1<<k)){
-                hit_num[thread_id] = hit_num[thread_id] + hit_num[thread_id-(1<<k)];
+
+        //parallel prefix sum
+        int k_val;
+        for(int k = 1; k < block_dim; k=k*2){
+            if(thread_id >= k){
+                k_val = hit_num[thread_id-k];
+            }
+            __syncthreads();
+
+            if(thread_id >= k){
+                hit_num[thread_id] += prev_val;
             }
             __syncthreads();
         }
-        */
+        
+        
+        //for loop for prefix sum
+        int count = 0;
         if (thread_id == 0) {
             for (int k = 1; k < block_dim; k++) {
-                hit_num[k] += hit_num[k-1];
+                anchor_num[k] += anchor_num[k-1];
+                if(anchor_num[k] != hit_num[k]){
+                    count = count+1;
+                }
             }
         }
-
         __syncthreads();
 
-        total_hits = hit_num[31];
+        if(count > 0){
+            printf("Unequal count\n");
+        }
+        int count = 0;
+        if (thread_id == 0) {
+            for (int k = 1; k < block_dim; k++) {
+                anchor_num[k] += anchor_num[k-1];
+                if(anchor_num[k] != hit_num[k]){
+                    count = count+1;
+                }
+            }
+        }
+        __syncthreads();
+
+        if(count > 0){
+            printf("Unequal count\n");
+        }
+
+        total_hits = hit_num[block_dim-1];
         if(total_hits > 2048){
             total_hits = 2048;
         }
@@ -158,7 +188,6 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
                 int index_el = p+addr_start-start;
                 r_starts[index_el] = d_pos_table[p];
                 q_starts[index_el] = q_start;
-                q_st[index_el] = seed;
             }
         }
         __syncthreads();
@@ -260,8 +289,6 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
         return ret;
     }
 
-    printf("num_seeds %d \n", num_seeds);
-
     gpu_lock.lock();
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
@@ -294,8 +321,8 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
         exit(1);
     }
 
-    int blockSize = 32;
-    int numBlocks = 512;
+    int blockSize = 128;
+    int numBlocks = 32;
 
     //printf("Start find_hit_offsets\n");
     find_hit_offsets <<<numBlocks, blockSize>>> (num_seeds, query_start, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_limit, cfg.xdrop_score_threshold, d_r_starts, d_q_starts, d_score, ref_len, query_len);
