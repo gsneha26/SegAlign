@@ -159,20 +159,6 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         if(count > 0){
             printf("Unequal count\n");
         }
-        int count = 0;
-        if (thread_id == 0) {
-            for (int k = 1; k < block_dim; k++) {
-                anchor_num[k] += anchor_num[k-1];
-                if(anchor_num[k] != hit_num[k]){
-                    count = count+1;
-                }
-            }
-        }
-        __syncthreads();
-
-        if(count > 0){
-            printf("Unequal count\n");
-        }
 
         total_hits = hit_num[block_dim-1];
         if(total_hits > 2048){
