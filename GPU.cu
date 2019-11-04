@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 std::mutex gpu_lock;
 
 const char A_NT = 0;
@@ -61,7 +60,7 @@ void compress_string (uint32_t n, char* src_seq, char* dst_seq){
 }
 
 __global__
-void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_limit, int xdrop_score_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int* d_score, int ref_len, int query_len){
+void find_hit_offsets (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_limit, int xdrop_score_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int* d_score, int ref_len, int query_len){
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -88,11 +87,10 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     int current_id;
     uint32_t curr_seed;
 
-    __shared__ uint32_t r_starts[2048];
-    __shared__ uint32_t q_starts[2048];
+    __shared__ uint32_t r_starts[4096];
+    __shared__ uint32_t q_starts[4096];
     __shared__ uint32_t hit_num[128];
     __shared__ uint32_t anchor_num[128];
-    __shared__ uint32_t actual_num[128];
     __shared__ uint32_t total_hits;
     __shared__ uint32_t final_hits;
     __shared__ uint32_t total_anchors;
@@ -126,9 +124,9 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
 
         hit_num[thread_id] = end-start;
         anchor_num[thread_id] = end-start;
-        actual_num[thread_id] = end-start;
         __syncthreads();
 
+        /*
         //parallel prefix sum
         int k_val;
         for(int k = 1; k < block_dim; k=k*2){
@@ -138,11 +136,11 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
             __syncthreads();
 
             if(thread_id >= k){
-                hit_num[thread_id] += prev_val;
+                hit_num[thread_id] += k_val;
             }
             __syncthreads();
         }
-        
+        */
         
         //for loop for prefix sum
         int count = 0;
@@ -156,13 +154,9 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         }
         __syncthreads();
 
-        if(count > 0){
-            printf("Unequal count\n");
-        }
-
         total_hits = hit_num[block_dim-1];
-        if(total_hits > 2048){
-            total_hits = 2048;
+        if(total_hits > 4096){
+            total_hits = 4096;
         }
 
         final_hits += total_hits; 
@@ -182,11 +176,7 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
         for (int id1 = thread_id; id1 < total_hits; id1 += block_dim) {
             ref_loc = r_starts[id1];
             query_loc = q_starts[id1];
-            d_r_starts[id] = ref_loc;
-            d_q_starts[id] = query_loc;
-        }
-    }
-        /*
+
             match_score = d_sub_mat[d_ref_seq[ref_loc]*5+d_query_seq[query_loc]];
             seed_score = match_score;
 
@@ -237,16 +227,16 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
             }
 
             total_score = seed_score + right_ext_score + left_ext_score;
-        }
 
-        if(total_score >= xdrop_score_threshold){
-            d_r_starts[id] = ref_loc;
-            d_q_starts[id] = query_loc;
-            d_score[id] = total_score;
-            anchor_num[thread_id] = anchor_num[thread_id] + 1;
+            if(total_score >= xdrop_score_threshold){
+                d_r_starts[id] = r_starts[id1];
+                d_q_starts[id] = q_starts[id1];
+                d_score[id] = total_score;
+                //anchor_num[thread_id] = anchor_num[thread_id] + 1;
+            }
         }
+        __syncthreads();
     }
-    __syncthreads();
 
     // cumulative sum
     for(int k = 0; k < 5; k++){
@@ -257,10 +247,9 @@ void find_hit_offsets (int num_seeds, int query_start, char* d_ref_seq, char* d_
     }
 
     total_anchors = anchor_num[31];
-  */
 }
 
-int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
+int SeedAndFilter (std::vector<uint64_t> seed_offset_vector){
     int ret = 0;
     cudaError_t err;
 
@@ -310,32 +299,39 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int query_start){
     int blockSize = 128;
     int numBlocks = 32;
 
-    //printf("Start find_hit_offsets\n");
-    find_hit_offsets <<<numBlocks, blockSize>>> (num_seeds, query_start, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_limit, cfg.xdrop_score_threshold, d_r_starts, d_q_starts, d_score, ref_len, query_len);
+    printf("Start find_hit_offsets\n");
+    find_hit_offsets <<<numBlocks, blockSize>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_limit, cfg.xdrop_score_threshold, d_r_starts, d_q_starts, d_score, ref_len, query_len);
+    printf("End find_hit_offsets\n");
 
+    printf("End find_hit_offsets1\n");
     err = cudaMemcpy(h_r_starts, d_r_starts, num_seeds*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
+    printf("End find_hit_offsets2\n");
     err = cudaMemcpy(h_q_starts, d_q_starts, num_seeds*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
+    printf("End find_hit_offsets3\n");
     err = cudaMemcpy(h_score, d_score, num_seeds*sizeof(int), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
 
+    printf("End find_hit_offsets4\n");
     for (uint32_t i = 0; i < num_seeds; i++) {
         if(h_q_starts[i] > query_len){
             printf("Query exceeding %d %d %d\n", h_r_starts[i], h_q_starts[i], h_score[i]);
         }
     }
+    printf("End find_hit_offsets5\n");
+
     gpu_lock.unlock();
 
     return ret;

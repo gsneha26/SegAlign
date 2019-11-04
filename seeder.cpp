@@ -62,8 +62,8 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-        int num_hits = g_SeedAndFilter(seed_offset_vector, i);
-  //      fprintf (stdout, "Num hits, seeds: %d, %d\n", num_hits, seed_offset_vector.size());
+        int num_hits = g_SeedAndFilter(seed_offset_vector);
+        printf("completed\n");
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
 
@@ -89,11 +89,12 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-        int num_hits = g_SeedAndFilter(seed_offset_vector, i);
-  //      fprintf (stdout, "Num hits, seeds: %d, %d\n", num_hits, seed_offset_vector.size());
+        int num_hits = g_SeedAndFilter(seed_offset_vector);
   //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
     }
     */
+    output.fwHits.clear();
+    output.rcHits.clear();
 
 	return filter_input(filter_payload(query_chrom, output), token);
 }

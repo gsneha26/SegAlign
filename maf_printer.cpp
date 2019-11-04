@@ -5,8 +5,8 @@
 std::mutex io_lock;
 int print_header = 1;
 
-size_t maf_printer_body::operator()(printer_input input)
-{
+size_t maf_printer_body::operator()(printer_input input){
+    printf("In maf printer\n");
     auto &payload = get<0>(input); 
 
     auto &reads = get<0>(payload);
@@ -96,6 +96,7 @@ size_t maf_printer_body::operator()(printer_input input)
             io_lock.unlock();
         }
     }
+    printf("In maf printer\n");
 
     return token;
 };

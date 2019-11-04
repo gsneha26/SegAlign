@@ -390,7 +390,6 @@ int main(int argc, char** argv)
         fclose(mafFile);
     }
 
-
     gzclose(f_rd);
     
     gettimeofday(&end_time, NULL);
