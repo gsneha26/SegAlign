@@ -165,15 +165,14 @@ int main(int argc, char** argv)
     cfg.gap_extend       = cfg_file.Value("Scoring", "gap_extend");
 
     // Banded GACT filter
-    cfg.xdrop                 = cfg_file.Value("BSW_params", "xdrop");
-    cfg.xdrop_limit           = cfg_file.Value("BSW_params", "xdrop_limit");
-    cfg.xdrop_score_threshold = cfg_file.Value("BSW_params", "xdrop_score_threshold");
+    cfg.xdrop                 = cfg_file.Value("Filter_params", "xdrop");
+    cfg.xdrop_threshold = cfg_file.Value("Filter_params", "xdrop_threshold");
 
     // GACT-X
-    cfg.ydrop        = cfg_file.Value("GACTX_params", "ydrop");
-    cfg.extension_threshold = cfg_file.Value("GACTX_params", "extension_threshold");
-    cfg.tile_size    = cfg_file.Value("GACTX_params", "tile_size");
-    cfg.tile_overlap = cfg_file.Value("GACTX_params", "tile_overlap");
+    cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
+    cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
+    cfg.tile_size           = cfg_file.Value("Extension_params", "tile_size");
+    cfg.tile_overlap        = cfg_file.Value("Extension_params", "tile_overlap");
 
     // Multi-threading
     cfg.num_threads  = cfg_file.Value("Multithreading", "num_threads");
@@ -193,7 +192,6 @@ int main(int argc, char** argv)
     int nthreads = cfg.num_threads;
     tbb::task_scheduler_init init(nthreads);
     fprintf(stderr, "\nUsing %d threads ...\n", cfg.num_threads);
-
     g_InitializeProcessor (0, 0);
 
     /////////// USER LOGIC ////////////////////

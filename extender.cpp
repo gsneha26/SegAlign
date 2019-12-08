@@ -8,7 +8,6 @@
 std::atomic<uint64_t> extender_body::num_extend_tiles(0);
 
 void extender_body::operator()(extender_input input, extender_node::output_ports_type &op){
-    printf("in extemnder\n");
     
     auto &payload = get<0>(input);
 

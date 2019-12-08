@@ -57,7 +57,6 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape
         }
     }
 
-
     tbb::parallel_sort(pos_table_, pos_table_+num_index);
 
     uint32_t curr_index = 0;
@@ -154,7 +153,6 @@ std::vector<seed_hit> SeedPosTable::DSOFT(std::vector<uint64_t> seed_offset_vect
 //        }
 //		last_offset = offset;
 //	}
-
 
     return seed_hits;
 }

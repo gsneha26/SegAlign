@@ -43,31 +43,25 @@ filter_input seeder_body::operator()(seeder_input input) {
         //start to end position in the chunk
         for (uint32_t j = i; j < e; j++) {
             index = GetKmerIndexAtPos(query, j);
-            if(j == 15791107){
-                std::cout << "seed1 " << i << " " << index << " " << j << std::endl;
-            }
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
-                //seed_offset = (index << 32) + j - i;
                 seed_offset_vector.push_back(seed_offset); 
 
                 if (cfg.use_transition) {
                     for (int t=0; t < sa->GetKmerSize(); t++) {
                         if (IsTransitionAtPos(t) == 1) {
                             transition_index = (index ^ (TRANSITION_MASK << (2*t)));
-                            seed_offset = (transition_index << 32) + j - i;
+                            seed_offset = (transition_index << 32) + j;
                             seed_offset_vector.push_back(seed_offset); 
                         }
                     }
                 }
             }
         }
-        int num_hits = g_SeedAndFilter(seed_offset_vector);
-        printf("completed\n");
+        int num_hits = g_SeedAndFilter(seed_offset_vector, num_invoked);
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
 
-    /*
     char* rc_query = (char*) query_chrom.rc_seq.data();
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
@@ -76,23 +70,22 @@ filter_input seeder_body::operator()(seeder_input input) {
         for (uint32_t j = i; j < e; j++) {
             index = GetKmerIndexAtPos(rc_query, j);
             if (index != ((uint32_t) 1 << 31)) {
-                seed_offset = (index << 32) + j - i;
+                seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
                 if (cfg.use_transition) {
                     for (int t=0; t < sa->GetKmerSize(); t++) {
                         if (IsTransitionAtPos(t) == 1) {
                             transition_index = (index ^ (TRANSITION_MASK << (2*t)));
-                            seed_offset = (transition_index << 32) + j - i;
+                            seed_offset = (transition_index << 32) + j;
                             seed_offset_vector.push_back(seed_offset); 
                         }
                     }
                 }
             }
         }
-        int num_hits = g_SeedAndFilter(seed_offset_vector);
+//        int num_hits = g_SeedAndFilter(seed_offset_vector);
   //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
     }
-    */
     output.fwHits.clear();
     output.rcHits.clear();
 
