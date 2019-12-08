@@ -6,18 +6,17 @@ std::atomic<uint64_t> filter_body::num_filter_tiles(0);
 std::atomic<uint64_t> filter_body::num_anchors(0);
 
 extender_input filter_body::operator()(filter_input input){
-    printf("in filter\n");
 
-    size_t token = get<1>(input);
-    filter_output fwOutput;
-    filter_output rcOutput;
-    
     auto &payload = get<0>(input);
 
     auto &read = get<0>(payload);
 
     auto &data = get<1>(payload);
 
+    size_t token = get<1>(input);
+    filter_output fwOutput;
+    filter_output rcOutput;
+    
 
 
     auto &fwHits = data.fwHits;
@@ -46,11 +45,11 @@ extender_input filter_body::operator()(filter_input input){
                 const size_t read_len = read.seq.size();
                 char *read_char = (char *)read.seq.data();
 
-                uint32_t ref_tile_start = (hit < cfg.xdrop_limit/2) ? 0 : hit - cfg.xdrop_limit/2;
-                uint32_t query_tile_start = (offset < cfg.xdrop_limit/2) ? 0 : offset - cfg.xdrop_limit/2;
+                uint32_t ref_tile_start = 0;
+                uint32_t query_tile_start = 0;
                 
-                uint32_t ref_tile_size = std::min(uint32_t(cfg.xdrop_limit), (chr_end - ref_tile_start));
-                uint32_t query_tile_size = std::min(size_t(cfg.xdrop_limit), (read_len - query_tile_start));
+                uint32_t ref_tile_size = 300;
+                uint32_t query_tile_size = 300;
 
                 size_t ref_offset = ref_tile_start;
                 size_t query_offset = (read_char - g_DRAM->buffer) - g_DRAM->referenceSize + query_tile_start;
@@ -61,7 +60,7 @@ extender_input filter_body::operator()(filter_input input){
 
             }
 
-            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_score_threshold);
+            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_threshold);
             for (auto a: f_op) {
                 int batch_id = a.batch_id;
                 int score = a.tile_score;
@@ -95,11 +94,11 @@ extender_input filter_body::operator()(filter_input input){
                 const size_t read_len = read.seq.size();
                 char *read_char = (char *)read.seq.data();
 
-                uint32_t ref_tile_start = (hit < cfg.xdrop_limit/2) ? 0 : hit - cfg.xdrop_limit/2;
-                uint32_t query_tile_start = (offset < cfg.xdrop_limit/2) ? 0 : offset - cfg.xdrop_limit/2;
+                uint32_t ref_tile_start = 0;
+                uint32_t query_tile_start =0;
                 
-                uint32_t ref_tile_size = std::min(uint32_t(cfg.xdrop_limit), (chr_end - ref_tile_start));
-                uint32_t query_tile_size = std::min(size_t(cfg.xdrop_limit), (read_len - query_tile_start));
+                uint32_t ref_tile_size = 300;
+                uint32_t query_tile_size = 300;
 
                 size_t ref_offset = ref_tile_start;
                 size_t query_offset = (read_char - g_DRAM->buffer) - g_DRAM->referenceSize + (read_len - (query_tile_start + query_tile_size));
@@ -110,7 +109,7 @@ extender_input filter_body::operator()(filter_input input){
 
             }
 
-            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_score_threshold);
+            std::vector<tile_output> f_op = g_SendBatchRequest(tiles, align_fields, cfg.xdrop_threshold);
             for (auto a: f_op) {
                 int batch_id = a.batch_id;
                 int score = a.tile_score;

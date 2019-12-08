@@ -6,7 +6,6 @@ std::mutex io_lock;
 int print_header = 1;
 
 size_t maf_printer_body::operator()(printer_input input){
-    printf("In maf printer\n");
     auto &payload = get<0>(input); 
 
     auto &reads = get<0>(payload);
@@ -89,14 +88,13 @@ size_t maf_printer_body::operator()(printer_input input){
 
         if (score >= cfg.extension_threshold) {
             io_lock.lock();
-            fprintf(mafFile, "a\tscore=%d\n", score);
-            fprintf(mafFile, "s\t%s\t%u\t%d\t+\t%u\t%s\n", r_chrom.c_str(), 1+e.reference_start_offset, num_r, r_len, e.aligned_reference_str.c_str());
-            fprintf(mafFile, "s\t%s\t%u\t%d\t%c\t%u\t%s\n", q_chrom.c_str(), 1+e.query_start_offset, num_q, e.strand, q_len, e.aligned_query_str.c_str());
-            fprintf(mafFile, "\n");
+            //fprintf(mafFile, "a\tscore=%d\n", score);
+            //fprintf(mafFile, "s\t%s\t%u\t%d\t+\t%u\t%s\n", r_chrom.c_str(), 1+e.reference_start_offset, num_r, r_len, e.aligned_reference_str.c_str());
+            //fprintf(mafFile, "s\t%s\t%u\t%d\t%c\t%u\t%s\n", q_chrom.c_str(), 1+e.query_start_offset, num_q, e.strand, q_len, e.aligned_query_str.c_str());
+            //fprintf(mafFile, "\n");
             io_lock.unlock();
         }
     }
-    printf("In maf printer\n");
 
     return token;
 };

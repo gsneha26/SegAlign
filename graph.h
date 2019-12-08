@@ -63,8 +63,7 @@ struct Configuration {
 
     // Banded GACT filter
     int xdrop; 
-    int xdrop_limit;
-    int xdrop_score_threshold;
+    int xdrop_threshold;
 
     // GACT-X
     int tile_size;
