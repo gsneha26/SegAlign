@@ -1,3 +1,6 @@
+#include <thrust/scan.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include "graph.h"
 #include <algorithm>
 #include <mutex>
@@ -7,10 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define MAX_BLOCKS 1<<16
+#define MAX_THREADS 1024 
+#define NUM_BLOCKS 2048
 #define NUM_THREADS 64 
-#define NUM_BLOCKS 2048 
+#define NUM_WARPS 2
 #define HIT_LIMIT 512
-#define OUT_LIMIT 1024
+#define OUT_LIMIT 20
 
 std::mutex gpu_lock;
 
@@ -34,6 +40,7 @@ char* d_ref_seq;
 char* d_query_seq;
 uint64_t* d_seed_offsets;
 uint32_t* d_index_table;
+uint32_t* d_num_seed_hits;
 uint64_t* d_pos_table;
 uint32_t* d_r_starts;
 uint32_t* d_q_starts;
@@ -41,12 +48,13 @@ uint32_t* d_len;
 bool* d_done;
 uint64_t* h_seed_offsets;
 int *sub_mat;
+int size_out;
 
 __global__
 void compress_string (uint32_t n, char* src_seq, char* dst_seq){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
-    int grid_dim = blockDim.x;
+    int grid_dim = gridDim.x;
     int block_id = blockIdx.x;
 
     int stride = block_dim * grid_dim;
@@ -70,7 +78,339 @@ void compress_string (uint32_t n, char* src_seq, char* dst_seq){
 }
 
 __global__
-void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t* d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size){
+void find_num_hits (int num_seeds, uint32_t* d_index_table, uint64_t* seed_offsets, uint32_t* d_num_seed_hits, int* seed_hit_num){
+
+    int thread_id = threadIdx.x;
+    int block_dim = blockDim.x;
+    int grid_dim = gridDim.x;
+    int block_id = blockIdx.x;
+
+    int stride = block_dim * grid_dim;
+    uint32_t start = block_dim * block_id + thread_id;
+
+    uint32_t num_seed_hit;
+    uint32_t seed;
+    
+    for (uint32_t id = start; id < num_seeds; id += stride) {
+        seed = (seed_offsets[id] >> 32);
+
+        // start and end from the seed block_id table
+        num_seed_hit = d_index_table[seed];
+        if (seed > 0){
+            num_seed_hit -= d_index_table[seed-1];
+        }
+
+        d_num_seed_hits[id] = num_seed_hit;
+        seed_hit_num[id] = num_seed_hit;
+    }
+
+}
+
+__global__
+void find_anchors (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits){
+
+    int thread_id = threadIdx.x;
+    int block_dim = blockDim.x;
+    int grid_dim = gridDim.x;
+    int block_id = blockIdx.x;
+
+    uint32_t start, end;
+    uint32_t q_start;
+    uint64_t seed_offset;
+    uint32_t seed;
+
+    __shared__ int ref_loc;
+    __shared__ int query_loc;
+    __shared__ int total_score;
+    __shared__ int warp_size;
+    int max_score;
+    __shared__ bool right_edge; 
+    __shared__ bool  left_edge; 
+    __shared__ bool right_xdrop_found; 
+    __shared__ bool left_xdrop_found; 
+    __shared__ uint32_t left_extent;
+    __shared__ uint32_t right_extent;
+    __shared__ uint32_t hit_num[32];
+    int thread_score;
+    int current_id;
+    int temp;
+
+    __shared__ uint32_t r_starts[HIT_LIMIT];
+    __shared__ uint32_t q_starts[HIT_LIMIT];
+    __shared__ int score[NUM_THREADS];
+    __shared__ int block_score[NUM_WARPS];
+    __shared__ uint32_t final_hits;
+    __shared__ uint32_t total_hits;
+    __shared__ uint32_t total_curr_hits;
+    __shared__ int sub_mat[25];
+    __shared__ uint32_t total_anchors;
+    __shared__ uint32_t total_not;
+
+    if(thread_id < 25){
+        sub_mat[thread_id] = d_sub_mat[thread_id];
+    }
+
+    if(thread_id == 0){
+        total_hits = 0;
+        final_hits = 0;
+        total_anchors = 0;
+        total_not = 0;
+        total_curr_hits = 0;
+        warp_size = warpSize;
+    }
+    __syncthreads();
+
+    int id_start = warp_size * block_id;
+    int stride = grid_dim * warp_size;
+    int lane_id = thread_id % warp_size;
+    int warp_num = (thread_id - lane_id)/warp_size;
+    __syncthreads();
+
+    for (int id = id_start; id < num_seeds; id = id+ stride) {
+
+        if(thread_id < warp_size){
+            current_id = id + thread_id;
+
+            if(current_id < num_seeds){
+                seed_offset = seed_offsets[current_id];
+
+                seed = (seed_offset >> 32);
+                q_start = ((seed_offset << 32) >> 32);
+
+                // start and end from the seed block_id table
+                end = d_index_table[seed];
+                start = 0;
+                if (seed > 0){
+                    start = d_index_table[seed-1];
+                }
+            }
+            else{
+                start = 0;
+                end = 0;
+            }
+
+            hit_num[thread_id] = end-start;
+        }
+        __syncthreads();
+
+//        int k_val;
+//        for(int k = 1; k < block_dim; k=k*2){
+//            if(thread_id >= k){
+//                k_val = hit_num[thread_id-k];
+//            }
+//            __syncthreads();
+//
+//            if(thread_id >= k){
+//                hit_num[thread_id] += k_val;
+//            }
+//            __syncthreads();
+//        }
+
+        if(thread_id == 0){
+            for(int i = 1; i < warp_size; i++)
+                hit_num[i] += hit_num[i-1];
+
+            total_hits = hit_num[warp_size-1];
+            final_hits += total_hits; 
+        }
+        __syncthreads();
+
+        for(int hit_limit = 0; hit_limit < total_hits; hit_limit=hit_limit+HIT_LIMIT){
+            if(thread_id < warp_size){
+                int addr_start = (thread_id == 0) ? 0 : hit_num[thread_id-1];
+                for (uint32_t p = start; p < end; p++) { 
+                    int index_el = addr_start+p-start;
+                    if ((index_el >= hit_limit) && (index_el < (hit_limit+HIT_LIMIT))) { 
+                        r_starts[index_el-hit_limit] = d_pos_table[p];
+                        q_starts[index_el-hit_limit] = q_start;
+                    }
+                }
+            }
+            __syncthreads();
+
+            if(thread_id == 0){
+                if(total_hits > hit_limit+HIT_LIMIT){
+                    total_curr_hits = HIT_LIMIT;
+                }
+                else{
+                    total_curr_hits = total_hits-hit_limit;
+                }
+            }
+            __syncthreads();
+
+            for (int id1 = 0; id1 < total_curr_hits; id1 += 1) {
+                ref_loc   = r_starts[id1];
+                query_loc = q_starts[id1];
+                total_score = 0;
+
+                //////////////////////////////////////////////////////////////////
+                
+                thread_score = 0;
+                if(thread_id < seed_size){
+                    thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
+                }
+
+                for (int offset = warp_size/2; offset > 0; offset /= 2)
+                    thread_score += __shfl_down_sync(0x13, thread_score, offset);
+
+                if(thread_id == 0){
+                    total_score += thread_score;
+                }
+
+                //////////////////////////////////////////////////////////////////
+
+                thread_score = 0;
+                if(ref_loc+seed_size+thread_id < ref_len && query_loc+seed_size+thread_id < query_len){
+                    thread_score = sub_mat[d_ref_seq[ref_loc+seed_size+thread_id]*5+d_query_seq[query_loc+seed_size+thread_id]];
+                }
+
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(lane_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+                __syncthreads();
+
+//                if(lane_id == warp_size-1){
+//                    block_score[warp_num] = thread_score;
+//                }
+//                __syncthreads();
+//
+//                int block_sum;
+//                if(thread_id < NUM_WARPS){
+//                    block_sum = block_score[thread_id]; 
+//                    for (int offset = 1; offset < NUM_WARPS; offset *= 2){
+//                        temp = __shfl_up_sync(0xFFFFFFFF, block_sum, offset);
+//
+//                        if(lane_id >= offset){
+//                            block_sum += temp;
+//                        }
+//                    }
+//                    block_score[thread_id] = block_sum;
+//                }
+//                __syncthreads();
+//
+//                if(warp_num > 0){
+//                    thread_score +=  block_score[warp_num-1];
+//                }
+//                __syncthreads();
+
+                score[thread_id] = thread_score;
+                __syncthreads();
+
+                for(int i = NUM_WARPS-1; i > 0; i--){
+                    if(thread_id >= warp_size*i){
+                        score[thread_id] += score[i*warp_size-1];
+                    }
+                    __syncthreads();
+                }
+
+                if(thread_id == 0){
+                    right_xdrop_found = false;
+                    right_edge = false;
+                    max_score = 0;
+                    for(int i = 0; i < NUM_THREADS; i++){
+                        if(score[i] > max_score){
+                           max_score = score[i];
+                        }
+
+                        if(max_score-score[i] > xdrop && right_xdrop_found == false){
+                            total_score+=max_score;
+                            right_xdrop_found = true;
+                            right_extent = i;
+                            break;
+                        }
+                    }
+
+                    if(right_xdrop_found == false && (ref_loc + NUM_THREADS > ref_len || query_loc + NUM_THREADS > query_len))
+                        right_edge = true;
+                }
+                __syncthreads();
+
+                //////////////////////////////////////////////////////////////////
+
+                thread_score = 0;
+                if(ref_loc-thread_id-1 >= 0 && query_loc-thread_id-1 >=0){
+                    thread_score = sub_mat[d_ref_seq[ref_loc-thread_id-1]*5+d_query_seq[query_loc-thread_id-1]];
+                }
+
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(lane_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+
+                score[thread_id] = thread_score;
+                __syncthreads();
+
+                for(int i = NUM_WARPS-1; i > 0; i--){
+                    if(thread_id >= warp_size*i){
+                        score[thread_id] += score[i*warp_size-1];
+                    }
+                    __syncthreads();
+                }
+
+                if(thread_id == 0){
+                    left_xdrop_found = false;
+                    left_edge = false;
+                    max_score = 0;
+                    for(int i = 0; i < NUM_THREADS; i++){
+                        if(score[i] > max_score){
+                           max_score = score[i];
+                        }
+
+                        if(max_score-score[i] > xdrop && left_xdrop_found == false){
+                            total_score+=max_score;
+                            left_xdrop_found = true;
+                            left_extent = i;
+                            break;
+                        }
+                    }
+
+                    if(left_xdrop_found == false && (ref_loc < NUM_THREADS || query_loc < NUM_THREADS))
+                        left_edge = true;
+                }
+                __syncthreads();
+
+                //////////////////////////////////////////////////////////////////
+
+                if(thread_id == 0){
+                    if(!left_edge && !right_edge){
+//                    if(total_anchors < OUT_LIMIT && !left_edge && !right_edge){
+                        if(right_xdrop_found && left_xdrop_found){
+                            if(total_score >= xdrop_threshold){
+//                                d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
+//                                d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
+//                                d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
+//                                d_done[block_id*OUT_LIMIT + total_anchors] = true;
+                                total_anchors++;
+                            }
+                        }
+                        else{
+//                            d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc;
+//                            d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
+//                            d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
+//                            d_done[block_id*OUT_LIMIT + total_anchors] = false;
+//                            total_anchors++;
+                            total_not++;
+                        }
+                    }
+                }
+            __syncthreads();
+            }
+        }
+    }
+    d_r_starts[block_id] = total_anchors;
+    d_q_starts[block_id] =  total_not;
+    d_len[block_id] = final_hits;
+}
+
+__global__
+void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t* d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -83,10 +423,213 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
     __shared__ uint32_t ref_loc;
     __shared__ uint32_t query_loc;
     __shared__ int total_score;
+    __shared__ int total_score1;
     __shared__ int warp_size;
     int max_score;
+    __shared__ bool right_edge; 
+    __shared__ bool  left_edge; 
     __shared__ bool right_xdrop_found; 
-    __shared__ bool left_xdrop_found; 
+    __shared__ bool  left_xdrop_found; 
+    __shared__ uint32_t left_extent;
+    __shared__ uint32_t right_extent;
+    int thread_score;
+    int temp;
+
+    __shared__ int score[NUM_THREADS];
+    __shared__ int sub_mat[25];
+    __shared__ uint32_t total_anchors;
+    __shared__ uint32_t total_not;
+
+    if(thread_id < 25){
+        sub_mat[thread_id] = d_sub_mat[thread_id];
+    }
+
+    if(thread_id == 0){
+        total_anchors = 0;
+        total_not = 0;
+        warp_size = warpSize;
+        seed_offset = d_seed_offsets[block_id];
+    }
+
+    int lane_id = thread_id % warp_size;
+    __syncthreads();
+
+    seed = (seed_offset >> 32);
+    q_start = ((seed_offset << 32) >> 32);
+
+    // start and end from the seed block_id table
+    end = d_index_table[seed];
+    start = 0;
+    if (seed > 0){
+        start = d_index_table[seed-1];
+    }
+    else{
+        start = 0;
+        end = 0;
+    }
+
+    for (int id1 = start; id1 < end; id1 += 1) {
+        ref_loc   = d_pos_table[id1];
+        query_loc = q_start;
+        total_score = 0; 
+
+        //////////////////////////////////////////////////////////////////
+
+        thread_score = 0;
+        if(thread_id < seed_size){
+            thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
+        }
+
+        for (int offset = warp_size/2; offset > 0; offset /= 2)
+            thread_score += __shfl_down_sync(0x13, thread_score, offset);
+
+        if(thread_id == 0){
+            total_score += thread_score;
+            total_score1 = thread_score;
+        }
+        __syncthreads();
+
+        //////////////////////////////////////////////////////////////////
+
+        thread_score = 0;
+        if(ref_loc+seed_size+thread_id < ref_len && query_loc+seed_size+thread_id < query_len){
+            thread_score = sub_mat[d_ref_seq[ref_loc+seed_size+thread_id]*5+d_query_seq[query_loc+seed_size+thread_id]];
+        }
+
+        for (int offset = 1; offset < warp_size; offset *= 2){
+            temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+            if(lane_id >= offset){
+                thread_score += temp;
+            }
+        }
+        __syncthreads();
+
+        score[thread_id] = thread_score;
+        __syncthreads();
+
+        for(int i = NUM_WARPS-1; i > 0; i--){
+            if(thread_id >= warp_size*i){
+                score[thread_id] += score[i*warp_size-1];
+            }
+            __syncthreads();
+        }
+
+        if(thread_id == 0){
+            right_xdrop_found = false;
+            right_edge = false;
+            max_score = 0;
+            for(int i = 0; i < NUM_THREADS; i++){
+                if(score[i] > max_score){
+                    max_score = score[i];
+                }
+
+                if(max_score-score[i] > xdrop && right_xdrop_found == false){
+                    total_score+=max_score;
+                    right_xdrop_found = true;
+                    right_extent = i;
+                    break;
+                }
+            }
+
+            if(right_xdrop_found == false && (ref_loc + NUM_THREADS > ref_len || query_loc + NUM_THREADS > query_len))
+                right_edge = true;
+        }
+        __syncthreads();
+
+        //////////////////////////////////////////////////////////////////
+
+        thread_score = 0;
+        if(ref_loc >= thread_id+1 && query_loc>= thread_id+1){
+            thread_score = sub_mat[d_ref_seq[ref_loc-thread_id-1]*5+d_query_seq[query_loc-thread_id-1]];
+        }
+
+        for (int offset = 1; offset < warp_size; offset *= 2){
+            temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+            if(lane_id >= offset){
+                thread_score += temp;
+            }
+        }
+
+        score[thread_id] = thread_score;
+        __syncthreads();
+
+        for(int i = NUM_WARPS-1; i > 0; i--){
+            if(thread_id >= warp_size*i){
+                score[thread_id] += score[i*warp_size-1];
+            }
+            __syncthreads();
+        }
+
+        if(thread_id == 0){
+            left_xdrop_found = false;
+            left_edge = false;
+            max_score = 0;
+            for(int i = 0; i < NUM_THREADS; i++){
+                if(score[i] > max_score){
+                    max_score = score[i];
+                }
+
+                if(max_score-score[i] > xdrop && left_xdrop_found == false){
+                    total_score+=max_score;
+                    left_xdrop_found = true;
+                    left_extent = i;
+                    break;
+                }
+            }
+
+            if(left_xdrop_found == false && (ref_loc < NUM_THREADS || query_loc < NUM_THREADS))
+                left_edge = true;
+        }
+        __syncthreads();
+
+        //////////////////////////////////////////////////////////////////
+
+        if(thread_id == 0){
+            if(total_anchors < OUT_LIMIT && !left_edge && !right_edge){
+                if(right_xdrop_found && left_xdrop_found){
+                    if(total_score >= xdrop_threshold){
+                        d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
+                        d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
+                        d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
+                        d_done[block_id*OUT_LIMIT + total_anchors] = true;
+                        total_anchors++;
+                    }
+                }
+                else{
+                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = total_score; //ref_loc;
+                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
+                    d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
+                    d_done[block_id*OUT_LIMIT + total_anchors] = false;
+                    total_anchors++;
+                }
+            }
+        }
+        __syncthreads();
+    }
+}
+
+__global__
+void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t* d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits){
+
+    int thread_id = threadIdx.x;
+    int block_id = blockIdx.x;
+
+    __shared__ uint32_t start, end;
+    __shared__ uint32_t q_start;
+    __shared__ uint64_t seed_offset;
+    __shared__ uint32_t seed;
+
+    __shared__ uint32_t ref_loc;
+    __shared__ uint32_t query_loc;
+    __shared__ int total_score;
+    __shared__ int warp_size;
+    int max_score;
+    __shared__ bool right_edge; 
+    __shared__ bool  left_edge; 
+    __shared__ bool right_xdrop_found; 
+    __shared__ bool  left_xdrop_found; 
     __shared__ uint32_t left_extent;
     __shared__ uint32_t right_extent;
     int thread_score;
@@ -123,7 +666,7 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
     }
 
     for (int id1 = start; id1 < end; id1 += 1) {
-        ref_loc   = d_pos_table[0];
+        ref_loc   = d_pos_table[id1];
         query_loc = q_start;
         total_score = 0; 
 
@@ -164,6 +707,7 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
         if(thread_id == 0){
             right_xdrop_found = false;
+            right_edge = false;
             max_score = 0;
             for(int i = 0; i < NUM_THREADS; i++){
                 if(score[i] > max_score){
@@ -177,6 +721,9 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
                     break;
                 }
             }
+
+            if(right_xdrop_found == false && (ref_loc + NUM_THREADS > ref_len || query_loc + NUM_THREADS > query_len))
+                right_edge = true;
         }
         __syncthreads();
 
@@ -202,6 +749,7 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
         if(thread_id == 0){
             left_xdrop_found = false;
+            left_edge = false;
             max_score = 0;
             for(int i = 0; i < NUM_THREADS; i++){
                 if(score[i] > max_score){
@@ -215,493 +763,49 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
                     break;
                 }
             }
+
+            if(left_xdrop_found == false && (ref_loc < NUM_THREADS || query_loc < NUM_THREADS))
+                left_edge = true;
         }
         __syncthreads();
 
         //////////////////////////////////////////////////////////////////
-
-        if(total_anchors < OUT_LIMIT){
-            if(right_xdrop_found && left_xdrop_found){
-                if(total_score >= xdrop_threshold){
-//                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
-//                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
-//                    d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
-//                    d_done[block_id*OUT_LIMIT + total_anchors] = true;
-                    d_r_starts[block_id] = ref_loc - left_extent;
-                    d_q_starts[block_id] = query_loc - left_extent;
-                    d_len[block_id] = left_extent+right_extent+seed_size;
-                    d_done[block_id] = true;
-                    total_anchors++;
-                }
-            }
-            else{
-                d_r_starts[block_id] = ref_loc;
-                d_q_starts[block_id] = query_loc;
-                d_len[block_id] = seed_size;
-                d_done[block_id] = false;
-                total_anchors++;
-            }
-        }
-
-//        if(block_id == 0 && thread_id == 0){
-//            printf("%d %d %d\n", start, total_score, score[0]);
-//        }
-
-        __syncthreads();
-    }
-}
-
-__global__
-void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t* d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size){
-
-    int thread_id = threadIdx.x;
-    int block_id = blockIdx.x;
-
-    __shared__ uint32_t start, end;
-    __shared__ uint32_t q_start;
-    __shared__ uint32_t seed;
-    __shared__ uint64_t seed_offset;
-
-    __shared__ uint32_t ref_loc;
-    __shared__ uint32_t query_loc;
-    __shared__ int total_score;
-    __shared__ int warp_size;
-    int max_score;
-    __shared__ bool right_xdrop_found; 
-    __shared__ bool left_xdrop_found; 
-    __shared__ uint32_t left_extent;
-    __shared__ uint32_t right_extent;
-    int thread_score;
-    int temp;
-
-    __shared__ int score[NUM_THREADS];
-    __shared__ int sub_mat[25];
-    __shared__ uint32_t total_anchors;
-
-    if(thread_id < 25){
-        sub_mat[thread_id] = d_sub_mat[thread_id];
-    }
-
-    if(thread_id == 0){
-        total_anchors = 0;
-        warp_size = warpSize;
-        seed_offset = d_seed_offsets[block_id];
-    }
-
-    int lane_id = thread_id % warp_size;
-    __syncthreads();
-
-    seed = (seed_offset >> 32);
-    q_start = ((seed_offset << 32) >> 32);
-
-    // start and end from the seed block_id table
-    end = d_index_table[seed];
-    start = 0;
-    if (seed > 0){
-        start = d_index_table[seed-1];
-    }
-    else{
-        start = 0;
-        end = 0;
-    }
-
-    for (int id1 = start; id1 < end; id1 += 1) {
-        ref_loc   = d_pos_table[0];
-        query_loc = q_start;
-        total_score = 0; 
-
-        //////////////////////////////////////////////////////////////////
-
-        thread_score = 0;
-        if(thread_id < seed_size){
-            thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
-        }
-
-        for (int offset = warp_size/2; offset > 0; offset /= 2)
-            thread_score += __shfl_down_sync(0x13, thread_score, offset);
 
         if(thread_id == 0){
-            total_score += thread_score;
-        }
-
-        //////////////////////////////////////////////////////////////////
-
-        thread_score = 0;
-        if(ref_loc+seed_size+thread_id < ref_len && query_loc+seed_size+thread_id < query_len){
-            thread_score = sub_mat[d_ref_seq[ref_loc+seed_size+thread_id]*5+d_query_seq[query_loc+seed_size+thread_id]];
-        }
-
-        for (int offset = 1; offset < warp_size; offset *= 2){
-            temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-            if(lane_id >= offset){
-                thread_score += temp;
-            }
-        }
-        __syncthreads();
-
-        score[thread_id] = thread_score;
-        __syncthreads();
-
-        if(thread_id >= warp_size){
-            score[thread_id] += score[warp_size-1];
-        }
-        __syncthreads();
-
-        if(thread_id == 0){
-            right_xdrop_found = false;
-            max_score = 0;
-            for(int i = 0; i < NUM_THREADS; i++){
-                if(score[i] > max_score){
-                    max_score = score[i];
-                }
-
-                if(max_score-score[i] > xdrop && right_xdrop_found == false){
-                    total_score+=max_score;
-                    right_xdrop_found = true;
-                    right_extent = i;
-                    break;
-                }
-            }
-        }
-        __syncthreads();
-
-        //////////////////////////////////////////////////////////////////
-
-        thread_score = 0;
-        if(ref_loc >= thread_id+1 && query_loc>= thread_id+1){
-            thread_score = sub_mat[d_ref_seq[ref_loc-thread_id-1]*5+d_query_seq[query_loc-thread_id-1]];
-        }
-
-        for (int offset = 1; offset < warp_size; offset *= 2){
-            temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-            if(lane_id >= offset){
-                thread_score += temp;
-            }
-        }
-
-        score[thread_id] = thread_score;
-        __syncthreads();
-
-        if(thread_id >= warp_size){
-            score[thread_id] += score[warp_size-1];
-        }
-        __syncthreads();
-
-        if(thread_id == 0){
-            left_xdrop_found = false;
-            max_score = 0;
-            for(int i = 0; i < NUM_THREADS; i++){
-                if(score[i] > max_score){
-                    max_score = score[i];
-                }
-
-                if(max_score-score[i] > xdrop && left_xdrop_found == false){
-                    total_score+=max_score;
-                    left_xdrop_found = true;
-                    left_extent = i;
-                    break;
-                }
-            }
-        }
-        __syncthreads();
-
-        //////////////////////////////////////////////////////////////////
-
-        if(total_anchors < OUT_LIMIT){
-            if(right_xdrop_found && left_xdrop_found){
-                if(total_score >= xdrop_threshold){
-                    printf("here\n");
-//                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
-//                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
-//                    d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
-//                    d_done[block_id*OUT_LIMIT + total_anchors] = true;
-                    d_r_starts[block_id] = ref_loc - left_extent;
-                    d_q_starts[block_id] = query_loc - left_extent;
-                    d_len[block_id] = left_extent+right_extent+seed_size;
-                    d_done[block_id] = true;
-                    total_anchors++;
-                }
-            }
-            else{
-                d_r_starts[block_id] = ref_loc;
-                d_q_starts[block_id] = query_loc;
-                d_len[block_id] = seed_size;
-                d_done[block_id] = false;
-                total_anchors++;
-            }
-        }
-
-//        if(block_id == 0 && thread_id == 0){
-//            printf("%d %d %d\n", start, total_score, score[0]);
-//        }
-
-        __syncthreads();
-    }
-}
-
-__global__
-void find_anchors (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t* d_index_table, uint64_t* d_pos_table, uint64_t *seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size){
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int id_start = block_dim * block_id;
-    int stride = block_dim * grid_dim;
-
-    uint32_t start, end;
-    uint32_t q_start;
-    uint64_t seed_offset;
-    uint32_t seed;
-
-    __shared__ int ref_loc;
-    __shared__ int query_loc;
-    __shared__ int total_score;
-    __shared__ int warp_size;
-    int max_score;
-    __shared__ bool right_xdrop_found; 
-    __shared__ bool left_xdrop_found; 
-    __shared__ uint32_t left_extent;
-    __shared__ uint32_t right_extent;
-    int thread_score;
-    int current_id;
-    int temp;
-
-    __shared__ uint32_t r_starts[HIT_LIMIT];
-    __shared__ uint32_t q_starts[HIT_LIMIT];
-    __shared__ uint32_t hit_num[NUM_THREADS];
-    __shared__ int score[NUM_THREADS];
-    __shared__ uint32_t final_hits;
-    __shared__ uint32_t total_hits;
-    __shared__ uint32_t total_curr_hits;
-    __shared__ int sub_mat[25];
-    __shared__ uint32_t total_anchors;
-
-    if(thread_id < 25){
-        sub_mat[thread_id] = d_sub_mat[thread_id];
-    }
-
-    if(thread_id == 0){
-        total_hits = 0;
-        final_hits = 0;
-        total_anchors = 0;
-        total_curr_hits = 0;
-        warp_size = warpSize;
-    }
-    int lane_id = thread_id % warp_size;
-    __syncthreads();
-
-    for (int id = id_start; id < num_seeds; id += stride) {
-
-        current_id = id + thread_id;
-
-        if(current_id < num_seeds){
-            seed_offset = seed_offsets[current_id];
-
-            seed = (seed_offset >> 32);
-            q_start = ((seed_offset << 32) >> 32);
-
-            // start and end from the seed block_id table
-            end = d_index_table[seed];
-            start = 0;
-            if (seed > 0){
-                start = d_index_table[seed-1];
-            }
-        }
-        else{
-            start = 0;
-            end = 0;
-        }
-
-        hit_num[thread_id] = end-start;
-        __syncthreads();
-
-        // double buffer parallel prefix sum
-        int k_val;
-        for(int k = 1; k < block_dim; k=k*2){
-            if(thread_id >= k){
-                k_val = hit_num[thread_id-k];
-            }
-            __syncthreads();
-
-            if(thread_id >= k){
-                hit_num[thread_id] += k_val;
-            }
-            __syncthreads();
-        }
-
-        if(thread_id == 0){
-            total_hits = hit_num[block_dim-1];
-            final_hits += total_hits; 
-        }
-        __syncthreads();
-
-        for(int hit_limit = 0; hit_limit < total_hits; hit_limit=hit_limit+HIT_LIMIT){
-            int addr_start = (thread_id == 0) ? 0 : hit_num[thread_id-1];
-            for (uint32_t p = start; p < end; p++) { 
-                int index_el = addr_start+p-start;
-                if ((index_el >= hit_limit) && (index_el < (hit_limit+HIT_LIMIT))) { 
-                    r_starts[index_el-hit_limit] = d_pos_table[p];
-                    q_starts[index_el-hit_limit] = q_start;
-                }
-            }
-            __syncthreads();
-
-            if(thread_id == 0){
-                if(total_hits > hit_limit+HIT_LIMIT){
-                    total_curr_hits = HIT_LIMIT;
-                }
-                else{
-                    total_curr_hits = total_hits-hit_limit;
-                }
-            }
-            __syncthreads();
-
-            for (int id1 = 0; id1 < total_curr_hits; id1 += 1) {
-                ref_loc   = r_starts[id1];
-                query_loc = q_starts[id1];
-                total_score = ref_loc + query_loc;
-
-                //////////////////////////////////////////////////////////////////
-                
-                thread_score = 0;
-                if(thread_id < seed_size){
-                    thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
-                }
-
-                for (int offset = warp_size/2; offset > 0; offset /= 2)
-                    thread_score += __shfl_down_sync(0x13, thread_score, offset);
-
-                if(thread_id == 0){
-                    total_score += thread_score;
-                }
-
-                //////////////////////////////////////////////////////////////////
-
-                thread_score = 0;
-                if(ref_loc+seed_size+thread_id < ref_len && query_loc+seed_size+thread_id < query_len){
-                    thread_score = sub_mat[d_ref_seq[ref_loc+seed_size+thread_id]*5+d_query_seq[query_loc+seed_size+thread_id]];
-                }
-
-                for (int offset = 1; offset < warp_size; offset *= 2){
-                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-                    if(lane_id >= offset){
-                        thread_score += temp;
-                    }
-                }
-                __syncthreads();
-
-                score[thread_id] = thread_score;
-                __syncthreads();
-
-                if(thread_id >= warp_size){
-                    score[thread_id] += score[warp_size-1];
-                }
-                __syncthreads();
-
-                if(thread_id == 0){
-                    right_xdrop_found = false;
-                    max_score = 0;
-                    for(int i = 0; i < NUM_THREADS; i++){
-                        if(score[i] > max_score){
-                           max_score = score[i];
-                        }
-
-                        if(max_score-score[i] > xdrop && right_xdrop_found == false){
-                            total_score+=max_score;
-                            right_xdrop_found = true;
-                            right_extent = i;
-                            break;
-                        }
-                    }
-                }
-                __syncthreads();
-
-                //////////////////////////////////////////////////////////////////
-
-                thread_score = 0;
-                if(ref_loc-thread_id-1 >= 0 && query_loc-thread_id-1 >=0){
-                    thread_score = sub_mat[d_ref_seq[ref_loc-thread_id-1]*5+d_query_seq[query_loc-thread_id-1]];
-                }
-
-                for (int offset = 1; offset < warp_size; offset *= 2){
-                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-                    if(lane_id >= offset){
-                        thread_score += temp;
-                    }
-                }
-
-                score[thread_id] = thread_score;
-                __syncthreads();
-
-                if(thread_id >= warp_size){
-                    score[thread_id] += score[warp_size-1];
-                }
-                __syncthreads();
-
-                if(thread_id == 0){
-                    left_xdrop_found = false;
-                    max_score = 0;
-                    for(int i = 0; i < NUM_THREADS; i++){
-                        if(score[i] > max_score){
-                           max_score = score[i];
-                        }
-
-                        if(max_score-score[i] > xdrop && left_xdrop_found == false){
-                            total_score+=max_score;
-                            left_xdrop_found = true;
-                            left_extent = i;
-                            break;
-                        }
-                    }
-                }
-                __syncthreads();
-
-                //////////////////////////////////////////////////////////////////
-
-                if(total_anchors < OUT_LIMIT){
-                    if(right_xdrop_found && left_xdrop_found){
-                        if(total_score >= xdrop_threshold){
-                            d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
-                            d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
-                            d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
-                            d_done[block_id*OUT_LIMIT + total_anchors] = true;
-                            total_anchors++;
-                        }
-                    }
-                    else{
-                        d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc;
-                        d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
-                        d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
-                        d_done[block_id*OUT_LIMIT + total_anchors] = false;
+            if(total_anchors < OUT_LIMIT && !left_edge && !right_edge){
+                if(right_xdrop_found && left_xdrop_found){
+                    if(total_score >= xdrop_threshold){
+                        d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
+                        d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
+                        d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
+                        d_done[block_id*OUT_LIMIT + total_anchors] = true;
                         total_anchors++;
                     }
                 }
+                else{
+                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = total_score; //ref_loc;
+                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
+                    d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
+                    d_done[block_id*OUT_LIMIT + total_anchors] = false;
+                    total_anchors++;
+                }
             }
-            __syncthreads();
         }
+        __syncthreads();
     }
 }
 
 int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
+
     int ret = 0;
+    cudaError_t err;
+    seed_size = 19;
 
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
     if (num_seeds == 0) {
         return ret;
     }
-    seed_size = 19;
-
-    cudaError_t err;
-    uint32_t* h_r_starts = (uint32_t*) calloc(OUT_LIMIT*NUM_BLOCKS, sizeof(uint32_t));
-    uint32_t* h_q_starts = (uint32_t*) calloc(OUT_LIMIT*NUM_BLOCKS, sizeof(uint32_t));
-    uint32_t* h_len      = (uint32_t*) calloc(OUT_LIMIT*NUM_BLOCKS, sizeof(uint32_t));
-    bool* h_done             = (bool*) calloc(OUT_LIMIT*NUM_BLOCKS, sizeof(bool));
 
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
@@ -712,55 +816,52 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
-    
-    err = cudaMemcpy(d_r_starts, h_r_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
-        exit(1);
-    }
-    
-    err = cudaMemcpy(d_q_starts, h_q_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed! %d\n", err);
-        exit(1);
-    }
-    
-    err = cudaMemcpy(d_len, h_len, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyHostToDevice);
+
+    thrust::device_vector<int> seed_hit_num(num_seeds);
+    int* seed_hit_num_array = thrust::raw_pointer_cast(&seed_hit_num[0]);
+
+    find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table, d_seed_offsets, d_num_seed_hits, seed_hit_num_array);
+
+    thrust::inclusive_scan(seed_hit_num.begin(), seed_hit_num.end(), seed_hit_num.begin());
+
+    uint32_t num_hits;
+    err = cudaMemcpy(&num_hits, (seed_hit_num_array+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
 
-    err = cudaMemcpy(d_done, h_done, OUT_LIMIT*NUM_BLOCKS*sizeof(bool), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
-        exit(1);
-    }
+    printf("num_seeds = %d %d\n", num_seeds, num_hits); 
+    
+    uint32_t* h_r_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
+    uint32_t* h_q_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
+    uint32_t* h_len      = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
+    bool* h_done             = (bool*) calloc(num_hits, sizeof(bool));
 
 //    printf("Start find_anchors %d\n", num_seeds);
+    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
+//    find_anchors2 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
 //    find_anchors <<<NUM_BLOCKS, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
-//    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
-    find_anchors2 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
 
-    err = cudaMemcpy(h_r_starts, d_r_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
-    err = cudaMemcpy(h_q_starts, d_q_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_q_starts, d_q_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
-    err = cudaMemcpy(h_len, d_len, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_len, d_len, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
 
-    err = cudaMemcpy(h_done, d_done, OUT_LIMIT*NUM_BLOCKS*sizeof(bool), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_done, d_done, num_hits*sizeof(bool), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
@@ -769,16 +870,20 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
     int total_anchors = 0;
     int total_not_done = 0;
 
-    for(int i = 0; i < OUT_LIMIT*NUM_BLOCKS; i++){
-        if(h_len[i] > 0){
-            if(h_done[i]){
-                total_anchors++;
-            }
-            else{
-                total_not_done++;
-            }
-        }
-    }
+//    for(int i = 0; i < num_hits; i++){
+//        printf("%d %d %d %d %d\n", num_seeds, i, h_r_starts[i], h_q_starts[i], h_len[i]);
+//    }
+
+//    for(int i = 0; i < num_hits; i++){
+//        if(h_len[i] > 0){
+//            if(h_done[i]){
+//                total_anchors++;
+//            }
+//            else{
+//                total_not_done++;
+//            }
+//        }
+//    }
 //    printf("%d %d\n", total_anchors, total_not_done);
 
     free(h_r_starts);
@@ -801,25 +906,34 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
-    err = cudaMalloc(&d_r_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t)); 
+//    size_out = NUM_BLOCKS*OUT_LIMIT;
+    size_out = 13*cfg.chunk_size*OUT_LIMIT;
+
+    err = cudaMalloc(&d_num_seed_hits, 13*cfg.chunk_size*sizeof(uint32_t));
     if (err != cudaSuccess) {
         fprintf(stderr, "2 Error: cudaMalloc failed!\n");
         exit(1);
     }
 
-    err = cudaMalloc(&d_q_starts, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t)); 
+    err = cudaMalloc(&d_r_starts, size_out*sizeof(uint32_t)); 
+    if (err != cudaSuccess) {
+        fprintf(stderr, "2 Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
+    err = cudaMalloc(&d_q_starts, size_out*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "3 Error: cudaMalloc failed!\n");
         exit(1);
     }
 
-    err = cudaMalloc(&d_len, OUT_LIMIT*NUM_BLOCKS*sizeof(uint32_t)); 
+    err = cudaMalloc(&d_len, size_out*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "4 Error: cudaMalloc failed!\n");
         exit(1);
     }
 
-    err = cudaMalloc(&d_done, OUT_LIMIT*NUM_BLOCKS*sizeof(bool)); 
+    err = cudaMalloc(&d_done, size_out*sizeof(bool)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "5 Error: cudaMalloc failed!\n");
         exit(1);
@@ -879,10 +993,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
         exit(1);
     }
     
-    int blockSize = 1024;
-    int numBlocks = (1 << 10);
-    
-    compress_string <<<numBlocks, blockSize>>> (len, d_ref_seq_tmp, d_ref_seq);
+    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq);
     
     cudaFree(d_ref_seq_tmp);
 }
@@ -909,10 +1020,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len){
         exit(1);
     }
 
-    int blockSize = 1024;
-    int numBlocks = (1 << 10);
-    
-    compress_string <<<numBlocks, blockSize>>> (len, d_query_seq_tmp, d_query_seq);
+    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq);
 
     cudaFree(d_query_seq_tmp);
 }
