@@ -33,8 +33,6 @@ SOFTWARE.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-//#include <CL/opencl.h>
-//#include <CL/cl_ext.h>
 #include <tbb/task_scheduler_init.h>
 
 #include <zlib.h>
@@ -396,7 +394,7 @@ int main(int argc, char** argv)
     seconds = end_time.tv_sec - start_time.tv_sec;
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
 
-    fprintf(stderr, "Time elapsed (loading query): %ld msec \n", mseconds);
+    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld msec \n", mseconds);
 
     fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());

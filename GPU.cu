@@ -2,6 +2,9 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include "graph.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <algorithm>
 #include <mutex>
 #include <cstring>
@@ -35,6 +38,9 @@ int check_status = 0;
 int ref_len;
 int query_len;
 int seed_size;
+
+struct timeval start_time1, end_time1; 
+long useconds1, seconds1, mseconds1;
 
 char* d_ref_seq;
 char* d_query_seq;
@@ -437,16 +443,12 @@ void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
     __shared__ int score[NUM_THREADS];
     __shared__ int sub_mat[25];
-    __shared__ uint32_t total_anchors;
-    __shared__ uint32_t total_not;
 
     if(thread_id < 25){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
 
     if(thread_id == 0){
-        total_anchors = 0;
-        total_not = 0;
         warp_size = warpSize;
         seed_offset = d_seed_offsets[block_id];
     }
@@ -587,23 +589,33 @@ void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
         //////////////////////////////////////////////////////////////////
 
         if(thread_id == 0){
-            if(total_anchors < OUT_LIMIT && !left_edge && !right_edge){
+            if(!left_edge && !right_edge){
                 if(right_xdrop_found && left_xdrop_found){
                     if(total_score >= xdrop_threshold){
-                        d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
-                        d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
-                        d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
-                        d_done[block_id*OUT_LIMIT + total_anchors] = true;
-                        total_anchors++;
+                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc - left_extent;
+                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc - left_extent;
+                        d_len[seed_hit_num[block_id]-id1+start-1] = left_extent+right_extent+seed_size;
+                        d_done[seed_hit_num[block_id]-id1+start-1] = true;
+                    }
+                    else{
+                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                        d_len[seed_hit_num[block_id]-id1+start-1] = 1;
+                        d_done[seed_hit_num[block_id]-id1+start-1] = false;
                     }
                 }
                 else{
-                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = total_score; //ref_loc;
-                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
-                    d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
-                    d_done[block_id*OUT_LIMIT + total_anchors] = false;
-                    total_anchors++;
+                    d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc;
+                    d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc;
+                    d_len[seed_hit_num[block_id]-id1+start-1] = seed_size;
+                    d_done[seed_hit_num[block_id]-id1+start-1] = false;
                 }
+            }
+            else{
+                d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                d_len[seed_hit_num[block_id]-id1+start-1] = 2;
+                d_done[seed_hit_num[block_id]-id1+start-1] = false;
             }
         }
         __syncthreads();
@@ -692,18 +704,19 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
         }
         __syncthreads();
 
-        //parallel prefix sum
-        int k_val;
-        for(int k = 1; k < NUM_THREADS; k=k*2){
-            if(thread_id >= k){
-                k_val = score[thread_id-k];
-            }
-            __syncthreads();
-            if(thread_id >= k){
-                score[thread_id] += k_val;
-            }
-            __syncthreads();
-        }
+        thrust::inclusive_scan(thrust::device, score, score+NUM_THREADS-1, score);
+//        //parallel prefix sum
+//        int k_val;
+//        for(int k = 1; k < NUM_THREADS; k=k*2){
+//            if(thread_id >= k){
+//                k_val = score[thread_id-k];
+//            }
+//            __syncthreads();
+//            if(thread_id >= k){
+//                score[thread_id] += k_val;
+//            }
+//            __syncthreads();
+//        }
 
         if(thread_id == 0){
             right_xdrop_found = false;
@@ -735,17 +748,18 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
         }
         __syncthreads();
 
-        //parallel prefix sum
-        for(int k = 1; k < NUM_THREADS; k=k*2){
-            if(thread_id >= k){
-                k_val = score[thread_id-k];
-            }
-            __syncthreads();
-            if(thread_id >= k){
-                score[thread_id] += k_val;
-            }
-            __syncthreads();
-        }
+        thrust::inclusive_scan(thrust::device, score, score+NUM_THREADS-1, score);
+//        //parallel prefix sum
+//        for(int k = 1; k < NUM_THREADS; k=k*2){
+//            if(thread_id >= k){
+//                k_val = score[thread_id-k];
+//            }
+//            __syncthreads();
+//            if(thread_id >= k){
+//                score[thread_id] += k_val;
+//            }
+//            __syncthreads();
+//        }
 
         if(thread_id == 0){
             left_xdrop_found = false;
@@ -772,30 +786,40 @@ void find_anchors2 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
         //////////////////////////////////////////////////////////////////
 
         if(thread_id == 0){
-            if(total_anchors < OUT_LIMIT && !left_edge && !right_edge){
+            if(!left_edge && !right_edge){
                 if(right_xdrop_found && left_xdrop_found){
                     if(total_score >= xdrop_threshold){
-                        d_r_starts[block_id*OUT_LIMIT + total_anchors] = ref_loc - left_extent;
-                        d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc - left_extent;
-                        d_len[block_id*OUT_LIMIT + total_anchors] = left_extent+right_extent+seed_size;
-                        d_done[block_id*OUT_LIMIT + total_anchors] = true;
-                        total_anchors++;
+                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc - left_extent;
+                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc - left_extent;
+                        d_len[seed_hit_num[block_id]-id1+start-1] = left_extent+right_extent+seed_size;
+                        d_done[seed_hit_num[block_id]-id1+start-1] = true;
+                    }
+                    else{
+                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                        d_len[seed_hit_num[block_id]-id1+start-1] = 0;
+                        d_done[seed_hit_num[block_id]-id1+start-1] = false;
                     }
                 }
                 else{
-                    d_r_starts[block_id*OUT_LIMIT + total_anchors] = total_score; //ref_loc;
-                    d_q_starts[block_id*OUT_LIMIT + total_anchors] = query_loc;
-                    d_len[block_id*OUT_LIMIT + total_anchors] = seed_size;
-                    d_done[block_id*OUT_LIMIT + total_anchors] = false;
-                    total_anchors++;
+                    d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc;
+                    d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc;
+                    d_len[seed_hit_num[block_id]-id1+start-1] = seed_size;
+                    d_done[seed_hit_num[block_id]-id1+start-1] = false;
                 }
+            }
+            else{
+                d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
+                d_len[seed_hit_num[block_id]-id1+start-1] = 0;
+                d_done[seed_hit_num[block_id]-id1+start-1] = false;
             }
         }
         __syncthreads();
     }
 }
 
-int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
+int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     int ret = 0;
     cudaError_t err;
@@ -831,7 +855,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
         exit(1);
     }
 
-    printf("num_seeds = %d %d\n", num_seeds, num_hits); 
+//    printf("num_seeds = %d %d\n", num_seeds, num_hits); 
     
     uint32_t* h_r_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
     uint32_t* h_q_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
@@ -839,52 +863,68 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, int n){
     bool* h_done             = (bool*) calloc(num_hits, sizeof(bool));
 
 //    printf("Start find_anchors %d\n", num_seeds);
-    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
-//    find_anchors2 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
-//    find_anchors <<<NUM_BLOCKS, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size);
+    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
+//    find_anchors2 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
+//    find_anchors <<<NUM_BLOCKS, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
 
-    err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    int num_hits1 = 2000;
+    err = cudaMemcpy(h_r_starts, d_r_starts, num_hits1*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
-    err = cudaMemcpy(h_q_starts, d_q_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_q_starts, d_q_starts, num_hits1*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
     
-    err = cudaMemcpy(h_len, d_len, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_len, d_len, num_hits1*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
 
-    err = cudaMemcpy(h_done, d_done, num_hits*sizeof(bool), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_done, d_done, num_hits1*sizeof(bool), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
+
 
     int total_anchors = 0;
-    int total_not_done = 0;
+    int total1 = 0;
+    int total2 = 0;
+    int total_seed = 0;
 
 //    for(int i = 0; i < num_hits; i++){
 //        printf("%d %d %d %d %d\n", num_seeds, i, h_r_starts[i], h_q_starts[i], h_len[i]);
 //    }
 
-//    for(int i = 0; i < num_hits; i++){
-//        if(h_len[i] > 0){
-//            if(h_done[i]){
-//                total_anchors++;
-//            }
-//            else{
-//                total_not_done++;
-//            }
-//        }
-//    }
-//    printf("%d %d\n", total_anchors, total_not_done);
+    gettimeofday(&start_time1, NULL);
+
+    for(int i = 0; i < num_hits; i++){
+        if(h_done[i]){
+            total_anchors++;
+        }
+        else{
+            if(h_len[i] == 1)
+                total1++;
+            else if(h_len[i] == 2)
+                total2++;
+            else if(h_len[i] == seed_size)
+                total_seed++;
+        }
+    }
+
+    gettimeofday(&end_time1, NULL);
+    useconds1 = end_time1.tv_usec - start_time1.tv_usec;
+    seconds1  = end_time1.tv_sec  - start_time1.tv_sec;
+    mseconds1 = ((seconds1) * 1000 + useconds1/1000.0) + 0.5;
+    fprintf(stdout, "Time elapsed (loading query): %ld msec \n", mseconds1);
+
+//    printf("%d %d %d %d %d\n", total1, total2, total_seed, total_anchors, num_hits);
 
     free(h_r_starts);
     free(h_q_starts);
