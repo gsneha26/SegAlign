@@ -1,5 +1,8 @@
 #include "graph.h"
 #include "ntcoding.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <atomic>
 
 #include "tbb/parallel_for_each.h"
@@ -58,7 +61,7 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-        int num_hits = g_SeedAndFilter(seed_offset_vector, num_invoked);
+        int num_hits = g_SeedAndFilter(seed_offset_vector, false);
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
 
@@ -83,7 +86,7 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-//        int num_hits = g_SeedAndFilter(seed_offset_vector);
+        int num_hits = g_SeedAndFilter(seed_offset_vector, true);
   //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
     }
     output.fwHits.clear();

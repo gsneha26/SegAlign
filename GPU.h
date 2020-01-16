@@ -69,7 +69,7 @@ struct extend_output {
 typedef size_t(*InitializeProcessor_ptr)(int t, int f);
 typedef void(*SendRequest_ptr)(size_t ref_offset, size_t query_offset, size_t ref_length, size_t query_length, uint8_t align_fields);
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint64_t* pos_table, uint32_t ref_size);
-typedef int (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, int n);
+typedef int (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev);
 typedef std::vector<tile_output> (*SendBatchRequest_ptr)(std::vector<filter_tile> tiles, uint8_t align_fields, int thresh);
 typedef extend_output (*GACTXRequest_ptr)(extend_tile tile, uint8_t align_fields);
 typedef void(*ShutdownProcessor_ptr)();
