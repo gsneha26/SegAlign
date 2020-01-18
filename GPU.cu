@@ -187,8 +187,6 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
         if(thread_id == 0){
             total_score += thread_score;
-//            if(ref_loc == 99814835 && query_loc == 973)
-//                printf("%d\n", thread_score);
         }
         __syncthreads();
 
@@ -628,8 +626,6 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
         exit(1);
     }
 
-//    printf("num_seeds = %d %d\n", num_seeds, num_hits); 
-    
     uint32_t* h_r_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
     uint32_t* h_q_starts = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
     uint32_t* h_len      = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
