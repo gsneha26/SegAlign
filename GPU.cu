@@ -331,33 +331,35 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
 
         if(thread_id == 0){
+            int dram_address = seed_hit_num[block_id]-id1+start-1;
+
             if(!left_edge && !right_edge){
                 if(right_xdrop_found && left_xdrop_found){
                     if(total_score >= xdrop_threshold){
-                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc - left_extent;
-                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc - left_extent;
-                        d_len[seed_hit_num[block_id]-id1+start-1] = left_extent+right_extent+seed_size;
-                        d_done[seed_hit_num[block_id]-id1+start-1] = true;
+                        d_r_starts[dram_address] = ref_loc - left_extent;
+                        d_q_starts[dram_address] = query_loc - left_extent;
+                        d_len[dram_address] = left_extent+right_extent+seed_size;
+                        d_done[dram_address] = true;
                     }
                     else{
-                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                        d_len[seed_hit_num[block_id]-id1+start-1] = 1;
-                        d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                        d_r_starts[dram_address] = 0;
+                        d_q_starts[dram_address] = 0;
+                        d_len[dram_address] = 1;
+                        d_done[dram_address] = false;
                     }
                 }
                 else{
-                    d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc;
-                    d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc;
-                    d_len[seed_hit_num[block_id]-id1+start-1] = seed_size;
-                    d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                    d_r_starts[dram_address] = ref_loc;
+                    d_q_starts[dram_address] = query_loc;
+                    d_len[dram_address] = seed_size;
+                    d_done[dram_address] = false;
                 }
             }
             else{
-                d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                d_len[seed_hit_num[block_id]-id1+start-1] = 2;
-                d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                d_r_starts[dram_address] = 0;
+                d_q_starts[dram_address] = 0;
+                d_len[dram_address] = 2;
+                d_done[dram_address] = false;
             }
         }
         __syncthreads();
@@ -544,38 +546,35 @@ void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
         //////////////////////////////////////////////////////////////////
 
         if(thread_id == 0){
-//            d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc;
-//            d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc;
-//            d_len[seed_hit_num[block_id]-id1+start-1] = total_score; 
-//            d_done[seed_hit_num[block_id]-id1+start-1] = true;
+            int dram_address = seed_hit_num[block_id]-id1+start-1;
 
             if(!left_edge && !right_edge){
                 if(right_xdrop_found && left_xdrop_found){
                     if(total_score >= xdrop_threshold){
-                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc - left_extent;
-                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc - left_extent;
-                        d_len[seed_hit_num[block_id]-id1+start-1] = left_extent+right_extent+seed_size;
-                        d_done[seed_hit_num[block_id]-id1+start-1] = true;
+                        d_r_starts[dram_address] = ref_loc - left_extent;
+                        d_q_starts[dram_address] = query_loc - left_extent;
+                        d_len[dram_address] = left_extent+right_extent+seed_size;
+                        d_done[dram_address] = true;
                     }
                     else{
-                        d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                        d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                        d_len[seed_hit_num[block_id]-id1+start-1] = 1;
-                        d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                        d_r_starts[dram_address] = 0;
+                        d_q_starts[dram_address] = 0;
+                        d_len[dram_address] = 1;
+                        d_done[dram_address] = false;
                     }
                 }
                 else{
-                    d_r_starts[seed_hit_num[block_id]-id1+start-1] = ref_loc;
-                    d_q_starts[seed_hit_num[block_id]-id1+start-1] = query_loc;
-                    d_len[seed_hit_num[block_id]-id1+start-1] = seed_size;
-                    d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                    d_r_starts[dram_address] = ref_loc;
+                    d_q_starts[dram_address] = query_loc;
+                    d_len[dram_address] = seed_size;
+                    d_done[dram_address] = false;
                 }
             }
             else{
-                d_r_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                d_q_starts[seed_hit_num[block_id]-id1+start-1] = 0;
-                d_len[seed_hit_num[block_id]-id1+start-1] = 2;
-                d_done[seed_hit_num[block_id]-id1+start-1] = false;
+                d_r_starts[dram_address] = 0;
+                d_q_starts[dram_address] = 0;
+                d_len[dram_address] = 2;
+                d_done[dram_address] = false;
             }
         }
         __syncthreads();
@@ -657,8 +656,8 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     gettimeofday(&time2, NULL);
 //    printf("Start find_anchors %d\n", num_seeds);
-    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
-//    find_anchors3 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
+//    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
+    find_anchors3 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
 
 //    gettimeofday(&time3, NULL);
 
