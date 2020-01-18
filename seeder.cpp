@@ -86,6 +86,7 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
+
         int num_hits = g_SeedAndFilter(seed_offset_vector, true);
   //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
     }
