@@ -121,7 +121,7 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
     int block_id = blockIdx.x;
     int warp_size = warpSize;
     int lane_id = thread_id % warp_size;
-    __syncthreads();
+//    __syncthreads();
 
     __shared__ uint32_t start, end;
     __shared__ uint32_t q_start;
@@ -143,7 +143,6 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
     int thread_score;
     int max_thread_score;
     bool xdrop_done;
-    bool tmp_xdrop;
     int temp;
     int tile = 0;
     int ref_pos;
@@ -171,9 +170,11 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
     }
 
     for (int id1 = start; id1 < end; id1 += 1) {
-        ref_loc   = d_pos_table[id1];
-        query_loc = q_start;
-        total_score = 0; 
+        if(thread_id == 0){ 
+            ref_loc   = d_pos_table[id1];
+            query_loc = q_start;
+            total_score = 0; 
+        }
 
         //////////////////////////////////////////////////////////////////
 
@@ -233,18 +234,14 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
         #pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
-                tmp_xdrop = __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
-
-                if(lane_id >= offset){
-                    xdrop_done |= tmp_xdrop;
-                }
+                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
             }
 
             if(thread_id == warp_size-1){
                 if(xdrop_done){
                     total_score+=max_thread_score;
                     right_xdrop_found = true;
-                    right_extent = BLOCK_SIZE-1;
+                    right_extent = tile*BLOCK_SIZE-1;
                 }
                 else if(ref_pos > ref_len || query_pos > query_len)
                     right_edge = true;
@@ -302,18 +299,14 @@ void find_anchors3 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
         #pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
-                tmp_xdrop = __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
-
-                if(lane_id >= offset){
-                    xdrop_done |= tmp_xdrop;
-                }
+                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
             }
 
             if(thread_id == warp_size-1){
                 if(xdrop_done){
                     total_score+=max_thread_score;
                     left_xdrop_found = true;
-                    left_extent = BLOCK_SIZE-1;
+                    left_extent = tile*BLOCK_SIZE-1;
                 }
                 else if(ref_pos < 0 || query_pos < 0)
                     left_edge = true;
@@ -583,6 +576,7 @@ void find_anchors1 (int num_seeds, char* d_ref_seq, char* d_query_seq, uint32_t*
 
 int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
+    gpu_lock.lock();
     int ret = 0;
     cudaError_t err;
     seed_size = 19;
@@ -599,8 +593,6 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     if (num_seeds == 0) {
         return ret;
     }
-
-    gettimeofday(&time1, NULL);
 
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
@@ -621,7 +613,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     err = cudaMemcpy(&num_hits, (seed_hit_num_array+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        fprintf(stderr, "Error: cudaMemcpy failed! SF1\n");
         exit(1);
     }
 
@@ -632,56 +624,54 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     err = cudaMalloc(&d_r_starts, num_hits*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "2 Error: cudaMalloc failed!\n");
+        fprintf(stderr, "2 Error: cudaMalloc failed! SF2\n");
         exit(1);
     }
 
     err = cudaMalloc(&d_q_starts, num_hits*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "3 Error: cudaMalloc failed!\n");
+        fprintf(stderr, "3 Error: cudaMalloc failed! SF3\n");
         exit(1);
     }
 
     err = cudaMalloc(&d_len, num_hits*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "4 Error: cudaMalloc failed!\n");
+        fprintf(stderr, "4 Error: cudaMalloc failed! SF4\n");
         exit(1);
     }
 
     err = cudaMalloc(&d_done, num_hits*sizeof(bool)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "5 Error: cudaMalloc failed!\n");
+        fprintf(stderr, "5 Error: cudaMalloc failed! SF5\n");
         exit(1);
     }
 
     gettimeofday(&time2, NULL);
 //    printf("Start find_anchors %d\n", num_seeds);
 //    find_anchors1 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
-    find_anchors3 <<<num_seeds, NUM_THREADS>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
-
-//    gettimeofday(&time3, NULL);
+    find_anchors3 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
 
     err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        fprintf(stderr, "Error: cudaMemcpy failed! SF6\n");
         exit(1);
     }
     
     err = cudaMemcpy(h_q_starts, d_q_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        fprintf(stderr, "Error: cudaMemcpy failed! SF7\n");
         exit(1);
     }
     
     err = cudaMemcpy(h_len, d_len, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        fprintf(stderr, "Error: cudaMemcpy failed! SF8\n");
         exit(1);
     }
 
     err = cudaMemcpy(h_done, d_done, num_hits*sizeof(bool), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
+        fprintf(stderr, "Error: cudaMemcpy failed! SF9\n");
         exit(1);
     }
 
@@ -710,8 +700,8 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 //        fprintf(stderr, "Error: cudaMemcpy failed!\n");
 //        exit(1);
 //    }
-
-    gettimeofday(&time5, NULL);
+//
+//    gettimeofday(&time5, NULL);
 
     for(int i = 0; i < num_hits; i++){
         if(h_done[i]){
@@ -726,17 +716,11 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
                 total_seed++;
         }
     }
-    fprintf(stdout, "%d %d %d %d %d\n", total1, total2, total_seed, total_anchors, num_hits);
 
     useconds1 = time4.tv_usec - time2.tv_usec;
     seconds1  = time4.tv_sec  - time2.tv_sec;
     mseconds1 = ((seconds1) * 1000 + useconds1/1000.0) + 0.5;
-//    fprintf(stdout, "Time elapsed (kernel + memcpy): %ld msec \n", mseconds1);
-
-    useconds1 = time5.tv_usec - time4.tv_usec;
-    seconds1  = time5.tv_sec  - time4.tv_sec;
-    mseconds1 = ((seconds1) * 1000 + useconds1/1000.0) + 0.5;
-//    fprintf(stdout, "Time elapsed (memcpy): %ld msec \n", mseconds1);
+    fprintf(stdout, "%d %d %d %d %d %lu msec\n", total1, total2, total_seed, total_anchors, num_hits, mseconds1);
 
     free(h_r_starts);
     free(h_q_starts);
