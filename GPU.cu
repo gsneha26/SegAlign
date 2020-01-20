@@ -46,10 +46,6 @@ uint64_t* d_seed_offsets;
 uint32_t* d_index_table;
 uint32_t* d_num_seed_hits;
 uint64_t* d_pos_table;
-uint32_t* d_r_starts;
-uint32_t* d_q_starts;
-uint32_t* d_len;
-bool* d_done;
 uint64_t* h_seed_offsets;
 int *sub_mat;
 
@@ -400,6 +396,11 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     uint32_t* h_len      = (uint32_t*) calloc(num_hits, sizeof(uint32_t));
     bool* h_done             = (bool*) calloc(num_hits, sizeof(bool));
 
+    uint32_t* d_r_starts;
+    uint32_t* d_q_starts;
+    uint32_t* d_len;
+    bool* d_done;
+
     err = cudaMalloc(&d_r_starts, num_hits*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "2 Error: cudaMalloc failed! SF2\n");
@@ -428,6 +429,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 //    printf("Start find_anchors %d\n", num_seeds);
     find_anchors3 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
 
+    gpu_lock.unlock();
     err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed! SF6\n");
@@ -482,7 +484,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     cudaFree(d_len);
     cudaFree(d_done);
 
-    gpu_lock.unlock();
+//    gpu_lock.unlock();
 
     return ret;
 }
@@ -615,8 +617,6 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
-
-    fprintf(stdout, "Sending seed position table to GPU successful.\n");
 }
 
 std::vector<tile_output> SendBatchRequest (std::vector<filter_tile> tiles, uint8_t align_fields, int thresh) {
