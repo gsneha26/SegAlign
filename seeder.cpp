@@ -7,6 +7,10 @@
 
 #include "tbb/parallel_for_each.h"
 
+struct timeval t1, t2, t3; 
+long usec1, sec1, msec1;
+long usec2, sec2, msec2;
+
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
 
@@ -38,6 +42,7 @@ filter_input seeder_body::operator()(seeder_input input) {
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
 
+        gettimeofday(&t1, NULL);
         //end position
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
         std::vector<uint64_t> seed_offset_vector;
@@ -61,7 +66,22 @@ filter_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
+        
+        gettimeofday(&t2, NULL);
+        
         int num_hits = g_SeedAndFilter(seed_offset_vector, false);
+
+        gettimeofday(&t3, NULL);
+
+        usec1 = t2.tv_usec - t1.tv_usec;
+        sec1  = t2.tv_sec  - t1.tv_sec;
+        msec1 = ((sec1) * 1000 + usec1/1000.0) + 0.5;
+
+        usec2 = t3.tv_usec - t2.tv_usec;
+         sec2  = t3.tv_sec  - t2.tv_sec;
+        msec2 = ((sec2) * 1000 + usec2/1000.0) + 0.5;
+
+//        printf("%lu %lu\n", msec1, msec2); 
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
 
