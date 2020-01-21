@@ -289,13 +289,13 @@ int main(int argc, char** argv)
         char *rev_read_char = RevComp(chrom_seq);
         bond::blob chrom_rc_seq = bond::blob(rev_read_char, seq_len);
 
-        if (extra != 0)
-        {
-            extra = WORD_SIZE - extra;
-            memset(g_DRAM->buffer + g_DRAM->bufferPosition + seq_len, 'N', extra);
-
-            seq_len += extra;
-        }
+//        if (extra != 0)
+//        {
+//            extra = WORD_SIZE - extra;
+//            memset(g_DRAM->buffer + g_DRAM->bufferPosition + seq_len, 'N', extra);
+//
+//            seq_len += extra;
+//        }
         
         g_DRAM->bufferPosition += seq_len;
 
