@@ -67,21 +67,7 @@ filter_input seeder_body::operator()(seeder_input input) {
             }
         }
         
-        gettimeofday(&t2, NULL);
-        
         int num_hits = g_SeedAndFilter(seed_offset_vector, false);
-
-        gettimeofday(&t3, NULL);
-
-        usec1 = t2.tv_usec - t1.tv_usec;
-        sec1  = t2.tv_sec  - t1.tv_sec;
-        msec1 = ((sec1) * 1000 + usec1/1000.0) + 0.5;
-
-        usec2 = t3.tv_usec - t2.tv_usec;
-         sec2  = t3.tv_sec  - t2.tv_sec;
-        msec2 = ((sec2) * 1000 + usec2/1000.0) + 0.5;
-
-//        printf("%lu %lu\n", msec1, msec2); 
 //        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
     }
 
