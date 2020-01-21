@@ -13,12 +13,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_BLOCKS 1<<16
+#define MAX_BLOCKS 1<<10
 #define MAX_THREADS 1024 
-#define TILE_SIZE 64
+#define TILE_SIZE 32
+#define TOTAL_TILE_SIZE 160
 #define NUM_TILES 2
-#define BLOCK_SIZE 32
+#define TOTAL_TILES 5
 #define MAX_HITS 7000000 
+#define BLOCK_SIZE 32 
+#define NUM_WARPS 1
 
 std::mutex gpu_lock;
 
@@ -112,7 +115,7 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 }
 
 __global__
-void find_num_hits (int num_seeds, uint32_t* d_index_table, uint64_t* seed_offsets, uint32_t* d_num_seed_hits, int* seed_hit_num){
+void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint32_t* d_num_seed_hits, int* seed_hit_num){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -140,7 +143,254 @@ void find_num_hits (int num_seeds, uint32_t* d_index_table, uint64_t* seed_offse
 }
 
 __global__
-void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_t*  d_index_table, uint64_t*  d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+
+    int thread_id = threadIdx.x;
+    int block_id = blockIdx.x;
+    int warp_size = warpSize;
+    int lane_id = thread_id%warp_size;
+    int warp_id = (thread_id-lane_id)/warp_size;
+
+    __shared__ uint32_t start, end;
+    __shared__ uint32_t seed;
+    __shared__ uint64_t seed_offset;
+
+    __shared__ uint32_t ref_loc[NUM_WARPS];
+    __shared__ uint32_t query_loc;
+    __shared__ int total_score[NUM_WARPS];
+    __shared__ int prev_score[NUM_WARPS];
+    __shared__ int prev_max_score[NUM_WARPS];
+    __shared__ bool right_edge[NUM_WARPS]; 
+    __shared__ bool left_edge[NUM_WARPS]; 
+    __shared__ bool right_xdrop_found[NUM_WARPS]; 
+    __shared__ bool left_xdrop_found[NUM_WARPS]; 
+    __shared__ uint32_t left_extent[NUM_WARPS];
+    __shared__ uint32_t right_extent[NUM_WARPS];
+    __shared__ uint32_t tile[NUM_WARPS];
+
+    int thread_score;
+    int max_thread_score;
+    bool xdrop_done;
+    int temp;
+    int ref_pos;
+    int query_pos;
+
+    __shared__ int sub_mat[25];
+
+    if(thread_id < 25){
+        sub_mat[thread_id] = d_sub_mat[thread_id];
+    }
+
+    if(thread_id == 0){
+        seed_offset = d_seed_offsets[block_id];
+        seed = (seed_offset >> 32);
+        query_loc = ((seed_offset << 32) >> 32);
+
+        // start and end from the seed block_id table
+        end = d_index_table[seed];
+        start = 0;
+        if (seed > 0){
+            start = d_index_table[seed-1];
+        }
+    }
+    __syncthreads();
+
+    for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
+        if(id1+warp_id < end){ 
+            if(lane_id == 0){ 
+                ref_loc[warp_id]   = d_pos_table[id1+warp_id];
+                total_score[warp_id] = 0; 
+                tile[warp_id] = 0;
+            }
+
+            //////////////////////////////////////////////////////////////////
+
+            thread_score = 0;
+            if(lane_id < seed_size){
+                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*5+d_query_seq[query_loc+lane_id]];
+            }
+
+            for (int offset = warp_size >> 1; offset > 0; offset = offset >> 1)
+                thread_score += __shfl_down_sync(0x13, thread_score, offset);
+
+            if(lane_id == 0){
+                total_score[warp_id] += thread_score;
+            }
+            __syncwarp();
+
+            ////////////////////////////////////////////////////////////////
+
+            tile[warp_id] = 0;
+            right_xdrop_found[warp_id] = false;
+            right_edge[warp_id] = false;
+            prev_score[warp_id] = 0;
+            prev_max_score[warp_id] = 0;
+
+            while(tile[warp_id] < NUM_TILES && !right_xdrop_found[warp_id] && !right_edge[warp_id]){
+                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
+                query_pos = query_loc + seed_size + lane_id + tile[warp_id]*warp_size;
+
+                if(ref_pos < ref_len && query_pos < query_len){
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                }
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(lane_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+
+                thread_score += prev_score[warp_id];
+                max_thread_score = max(thread_score, prev_max_score[warp_id]);
+                __syncwarp();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                    if(lane_id >= offset){
+                        max_thread_score = max(max_thread_score, temp);
+                    }
+                }
+
+                xdrop_done = ((max_thread_score-thread_score) > xdrop);
+                __syncwarp();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                }
+
+                if(lane_id == warp_size-1){
+                    if(xdrop_done){
+                        total_score[warp_id]+=max_thread_score;
+                        right_xdrop_found[warp_id] = true;
+                        right_extent[warp_id] = tile[warp_id]*TILE_SIZE-1;
+                    }
+                    else if(ref_pos > ref_len || query_pos > query_len)
+                        right_edge[warp_id] = true;
+                    else{
+                        prev_score[warp_id] = thread_score;
+                        prev_max_score[warp_id] = max_thread_score;
+                    }
+                }
+                __syncwarp();
+
+                tile[warp_id]++;
+            }
+
+            ////////////////////////////////////////////////////////////////
+
+            tile[warp_id] = 0;
+            left_xdrop_found[warp_id] = false;
+            left_edge[warp_id] = false;
+            prev_score[warp_id] = 0;
+            prev_max_score[warp_id] = 0;
+
+            while(tile[warp_id] < NUM_TILES && !left_xdrop_found[warp_id] && !left_edge[warp_id]){
+
+                ref_pos   = ref_loc[warp_id] - lane_id - 1 - tile[warp_id]*warp_size;
+                query_pos = query_loc - lane_id - 1 - tile[warp_id]*warp_size;
+
+                if(ref_pos >= 0  && query_pos >= 0){
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                }
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(lane_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+
+                thread_score += prev_score[warp_id];
+                max_thread_score = max(thread_score, prev_max_score[warp_id]);
+                __syncwarp();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                    if(lane_id >= offset){
+                        max_thread_score = max(max_thread_score, temp);
+                    }
+                }
+
+                xdrop_done = ((max_thread_score-thread_score) > xdrop);
+                __syncwarp();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset = offset << 1){
+                    xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                }
+
+                if(lane_id == warp_size-1){
+                    if(xdrop_done){
+                        total_score[warp_id]+=max_thread_score;
+                        left_xdrop_found[warp_id] = true;
+                        left_extent[warp_id] = tile[warp_id]*BLOCK_SIZE-1;
+                    }
+                    else if(ref_pos < 0 || query_pos < 0)
+                        left_edge[warp_id] = true;
+                    else{
+                        prev_score[warp_id] = thread_score;
+                        prev_max_score[warp_id] = max_thread_score;
+                    }
+                }
+                __syncwarp();
+
+                tile[warp_id]++;
+            }
+
+            //////////////////////////////////////////////////////////////////
+
+            if(lane_id == 0){
+                int dram_address = seed_hit_num[block_id]-id1 - warp_id+start-1;
+
+                if(total_score[warp_id] < 0)
+                    printf("t %d %d\n", total_score[warp_id], rev);
+
+                if(!left_edge[warp_id] && !right_edge[warp_id]){
+                    if(right_xdrop_found[warp_id] && left_xdrop_found[warp_id]){
+                        if(total_score[warp_id] >= xdrop_threshold){
+                            d_r_starts[dram_address] = ref_loc[warp_id] - left_extent[warp_id];
+                            d_q_starts[dram_address] = query_loc - left_extent[warp_id];
+                            d_len[dram_address] = left_extent[warp_id]+right_extent[warp_id]+seed_size;
+                            d_done[dram_address] = true;
+                        }
+                        else{
+                            d_r_starts[dram_address] = 0;
+                            d_q_starts[dram_address] = 0;
+                            d_len[dram_address] = 1;
+                            d_done[dram_address] = false;
+                        }
+                    }
+                    else{
+                        d_r_starts[dram_address] = ref_loc[warp_id];
+                        d_q_starts[dram_address] = query_loc;
+                        d_len[dram_address] = seed_size;
+                        d_done[dram_address] = false;
+                    }
+                }
+                else{
+                    d_r_starts[dram_address] = 0;
+                    d_q_starts[dram_address] = 0;
+                    d_len[dram_address] = 2;
+                    d_done[dram_address] = false;
+                }
+            }
+            __syncwarp();
+        }
+    }
+}
+
+__global__
+void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -230,7 +480,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
                 thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
             }
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
 
@@ -243,7 +493,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
             max_thread_score = max(thread_score, prev_max_score);
             __syncthreads();
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
 
@@ -255,7 +505,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncthreads();
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
             }
@@ -264,7 +514,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
                 if(xdrop_done){
                     total_score+=max_thread_score;
                     right_xdrop_found = true;
-                    right_extent = tile*BLOCK_SIZE-1;
+                    right_extent = tile*TILE_SIZE-1;
                 }
                 else if(ref_pos > ref_len || query_pos > query_len)
                     right_edge = true;
@@ -274,7 +524,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
                 }
             }
             __syncthreads();
-            
+
             tile++;
         }
 
@@ -295,7 +545,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
                 thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
             }
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
 
@@ -308,7 +558,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
             max_thread_score = max(thread_score, prev_max_score);
             __syncthreads();
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
 
@@ -320,7 +570,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncthreads();
 
-        #pragma unroll
+#pragma unroll
             for (int offset = 1; offset < warp_size; offset *= 2){
                 xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
             }
@@ -329,7 +579,7 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
                 if(xdrop_done){
                     total_score+=max_thread_score;
                     left_xdrop_found = true;
-                    left_extent = tile*BLOCK_SIZE-1;
+                    left_extent = tile*TILE_SIZE-1;
                 }
                 else if(ref_pos < 0 || query_pos < 0)
                     left_edge = true;
@@ -384,6 +634,512 @@ void find_anchors3 (int num_seeds, char*  d_ref_seq, char*  d_query_seq, uint32_
     }
 }
 
+__global__
+void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+
+    int thread_id = threadIdx.x;
+    int block_id = blockIdx.x;
+    int warp_size = warpSize;
+
+    __shared__ uint32_t start, end;
+    __shared__ uint32_t seed;
+    __shared__ uint64_t seed_offset;
+
+    __shared__ uint32_t ref_loc;
+    __shared__ uint32_t query_loc;
+    __shared__ int total_score;
+    __shared__ int prev_score;
+    __shared__ int prev_max_score;
+    __shared__ bool right_edge; 
+    __shared__ bool left_edge; 
+    __shared__ bool right_xdrop_found; 
+    __shared__ bool left_xdrop_found; 
+    __shared__ uint32_t left_extent;
+    __shared__ uint32_t right_extent;
+
+    int thread_score;
+    int max_thread_score;
+    bool xdrop_done;
+    int temp;
+    int tile = 0;
+    int ref_pos;
+    int query_pos;
+
+    __shared__ char query_char[TOTAL_TILE_SIZE];
+    __shared__ char ref_char[TOTAL_TILE_SIZE];
+
+    __shared__ int sub_mat[25];
+
+    if(thread_id < 25){
+        sub_mat[thread_id] = d_sub_mat[thread_id];
+    }
+
+    if(thread_id == 0){
+        seed_offset = d_seed_offsets[block_id];
+    }
+    __syncthreads();
+
+    seed = (seed_offset >> 32);
+    query_loc = ((seed_offset << 32) >> 32);
+
+    // start and end from the seed block_id table
+    end = d_index_table[seed];
+    start = 0;
+    if (seed > 0){
+        start = d_index_table[seed-1];
+    }
+
+    for(int c = query_loc; c < query_loc + TOTAL_TILE_SIZE; c+=BLOCK_SIZE){
+        if(c-TILE_SIZE+thread_id >= 0 && c-TILE_SIZE+thread_id < query_len)
+            query_char[c-query_loc+thread_id] = d_query_seq[c-TILE_SIZE+thread_id];
+    }
+
+    for (int id1 = start; id1 < end; id1++) {
+
+        if(thread_id == 0){ 
+            ref_loc = d_pos_table[id1];
+            total_score = 0; 
+        }
+
+        for(int c = ref_loc; c < ref_loc + TOTAL_TILE_SIZE; c+=BLOCK_SIZE){
+            if(c-TILE_SIZE+thread_id >= 0 && c-TILE_SIZE+thread_id < ref_len)
+                ref_char[c-ref_loc+thread_id] = d_ref_seq[c-TILE_SIZE+thread_id];
+        }
+
+        //////////////////////////////////////////////////////////////////
+
+        thread_score = 0;
+        if(thread_id < seed_size){
+            ref_pos   = TILE_SIZE  + thread_id;
+            query_pos = TILE_SIZE  + thread_id;
+            thread_score = sub_mat[ref_char[ref_pos]*5+query_char[query_pos]];
+        }
+
+        for (int offset = warp_size >> 1; offset > 0; offset = offset >> 1)
+            thread_score += __shfl_down_sync(0x13, thread_score, offset);
+
+        if(thread_id == 0){
+            total_score += thread_score;
+        }
+        __syncthreads();
+
+        ////////////////////////////////////////////////////////////////
+
+        tile = 0;
+        right_xdrop_found = false;
+        right_edge = false;
+        prev_score = 0;
+        prev_max_score = 0;
+
+        while(tile < NUM_TILES && !right_xdrop_found && !right_edge){
+            ref_pos   = seed_size + thread_id + tile*warp_size;
+            query_pos = seed_size + thread_id + tile*warp_size;
+
+            if(ref_pos + ref_loc < ref_len && query_pos + query_loc < query_len){
+                thread_score = sub_mat[ref_char[TILE_SIZE+ref_pos]*5+query_char[TILE_SIZE + query_pos]];
+            }
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                if(thread_id >= offset){
+                    thread_score += temp;
+                }
+            }
+
+            thread_score += prev_score;
+            max_thread_score = max(thread_score, prev_max_score);
+            __syncthreads();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                if(thread_id >= offset){
+                    max_thread_score = max(max_thread_score, temp);
+                }
+            }
+
+            xdrop_done = ((max_thread_score-thread_score) > xdrop);
+            __syncthreads();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+            }
+
+            if(thread_id == warp_size-1){
+                if(xdrop_done){
+                    total_score+=max_thread_score;
+                    right_xdrop_found = true;
+                    right_extent = tile*BLOCK_SIZE-1;
+                }
+                else if(ref_pos > ref_len || query_pos > query_len)
+                    right_edge = true;
+                else{
+                    prev_score = thread_score;
+                    prev_max_score = max_thread_score;
+                }
+            }
+            __syncthreads();
+
+            tile++;
+        }
+
+        ////////////////////////////////////////////////////////////////
+
+        tile = 0;
+        left_xdrop_found = false;
+        left_edge = false;
+        prev_score = 0;
+        prev_max_score = 0;
+
+        while(tile < NUM_TILES && !left_xdrop_found && !left_edge){
+            ref_pos   = thread_id + 1 + tile*warp_size;
+            query_pos = thread_id + 1 + tile*warp_size;
+
+            if(ref_loc>=ref_pos && query_loc>=query_pos){
+                thread_score = sub_mat[ref_char[TILE_SIZE-ref_pos]*5+query_char[TILE_SIZE-query_pos]];
+            }
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                if(thread_id >= offset){
+                    thread_score += temp;
+                }
+            }
+
+            thread_score += prev_score;
+            max_thread_score = max(thread_score, prev_max_score);
+            __syncthreads();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                if(thread_id >= offset){
+                    max_thread_score = max(max_thread_score, temp);
+                }
+            }
+
+            xdrop_done = ((max_thread_score-thread_score) > xdrop);
+            __syncthreads();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+            }
+
+            if(thread_id == warp_size-1){
+                if(xdrop_done){
+                    total_score+=max_thread_score;
+                    left_xdrop_found = true;
+                    left_extent = tile*BLOCK_SIZE-1;
+                }
+                else if(ref_pos < 0 || query_pos < 0)
+                    left_edge = true;
+                else{
+                    prev_score = thread_score;
+                    prev_max_score = max_thread_score;
+                }
+            }
+            __syncthreads();
+
+            tile++;
+        }
+
+        //////////////////////////////////////////////////////////////////
+
+        if(thread_id == 0){
+            int dram_address = seed_hit_num[block_id]-id1+start-1;
+
+//            if(total_score < 0)
+//                printf("t %d %d\n", total_score, rev);
+
+            if(!left_edge && !right_edge){
+                if(right_xdrop_found && left_xdrop_found){
+                    if(total_score >= xdrop_threshold){
+                        d_r_starts[dram_address] = ref_loc - left_extent;
+                        d_q_starts[dram_address] = query_loc - left_extent;
+                        d_len[dram_address] = left_extent+right_extent+seed_size;
+                        d_done[dram_address] = true;
+                    }
+                    else{
+                        d_r_starts[dram_address] = 0;
+                        d_q_starts[dram_address] = 0;
+                        d_len[dram_address] = 1;
+                        d_done[dram_address] = false;
+                    }
+                }
+                else{
+                    d_r_starts[dram_address] = ref_loc;
+                    d_q_starts[dram_address] = query_loc;
+                    d_len[dram_address] = seed_size;
+                    d_done[dram_address] = false;
+                }
+            }
+            else{
+                d_r_starts[dram_address] = 0;
+                d_q_starts[dram_address] = 0;
+                d_len[dram_address] = 2;
+                d_done[dram_address] = false;
+            }
+        }
+        __syncthreads();
+    }
+}
+
+__global__
+void find_anchors3 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+
+    int thread_id = threadIdx.x;
+    int thread_block_id = blockIdx.x;
+    int grid_dim = gridDim.x;
+    int warp_size = warpSize;
+
+    __shared__ uint32_t start, end;
+    __shared__ uint32_t q_start;
+    __shared__ uint32_t seed;
+    __shared__ uint64_t seed_offset;
+
+    __shared__ uint32_t ref_loc;
+    __shared__ uint32_t query_loc;
+    __shared__ int total_score;
+    __shared__ int prev_score;
+    __shared__ int prev_max_score;
+    __shared__ bool right_edge; 
+    __shared__ bool left_edge; 
+    __shared__ bool right_xdrop_found; 
+    __shared__ bool left_xdrop_found; 
+    __shared__ uint32_t left_extent;
+    __shared__ uint32_t right_extent;
+
+    int thread_score;
+    int max_thread_score;
+    bool xdrop_done;
+    int temp;
+    int tile = 0;
+    int ref_pos;
+    int query_pos;
+
+    __shared__ int sub_mat[25];
+
+    if(thread_id < 25){
+        sub_mat[thread_id] = d_sub_mat[thread_id];
+    }
+
+    for(int block_id = thread_block_id; block_id < num_seeds; block_id += grid_dim){
+        if(thread_id == 0){
+            seed_offset = d_seed_offsets[block_id];
+        }
+        __syncthreads();
+
+        seed = (seed_offset >> 32);
+        q_start = ((seed_offset << 32) >> 32);
+
+        // start and end from the seed block_id table
+        end = d_index_table[seed];
+        start = 0;
+        if (seed > 0){
+            start = d_index_table[seed-1];
+        }
+
+        for (int id1 = start; id1 < end; id1 += 1) {
+            if(thread_id == 0){ 
+                ref_loc   = d_pos_table[id1];
+                query_loc = q_start;
+                total_score = 0; 
+            }
+
+            //////////////////////////////////////////////////////////////////
+
+            thread_score = 0;
+            if(thread_id < seed_size){
+                thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
+            }
+
+            for (int offset = warp_size/2; offset > 0; offset /= 2)
+                thread_score += __shfl_down_sync(0x13, thread_score, offset);
+
+            if(thread_id == 0){
+                total_score += thread_score;
+            }
+            __syncthreads();
+
+            ////////////////////////////////////////////////////////////////
+
+            tile = 0;
+            right_xdrop_found = false;
+            right_edge = false;
+            prev_score = 0;
+            prev_max_score = 0;
+
+            while(tile < NUM_TILES && !right_xdrop_found && !right_edge){
+                ref_pos   = ref_loc + seed_size + thread_id + tile*warp_size;
+                query_pos = query_loc + seed_size + thread_id + tile*warp_size;
+
+                if(ref_pos < ref_len && query_pos < query_len){
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                }
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(thread_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+
+                thread_score += prev_score;
+                max_thread_score = max(thread_score, prev_max_score);
+                __syncthreads();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                    if(thread_id >= offset){
+                        max_thread_score = max(max_thread_score, temp);
+                    }
+                }
+
+                xdrop_done = ((max_thread_score-thread_score) > xdrop);
+                __syncthreads();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                }
+
+                if(thread_id == warp_size-1){
+                    if(xdrop_done){
+                        total_score+=max_thread_score;
+                        right_xdrop_found = true;
+                        right_extent = tile*BLOCK_SIZE-1;
+                    }
+                    else if(ref_pos > ref_len || query_pos > query_len)
+                        right_edge = true;
+                    else{
+                        prev_score = thread_score;
+                        prev_max_score = max_thread_score;
+                    }
+                }
+                __syncthreads();
+
+                tile++;
+            }
+
+            ////////////////////////////////////////////////////////////////
+
+            tile = 0;
+            left_xdrop_found = false;
+            left_edge = false;
+            prev_score = 0;
+            prev_max_score = 0;
+
+            while(tile < NUM_TILES && !left_xdrop_found && !left_edge){
+
+                ref_pos   = ref_loc - thread_id - 1 - tile*warp_size;
+                query_pos = query_loc - thread_id - 1 - tile*warp_size;
+
+                if(ref_pos >= 0  && query_pos >= 0){
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                }
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
+
+                    if(thread_id >= offset){
+                        thread_score += temp;
+                    }
+                }
+
+                thread_score += prev_score;
+                max_thread_score = max(thread_score, prev_max_score);
+                __syncthreads();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+
+                    if(thread_id >= offset){
+                        max_thread_score = max(max_thread_score, temp);
+                    }
+                }
+
+                xdrop_done = ((max_thread_score-thread_score) > xdrop);
+                __syncthreads();
+
+#pragma unroll
+                for (int offset = 1; offset < warp_size; offset *= 2){
+                    xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                }
+
+                if(thread_id == warp_size-1){
+                    if(xdrop_done){
+                        total_score+=max_thread_score;
+                        left_xdrop_found = true;
+                        left_extent = tile*BLOCK_SIZE-1;
+                    }
+                    else if(ref_pos < 0 || query_pos < 0)
+                        left_edge = true;
+                    else{
+                        prev_score = thread_score;
+                        prev_max_score = max_thread_score;
+                    }
+                }
+                __syncthreads();
+
+                tile++;
+            }
+
+            //////////////////////////////////////////////////////////////////
+
+            if(thread_id == 0){
+                int dram_address = seed_hit_num[block_id]-id1+start-1;
+
+                if(total_score < 0)
+                    printf("t %d %d\n", total_score, rev);
+
+                if(!left_edge && !right_edge){
+                    if(right_xdrop_found && left_xdrop_found){
+                        if(total_score >= xdrop_threshold){
+                            d_r_starts[dram_address] = ref_loc - left_extent;
+                            d_q_starts[dram_address] = query_loc - left_extent;
+                            d_len[dram_address] = left_extent+right_extent+seed_size;
+                            d_done[dram_address] = true;
+                        }
+                        else{
+                            d_r_starts[dram_address] = 0;
+                            d_q_starts[dram_address] = 0;
+                            d_len[dram_address] = 1;
+                            d_done[dram_address] = false;
+                        }
+                    }
+                    else{
+                        d_r_starts[dram_address] = ref_loc;
+                        d_q_starts[dram_address] = query_loc;
+                        d_len[dram_address] = seed_size;
+                        d_done[dram_address] = false;
+                    }
+                }
+                else{
+                    d_r_starts[dram_address] = 0;
+                    d_q_starts[dram_address] = 0;
+                    d_len[dram_address] = 2;
+                    d_done[dram_address] = false;
+                }
+            }
+            __syncthreads();
+        }
+    }
+}
+
 int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     gpu_lock.lock();
@@ -430,9 +1186,24 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     gettimeofday(&time2, NULL);
 
     if(rev)
-        find_anchors3 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors0 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
     else
-        find_anchors3 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors0 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+
+//    if(rev)
+//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+//    else
+//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+
+//    if(rev)
+//        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+//    else
+//        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+
+//    if(rev)
+//        find_anchors3 <<<MAX_BLOCKS, BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+//    else
+//        find_anchors3 <<<MAX_BLOCKS, BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
 
 
     err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
@@ -563,7 +1334,6 @@ size_t InitializeProcessor (int t, int f){
 void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
-    printf("%d\n", len);
     
     char* d_ref_seq_tmp;
     err = cudaMalloc(&d_ref_seq_tmp, len*sizeof(char)); 
@@ -592,7 +1362,6 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 void SendQueryWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     query_len = len;
-    printf("%d\n", len);
     
     char* d_query_seq_tmp;
 

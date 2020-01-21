@@ -11,10 +11,10 @@ set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
 #set(CMAKE_CXX_COMPILER "nvcc")
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -g -pg -std=c++11")
-#set(CMAKE_NVCC_FLAGS "${CMAKE_NVCC_FLAGS} -std=c++11 –arch=sm_60")
-#set(CMAKE_NVCC_FLAGS "${CMAKE_NVCC_FLAGS} -std=c++11 -g -G -lineinfo –arch=sm_60")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -g -pg -std=c++11")
+#set(CUDA_FLAGS "${CUDA_FLAGS} -std=c++11 -O4 -lineinfo -use_fast_math")
+set(CUDA_FLAGS "${CUDA_FLAGS} -std=c++11 -O4 -Xptxas -dlcm=ca -use_fast_math")
 
 include(${TBB_ROOT}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_ROOT} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
