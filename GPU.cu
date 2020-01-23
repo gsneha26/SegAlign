@@ -1,4 +1,5 @@
 #include <thrust/scan.h>
+#include <thrust/sort.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include "graph.h"
@@ -53,7 +54,8 @@ uint64_t* d_pos_table;
 uint64_t* h_seed_offsets;
 uint32_t* d_r_starts;
 uint32_t* d_q_starts;
-int32_t* d_len;
+uint32_t* d_len;
+long int* d_diag;
 bool* d_done;
 int *sub_mat;
 
@@ -141,7 +143,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, long int* d_diag, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -165,6 +167,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ uint32_t right_extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
+    __shared__ char seed_query[32];
 
     int thread_score;
     int max_thread_score;
@@ -191,6 +194,9 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             start = d_index_table[seed-1];
         }
     }
+
+    if(warp_id == 0)
+        seed_query[lane_id] = d_query_seq[query_loc+lane_id]; 
     __syncthreads();
 
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
@@ -205,7 +211,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
             thread_score = 0;
             if(lane_id < seed_size){
-                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*5+d_query_seq[query_loc+lane_id]];
+                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*5+seed_query[lane_id]];
             }
 
             for (int offset = warp_size >> 1; offset > 0; offset = offset >> 1)
@@ -223,6 +229,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             right_edge[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
+            right_extent[warp_id] = 0;
 
             while(!right_xdrop_found[warp_id] && !right_edge[warp_id]){
                 ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
@@ -266,7 +273,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         right_xdrop_found[warp_id] = true;
-                        right_extent[warp_id] = tile[warp_id]*TILE_SIZE-1;
+                        right_extent[warp_id] = tile[warp_id]*warp_size-1;
                     }
                     else if(ref_pos > ref_len || query_pos > query_len)
                         right_edge[warp_id] = true;
@@ -287,6 +294,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             left_edge[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
+            left_extent[warp_id] = 0;
 
             while(!left_xdrop_found[warp_id] && !left_edge[warp_id]){
 
@@ -331,7 +339,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         left_xdrop_found[warp_id] = true;
-                        left_extent[warp_id] = tile[warp_id]*BLOCK_SIZE-1;
+                        left_extent[warp_id] = tile[warp_id]*warp_size-1;
                     }
                     else if(ref_pos < 0 || query_pos < 0)
                         left_edge[warp_id] = true;
@@ -350,35 +358,18 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             if(lane_id == 0){
                 int dram_address = seed_hit_num[block_id]-id1 - warp_id+start-1;
 
-                if(total_score[warp_id] < 0)
-                    printf("t %d %d\n", total_score[warp_id], rev);
-
-                if(!left_edge[warp_id] && !right_edge[warp_id]){
-                    if(right_xdrop_found[warp_id] && left_xdrop_found[warp_id]){
-                        if(total_score[warp_id] >= xdrop_threshold){
-                            d_r_starts[dram_address] = ref_loc[warp_id] - left_extent[warp_id];
-                            d_q_starts[dram_address] = query_loc - left_extent[warp_id];
-                            d_len[dram_address] = left_extent[warp_id]+right_extent[warp_id]+seed_size;
-                            d_done[dram_address] = true;
-                        }
-                        else{
-                            d_r_starts[dram_address] = 0;
-                            d_q_starts[dram_address] = 0;
-                            d_len[dram_address] = 1;
-                            d_done[dram_address] = false;
-                        }
-                    }
-                    else{
-                        d_r_starts[dram_address] = ref_loc[warp_id];
-                        d_q_starts[dram_address] = query_loc;
-                        d_len[dram_address] = seed_size;
-                        d_done[dram_address] = false;
-                    }
+                if(total_score[warp_id] >= xdrop_threshold){
+                    d_r_starts[dram_address] = ref_loc[warp_id] - left_extent[warp_id];
+                    d_q_starts[dram_address] = query_loc - left_extent[warp_id];
+                    d_len[dram_address] = left_extent[warp_id]+right_extent[warp_id]+seed_size;
+                    d_diag[dram_address] = ref_loc[warp_id] - query_loc;
+                    d_done[dram_address] = true;
                 }
                 else{
                     d_r_starts[dram_address] = 0;
                     d_q_starts[dram_address] = 0;
-                    d_len[dram_address] = 2;
+                    d_len[dram_address] = 0;
+                    d_diag[dram_address] = 0;
                     d_done[dram_address] = false;
                 }
             }
@@ -388,7 +379,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 }
 
 __global__
-void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, long int* d_diag,bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -470,6 +461,7 @@ void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             right_edge[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
+            right_extent[warp_id] = 0;
 
             while(tile[warp_id] < NUM_TILES && !right_xdrop_found[warp_id] && !right_edge[warp_id]){
                 ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
@@ -532,6 +524,7 @@ void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             tile[warp_id] = 0;
             left_xdrop_found[warp_id] = false;
             left_edge[warp_id] = false;
+            left_extent[warp_id] = 0;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
 
@@ -634,251 +627,6 @@ void find_anchors0 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     }
 }
 
-__global__
-void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, int32_t* d_len, bool* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
-
-    int thread_id = threadIdx.x;
-    int block_id = blockIdx.x;
-    int warp_size = warpSize;
-
-    __shared__ uint32_t start, end;
-    __shared__ uint32_t q_start;
-    __shared__ uint32_t seed;
-    __shared__ uint64_t seed_offset;
-
-    __shared__ uint32_t ref_loc;
-    __shared__ uint32_t query_loc;
-    __shared__ int total_score;
-    __shared__ int prev_score;
-    __shared__ int prev_max_score;
-    __shared__ bool right_edge; 
-    __shared__ bool left_edge; 
-    __shared__ bool right_xdrop_found; 
-    __shared__ bool left_xdrop_found; 
-    __shared__ uint32_t left_extent;
-    __shared__ uint32_t right_extent;
-
-    int thread_score;
-    int max_thread_score;
-    bool xdrop_done;
-    int temp;
-    int tile = 0;
-    int ref_pos;
-    int query_pos;
-
-    __shared__ int sub_mat[25];
-
-    if(thread_id < 25){
-        sub_mat[thread_id] = d_sub_mat[thread_id];
-    }
-
-    if(thread_id == 0){
-        seed_offset = d_seed_offsets[block_id];
-    }
-    __syncthreads();
-
-    seed = (seed_offset >> 32);
-    q_start = ((seed_offset << 32) >> 32);
-
-    // start and end from the seed block_id table
-    end = d_index_table[seed];
-    start = 0;
-    if (seed > 0){
-        start = d_index_table[seed-1];
-    }
-
-    for (int id1 = start; id1 < end; id1 += 1) {
-        if(thread_id == 0){ 
-            ref_loc   = d_pos_table[id1];
-            query_loc = q_start;
-            total_score = 0; 
-        }
-
-        //////////////////////////////////////////////////////////////////
-
-        thread_score = 0;
-        if(thread_id < seed_size){
-            thread_score = sub_mat[d_ref_seq[ref_loc+thread_id]*5+d_query_seq[query_loc+thread_id]];
-        }
-
-        for (int offset = warp_size/2; offset > 0; offset /= 2)
-            thread_score += __shfl_down_sync(0x13, thread_score, offset);
-
-        if(thread_id == 0){
-            total_score += thread_score;
-        }
-        __syncthreads();
-
-        ////////////////////////////////////////////////////////////////
-
-        tile = 0;
-        right_xdrop_found = false;
-        right_edge = false;
-        prev_score = 0;
-        prev_max_score = 0;
-
-        while(tile < NUM_TILES && !right_xdrop_found && !right_edge){
-            ref_pos   = ref_loc + seed_size + thread_id + tile*warp_size;
-            query_pos = query_loc + seed_size + thread_id + tile*warp_size;
-
-            if(ref_pos < ref_len && query_pos < query_len){
-                thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
-            }
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-                if(thread_id >= offset){
-                    thread_score += temp;
-                }
-            }
-
-            thread_score += prev_score;
-            max_thread_score = max(thread_score, prev_max_score);
-            __syncthreads();
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
-
-                if(thread_id >= offset){
-                    max_thread_score = max(max_thread_score, temp);
-                }
-            }
-
-            xdrop_done = ((max_thread_score-thread_score) > xdrop);
-            __syncthreads();
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
-            }
-
-            if(thread_id == warp_size-1){
-                if(xdrop_done){
-                    total_score+=max_thread_score;
-                    right_xdrop_found = true;
-                    right_extent = tile*TILE_SIZE-1;
-                }
-                else if(ref_pos > ref_len || query_pos > query_len)
-                    right_edge = true;
-                else{
-                    prev_score = thread_score;
-                    prev_max_score = max_thread_score;
-                }
-            }
-            __syncthreads();
-
-            tile++;
-        }
-
-        ////////////////////////////////////////////////////////////////
-
-        tile = 0;
-        left_xdrop_found = false;
-        left_edge = false;
-        prev_score = 0;
-        prev_max_score = 0;
-
-        while(tile < NUM_TILES && !left_xdrop_found && !left_edge){
-
-            ref_pos   = ref_loc - thread_id - 1 - tile*warp_size;
-            query_pos = query_loc - thread_id - 1 - tile*warp_size;
-
-            if(ref_pos >= 0  && query_pos >= 0){
-                thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
-            }
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                temp = __shfl_up_sync(0xFFFFFFFF, thread_score, offset);
-
-                if(thread_id >= offset){
-                    thread_score += temp;
-                }
-            }
-
-            thread_score += prev_score;
-            max_thread_score = max(thread_score, prev_max_score);
-            __syncthreads();
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
-
-                if(thread_id >= offset){
-                    max_thread_score = max(max_thread_score, temp);
-                }
-            }
-
-            xdrop_done = ((max_thread_score-thread_score) > xdrop);
-            __syncthreads();
-
-#pragma unroll
-            for (int offset = 1; offset < warp_size; offset *= 2){
-                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
-            }
-
-            if(thread_id == warp_size-1){
-                if(xdrop_done){
-                    total_score+=max_thread_score;
-                    left_xdrop_found = true;
-                    left_extent = tile*TILE_SIZE-1;
-                }
-                else if(ref_pos < 0 || query_pos < 0)
-                    left_edge = true;
-                else{
-                    prev_score = thread_score;
-                    prev_max_score = max_thread_score;
-                }
-            }
-            __syncthreads();
-
-            tile++;
-        }
-
-        //////////////////////////////////////////////////////////////////
-
-        if(thread_id == 0){
-            int dram_address = seed_hit_num[block_id]-id1+start-1;
-
-            if(total_score < 0)
-                printf("t %d %d\n", total_score, rev);
-
-            if(!left_edge && !right_edge){
-                if(right_xdrop_found && left_xdrop_found){
-                    if(total_score >= xdrop_threshold){
-                        d_r_starts[dram_address] = ref_loc - left_extent;
-                        d_q_starts[dram_address] = query_loc - left_extent;
-                        d_len[dram_address] = left_extent+right_extent+seed_size;
-                        d_done[dram_address] = true;
-                    }
-                    else{
-                        d_r_starts[dram_address] = 0;
-                        d_q_starts[dram_address] = 0;
-                        d_len[dram_address] = 1;
-                        d_done[dram_address] = false;
-                    }
-                }
-                else{
-                    d_r_starts[dram_address] = ref_loc;
-                    d_q_starts[dram_address] = query_loc;
-                    d_len[dram_address] = seed_size;
-                    d_done[dram_address] = false;
-                }
-            }
-            else{
-                d_r_starts[dram_address] = 0;
-                d_q_starts[dram_address] = 0;
-                d_len[dram_address] = 2;
-                d_done[dram_address] = false;
-            }
-        }
-        __syncthreads();
-    }
-}
-
 int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     gpu_lock.lock();
@@ -889,8 +637,6 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     uint32_t num_hits;
     int total_anchors = 0;
     int total1 = 0;
-    int total2 = 0;
-    int total_seed = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
@@ -925,19 +671,14 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     gettimeofday(&time2, NULL);
 
     if(rev)
-        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_diag, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
     else
-        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_diag, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
 
 //    if(rev)
 //        find_anchors0 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
 //    else
 //        find_anchors0 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
-
-//    if(rev)
-//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
-//    else
-//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
 
     err = cudaMemcpy(h_r_starts, d_r_starts, num_hits*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
@@ -969,22 +710,21 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     for(int i = 0; i < num_hits; i++){
         if(h_done[i]){
+            fprintf(stdout, "%d %d\n", h_r_starts[i], h_q_starts[i]);
+        }
+
+        if(h_done[i]){
             total_anchors++;
         }
         else{
-            if(h_len[i] == 1)
-                total1++;
-            else if(h_len[i] == 2)
-                total2++;
-            else if(h_len[i] == seed_size)
-                total_seed++;
+            total1++;
         }
     }
 
     useconds1 = time4.tv_usec - time2.tv_usec;
     seconds1  = time4.tv_sec  - time2.tv_sec;
     mseconds1 = ((seconds1) * 1000 + useconds1/1000.0) + 0.5;
-    fprintf(stdout, "%d %d %d %d %d %d\n", rev, total1, total2, total_seed, total_anchors, num_hits);
+//    fprintf(stdout, "%d %d %d %d\n", rev, total1, total_anchors, num_hits);
 
     return ret;
 }
@@ -1011,6 +751,12 @@ size_t InitializeProcessor (int t, int f){
     }
 
     err = cudaMalloc(&d_len, MAX_HITS*sizeof(uint32_t)); 
+    if (err != cudaSuccess) {
+        fprintf(stderr, "4 Error: cudaMalloc failed! SF4\n");
+        exit(1);
+    }
+
+    err = cudaMalloc(&d_diag, MAX_HITS*sizeof(long int)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "4 Error: cudaMalloc failed! SF4\n");
         exit(1);
