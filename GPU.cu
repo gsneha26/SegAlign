@@ -736,7 +736,6 @@ void ShutdownProcessor(){
     cudaFree(d_r_starts);
     cudaFree(d_q_starts);
     cudaFree(d_len);
-    d_done_vec.clear();
     free(h_r_loc);
     free(h_q_loc);
     free(h_len);
