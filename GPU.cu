@@ -240,6 +240,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     __shared__ uint32_t right_extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
     __shared__ char seed_query[32];
+    __shared__ uint32_t seed_hit_prefix;
 
     int thread_score;
     int max_thread_score;
@@ -265,6 +266,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
         if (seed > 0){
             start = d_index_table[seed-1];
         }
+        seed_hit_prefix = seed_hit_num[block_id]; 
     }
 
     if(warp_id == 0)
@@ -304,8 +306,10 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             right_extent[warp_id] = 0;
 
             while(!right_xdrop_found[warp_id] && !right_edge[warp_id]){
-                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
-                query_pos = query_loc + seed_size + lane_id + tile[warp_id]*warp_size;
+//                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
+//                query_pos = query_loc + seed_size + lane_id + tile[warp_id]*warp_size;
+                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + (tile[warp_id] << 5);
+                query_pos = query_loc + seed_size + lane_id + (tile[warp_id] << 5);
 
                 if(ref_pos < ref_len && query_pos < query_len){
                     thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
@@ -345,7 +349,8 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         right_xdrop_found[warp_id] = true;
-                        right_extent[warp_id] = tile[warp_id]*warp_size-1;
+                        right_extent[warp_id] = tile[warp_id] << 5-1;
+//                        right_extent[warp_id] = tile[warp_id]*warp_size-1;
                     }
                     else if(ref_pos > ref_len || query_pos > query_len)
                         right_edge[warp_id] = true;
@@ -370,8 +375,10 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
             while(!left_xdrop_found[warp_id] && !left_edge[warp_id]){
 
-                ref_pos   = ref_loc[warp_id] - lane_id - 1 - tile[warp_id]*warp_size;
-                query_pos = query_loc - lane_id - 1 - tile[warp_id]*warp_size;
+//                ref_pos   = ref_loc[warp_id] - lane_id - 1 - tile[warp_id]*warp_size;
+//                query_pos = query_loc - lane_id - 1 - tile[warp_id]*warp_size;
+                ref_pos   = ref_loc[warp_id] - lane_id - 1 - (tile[warp_id] << 5);
+                query_pos = query_loc - lane_id - 1 - (tile[warp_id] << 5);
 
                 if(ref_pos >= 0  && query_pos >= 0){
                     thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
@@ -411,7 +418,8 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         left_xdrop_found[warp_id] = true;
-                        left_extent[warp_id] = tile[warp_id]*warp_size-1;
+                        left_extent[warp_id] = tile[warp_id] << 5-1;
+//                        left_extent[warp_id] = tile[warp_id]*warp_size-1;
                     }
                     else if(ref_pos < 0 || query_pos < 0)
                         left_edge[warp_id] = true;
@@ -428,7 +436,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             //////////////////////////////////////////////////////////////////
 
             if(lane_id == 0){
-                int dram_address = seed_hit_num[block_id]-id1 - warp_id+start-1;
+                int dram_address = seed_hit_prefix -id1 - warp_id+start-1;
 
                 if(total_score[warp_id] >= xdrop_threshold){
                     d_r_starts[dram_address] = ref_loc[warp_id] - left_extent[warp_id];
