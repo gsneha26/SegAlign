@@ -51,19 +51,12 @@ uint32_t* d_index_table;
 uint32_t* d_num_seed_hits;
 uint64_t* d_pos_table;
 uint64_t* h_seed_offsets;
-//uint32_t* d_r_starts;
-//uint32_t* d_q_starts;
-//uint32_t* d_len;
-//bool* d_done;
+uint32_t* d_r_starts;
+uint32_t* d_q_starts;
+uint32_t* d_len;
 int *sub_mat;
 
-thrust::device_vector<uint32_t> d_r_starts_vec(MAX_HITS);
-thrust::device_vector<uint32_t> d_q_starts_vec(MAX_HITS);
-thrust::device_vector<uint32_t> d_len_vec(MAX_HITS);
 thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
-uint32_t* d_r_starts = thrust::raw_pointer_cast(&d_r_starts_vec[0]);
-uint32_t* d_q_starts = thrust::raw_pointer_cast(&d_q_starts_vec[0]);
-uint32_t* d_len = thrust::raw_pointer_cast(&d_len_vec[0]);
 uint32_t* d_done = thrust::raw_pointer_cast(&d_done_vec[0]);
 
 thrust::device_vector<int> seed_hit_num(MAX_SEEDS);
@@ -73,7 +66,6 @@ uint64_t* h_loc;
 uint32_t* h_len;
 uint64_t* loc_final;
 uint32_t* len_final;
-
 
 __global__
 void rev_comp (uint32_t len, char* src_seq, char* dst_seq){ 
@@ -536,6 +528,24 @@ size_t InitializeProcessor (int t, int f){
     h_loc      = (uint64_t*) calloc(MAX_HITS, sizeof(uint64_t));
     h_len      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
 
+    err = cudaMalloc(&d_r_starts, MAX_HITS*sizeof(uint32_t));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "1 Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
+    err = cudaMalloc(&d_q_starts, MAX_HITS*sizeof(uint32_t));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "1 Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
+    err = cudaMalloc(&d_len, MAX_HITS*sizeof(uint32_t));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "1 Error: cudaMalloc failed!\n");
+        exit(1);
+    }
+
     err = cudaMalloc(&loc_final, MAX_HITS*sizeof(uint64_t));
     if (err != cudaSuccess) {
         fprintf(stderr, "1 Error: cudaMalloc failed!\n");
@@ -706,13 +716,9 @@ void ShutdownProcessor(){
     cudaFree(d_seed_offsets);
     cudaFree(d_index_table);
     cudaFree(d_pos_table);
-//    cudaFree(d_r_starts);
-//    cudaFree(d_q_starts);
-//    cudaFree(d_len);
-//    cudaFree(d_done);
-    d_r_starts_vec.clear();
-    d_q_starts_vec.clear();
-    d_len_vec.clear();
+    cudaFree(d_r_starts);
+    cudaFree(d_q_starts);
+    cudaFree(d_len);
     d_done_vec.clear();
     free(h_loc);
     free(h_len);
