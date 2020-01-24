@@ -70,31 +70,6 @@ uint32_t* query_loc_final;
 uint32_t* len_final;
 
 __global__
-void rev_comp (uint32_t len, char* src_seq, char* dst_seq){ 
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int stride = block_dim * grid_dim;
-    uint32_t start = block_dim * block_id + thread_id;
-
-    for (uint32_t i = start; i < len; i += stride) {
-        char ch = src_seq[i];
-        char dst = N_NT;
-        if ((ch == 'a') || (ch == 'A'))
-            dst = T_NT;
-        else if ((ch == 'c') || (ch == 'C'))
-            dst = G_NT;
-        else if ((ch == 'g') || (ch == 'G'))
-            dst = C_NT;
-        else if ((ch == 't') || (ch == 'T'))
-            dst = A_NT;
-        dst_seq[len - 1 -i] = dst;
-    }
-}
-
-__global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -684,8 +659,6 @@ void SendQueryWriteRequest (size_t start_addr, size_t len){
         exit(1);
     }
 
-//    rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_rc_seq);
-//    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq);
     compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq, d_query_rc_seq);
 
     cudaFree(d_query_seq_tmp);
