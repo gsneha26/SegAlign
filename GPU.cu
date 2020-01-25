@@ -190,7 +190,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
+void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, bool rev){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -469,9 +469,9 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     }
 
     if(rev)
-        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
     else
-        find_anchors2 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
+        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, rev);
 
     thrust::inclusive_scan(d_done_vec.begin(), d_done_vec.begin() + num_hits, d_done_vec.begin());
 
@@ -502,9 +502,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     }
 
     for(int i = 0; i < num_anchors; i++){
-//        if(h_done[i]){
-//            fprintf(stdout, "%d %d %d\n", i, h_r_starts[i], h_q_starts[i]);
-//        }
+        fprintf(stdout, "%d %d %d\n", i, h_r_loc[i], h_q_loc[i]);
     }
 
     fprintf(stdout, "Stats %d %d %d\n", rev, num_anchors, num_hits);
