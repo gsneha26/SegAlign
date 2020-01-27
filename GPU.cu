@@ -54,6 +54,7 @@ uint64_t* h_seed_offsets;
 uint32_t* d_r_starts;
 uint32_t* d_q_starts;
 uint32_t* d_len;
+uint32_t* d_score;
 int *sub_mat;
 
 thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
@@ -253,7 +254,6 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
             if(lane_id == 0){ 
                 ref_loc[warp_id]   = d_pos_table[id1+warp_id];
                 total_score[warp_id] = 0; 
-                tile[warp_id] = 0;
             }
 
             //////////////////////////////////////////////////////////////////
@@ -281,10 +281,9 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
             right_extent[warp_id] = 0;
 
             while(!right_xdrop_found[warp_id] && !right_edge[warp_id]){
-//                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
-//                query_pos = query_loc + seed_size + lane_id + tile[warp_id]*warp_size;
-                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + (tile[warp_id] << 5);
-                query_pos = query_loc + seed_size + lane_id + (tile[warp_id] << 5);
+                ref_pos   = ref_loc[warp_id]   + seed_size + lane_id + tile[warp_id]*warp_size;
+                query_pos = query_loc + seed_size + lane_id + tile[warp_id]*warp_size;
+                thread_score = 0;
 
                 if(ref_pos < ref_len && query_pos < query_len){
                     thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
@@ -324,8 +323,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         right_xdrop_found[warp_id] = true;
-                        right_extent[warp_id] = tile[warp_id] << 5-1;
-//                        right_extent[warp_id] = tile[warp_id]*warp_size-1;
+                        right_extent[warp_id] = (tile[warp_id]+1)*warp_size-1;
                     }
                     else if(ref_pos > ref_len || query_pos > query_len)
                         right_edge[warp_id] = true;
@@ -350,10 +348,9 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
 
             while(!left_xdrop_found[warp_id] && !left_edge[warp_id]){
 
-//                ref_pos   = ref_loc[warp_id] - lane_id - 1 - tile[warp_id]*warp_size;
-//                query_pos = query_loc - lane_id - 1 - tile[warp_id]*warp_size;
-                ref_pos   = ref_loc[warp_id] - lane_id - 1 - (tile[warp_id] << 5);
-                query_pos = query_loc - lane_id - 1 - (tile[warp_id] << 5);
+                ref_pos   = ref_loc[warp_id] - lane_id - 1 - tile[warp_id]*warp_size;
+                query_pos = query_loc - lane_id - 1 - tile[warp_id]*warp_size;
+                thread_score = 0;
 
                 if(ref_pos >= 0  && query_pos >= 0){
                     thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
@@ -393,8 +390,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         left_xdrop_found[warp_id] = true;
-                        left_extent[warp_id] = tile[warp_id] << 5-1;
-//                        left_extent[warp_id] = tile[warp_id]*warp_size-1;
+                        left_extent[warp_id] = (tile[warp_id]+1)*warp_size-1;
                     }
                     else if(ref_pos < 0 || query_pos < 0)
                         left_edge[warp_id] = true;
@@ -502,10 +498,51 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
     }
 
     for(int i = 0; i < num_anchors; i++){
-        fprintf(stdout, "%d %d %d\n", i, h_r_loc[i], h_q_loc[i]);
+        fprintf(stdout, "%d %d %d\n", i, h_r_loc[i], h_q_loc[i], h_len[i]   
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            );
     }
 
-    fprintf(stdout, "Stats %d %d %d\n", rev, num_anchors, num_hits);
+//    fprintf(stdout, "Stats %d %d %d\n", rev, num_anchors, num_hits);
 
     gpu_lock.unlock();
 
