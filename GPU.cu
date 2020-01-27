@@ -31,8 +31,6 @@ const char T_NT = 3;
 const char N_NT = 4;
 
 int mat_offset[] = {0, 1, 3, 6};                                                             
-int *d_sub_mat;
-
 int err;                            
 int check_status = 0;
 
@@ -46,33 +44,36 @@ long useconds1, seconds1, mseconds1;
 char* d_ref_seq;
 char* d_query_seq;
 char* d_query_rc_seq;
-uint64_t* d_seed_offsets;
+
+int *sub_mat;
+int *d_sub_mat;
+
 uint32_t* d_index_table;
-uint32_t* d_num_seed_hits;
 uint64_t* d_pos_table;
+
 uint64_t* h_seed_offsets;
+uint64_t* d_seed_offsets;
+
 uint32_t* d_r_starts;
 uint32_t* d_q_starts;
 uint32_t* d_len;
 uint32_t* d_score;
-int *sub_mat;
-
-thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
-uint32_t* d_done = thrust::raw_pointer_cast(&d_done_vec[0]);
-
-thrust::device_vector<int> seed_hit_num(MAX_SEEDS);
-int* seed_hit_num_array = thrust::raw_pointer_cast(&seed_hit_num[0]);
-
-uint32_t* h_r_loc;
-uint32_t* h_q_loc;
-uint32_t* h_len;
-uint32_t* h_score;
 
 uint32_t* ref_loc_final;
 uint32_t* query_loc_final;
 uint32_t* len_final;
 uint32_t* score_final;
 
+uint32_t* h_r_loc;
+uint32_t* h_q_loc;
+uint32_t* h_len;
+uint32_t* h_score;
+
+thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
+uint32_t* d_done = thrust::raw_pointer_cast(&d_done_vec[0]);
+
+thrust::device_vector<int> seed_hit_num(MAX_SEEDS);
+int* seed_hit_num_array = thrust::raw_pointer_cast(&seed_hit_num[0]);
 
 __global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
@@ -169,7 +170,7 @@ void fill_output (uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, u
 }
 
 __global__
-void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint32_t* d_num_seed_hits, int* seed_hit_num){
+void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, int* seed_hit_num){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -191,7 +192,6 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
             num_seed_hit -= d_index_table[seed-1];
         }
 
-        d_num_seed_hits[id] = num_seed_hit;
         seed_hit_num[id] = num_seed_hit;
     }
 }
@@ -467,7 +467,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
         exit(1);
     }
 
-    find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table, d_seed_offsets, d_num_seed_hits, seed_hit_num_array);
+    find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table, d_seed_offsets, seed_hit_num_array);
 
     thrust::inclusive_scan(seed_hit_num.begin(), seed_hit_num.begin() + num_seeds, seed_hit_num.begin());
 
@@ -534,10 +534,11 @@ size_t InitializeProcessor (int t, int f){
     size_t ret = 0;
     cudaError_t err;
 
-    h_r_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_q_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_len        = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_score      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
+    err = cudaMalloc(&d_seed_offsets, 13*cfg.chunk_size*sizeof(uint64_t)); 
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        exit(1);
+    }
 
     err = cudaMalloc(&d_r_starts, MAX_HITS*sizeof(uint32_t));
     if (err != cudaSuccess) {
@@ -587,17 +588,10 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
-    err = cudaMalloc(&d_seed_offsets, 13*cfg.chunk_size*sizeof(uint64_t)); 
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
-        exit(1);
-    }
-
-    err = cudaMalloc(&d_num_seed_hits, 13*cfg.chunk_size*sizeof(uint32_t));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "2 Error: cudaMalloc failed!\n");
-        exit(1);
-    }
+    h_r_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
+    h_q_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
+    h_len        = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
+    h_score      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
 
     sub_mat = (int *)malloc(25 * sizeof(int)); 
 
@@ -703,16 +697,19 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
+    
     err = cudaMemcpy(d_index_table, index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
+
     err = cudaMalloc(&d_pos_table, num_index*sizeof(uint64_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
+
     err = cudaMemcpy(d_pos_table, pos_table, num_index*sizeof(uint64_t), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
@@ -740,15 +737,30 @@ void ShutdownProcessor(){
     cudaFree(d_ref_seq);
     cudaFree(d_query_seq);
     cudaFree(d_query_rc_seq);
-    cudaFree(d_seed_offsets);
+
+    free(sub_mat);
+    cudaFree(d_sub_mat);
+
     cudaFree(d_index_table);
     cudaFree(d_pos_table);
+
+    free(h_seed_offsets);
+    cudaFree(d_seed_offsets);
+
     cudaFree(d_r_starts);
     cudaFree(d_q_starts);
     cudaFree(d_len);
+    cudaFree(d_score);
+
+    cudaFree(ref_loc_final);
+    cudaFree(query_loc_final);
+    cudaFree(len_final);
+    cudaFree(score_final);
+    
     free(h_r_loc);
     free(h_q_loc);
     free(h_len);
+    free(h_score);
 }
 
 DRAM *g_DRAM = nullptr;
