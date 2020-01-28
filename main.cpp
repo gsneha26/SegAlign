@@ -152,7 +152,6 @@ int main(int argc, char** argv)
     // D-SOFT parameters
     cfg.seed_shape_str          = (std::string) cfg_file.Value("Seed_params", "seed_shape");
     cfg.bin_size                = cfg_file.Value("Seed_params", "bin_size");
-    cfg.dsoft_threshold         = cfg_file.Value("Seed_params", "dsoft_threshold");
     cfg.num_seeds_batch         = cfg_file.Value("Seed_params", "num_seeds_batch");
     cfg.chunk_size              = cfg_file.Value("Seed_params", "chunk_size");
     cfg.seed_occurence_multiple = cfg_file.Value("Seed_params", "seed_occurence_multiple");
@@ -326,19 +325,11 @@ int main(int argc, char** argv)
         // start alignment
         tbb::flow::graph align_graph;
     
-        tbb::flow::function_node<printer_input, size_t> printer(align_graph, tbb::flow::unlimited, maf_printer_body());
+        printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
         
-        extender_node extender (align_graph, tbb::flow::unlimited, extender_body());
+        tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
     
-        tbb::flow::make_edge(tbb::flow::output_port<0>(extender), printer);
-    
-        tbb::flow::function_node<filter_input, extender_input> filter(align_graph, tbb::flow::unlimited, filter_body());
-    
-        tbb::flow::make_edge(filter, extender);
-    
-        tbb::flow::function_node<seeder_input, filter_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
-    
-        tbb::flow::make_edge(seeder, filter);
+        tbb::flow::make_edge(seeder, printer);
     
         tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
 
@@ -350,7 +341,7 @@ int main(int argc, char** argv)
         for (size_t t = 0ull; t < cfg.num_threads; t++)
             ticketer.try_put(t);
 
-        tbb::flow::make_edge(tbb::flow::output_port<1>(extender), ticketer);
+        tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
 
         tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
         
@@ -398,9 +389,7 @@ int main(int argc, char** argv)
 
     fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
-    fprintf(stderr, "#filter tiles: %lu \n", filter_body::num_filter_tiles.load());
-    fprintf(stderr, "#anchors: %lu \n", filter_body::num_anchors.load());
-    fprintf(stderr, "#extend tiles: %lu \n", extender_body::num_extend_tiles.load());
+    fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
 
 //    --------------------------------------------------------------------------
 //     Shutdown and cleanup

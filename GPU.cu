@@ -1,5 +1,4 @@
 #include <thrust/scan.h>
-#include <thrust/sort.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include "graph.h"
@@ -17,7 +16,7 @@
 #define MAX_BLOCKS 1<<10
 #define MAX_THREADS 1024 
 #define TILE_SIZE 32
-#define MAX_HITS 7000000 
+#define MAX_HITS 10000000 
 #define MAX_SEEDS 1000000 
 #define BLOCK_SIZE 128 
 #define NUM_WARPS 4
@@ -37,9 +36,6 @@ int check_status = 0;
 int ref_len;
 int query_len;
 int seed_size;
-
-struct timeval time1, time2, time3, time4, time5; 
-long useconds1, seconds1, mseconds1;
 
 char* d_ref_seq;
 char* d_query_seq;
@@ -435,9 +431,8 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
     }
 }
 
-int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
-    int ret = 0;
     cudaError_t err;
     seed_size = 19;
 
@@ -446,10 +441,6 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
-
-    if (num_seeds == 0) {
-        return ret;
-    }
 
     uint32_t* h_r_loc;
     uint32_t* h_q_loc;
@@ -481,6 +472,7 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
         find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_score, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
     else
         find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_r_starts, d_q_starts, d_len, d_score, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits);
+
 
     thrust::inclusive_scan(d_done_vec.begin(), d_done_vec.begin() + num_hits, d_done_vec.begin());
 
@@ -523,21 +515,33 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     gpu_lock.unlock();
 
+    std::vector<hsp> gpu_filter_output;
+    hsp h1;
     for(int i = 0; i < num_anchors; i++){
-        if(rev)
-            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t-\t%d\n", (h_r_loc[i]+1), (h_r_loc[i]+h_len[i]), (query_len - h_q_loc[i] - h_len[i]), (query_len - h_q_loc[i]-1), h_score[i]);
-        else
-            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t+\t%d\n", (h_r_loc[i]+1), (h_r_loc[i] + h_len[i]), (h_q_loc[i]+1), (h_q_loc[i]+h_len[i]), h_score[i]);
+        h1.ref_start = h_r_loc[i];
+        h1.len = h_len[i];
+        h1.score = h_score[i];
+
+        if(rev){
+//            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t-\t%d\n", (h_r_loc[i]+1), (h_r_loc[i]+h_len[i]), (query_len - h_q_loc[i] - h_len[i]), (query_len - h_q_loc[i]-1), h_score[i]);
+            h1.query_start = query_len - h_q_loc[i] - h_len[i] -1;
+        }
+        else{
+//            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t+\t%d\n", (h_r_loc[i]+1), (h_r_loc[i] + h_len[i]), (h_q_loc[i]+1), (h_q_loc[i]+h_len[i]), h_score[i]);
+            h1.query_start = h_q_loc[i];
+        }
+
+        gpu_filter_output.push_back(h1);
     }
 
-//    fprintf(stdout, "Stats %d %d %d\n", rev, num_anchors, num_hits);
+//    fprintf(stderr, "Stats %d %d %d %d\n", rev, num_anchors, num_hits, gpu_filter_output.size());
 
     free(h_r_loc);
     free(h_q_loc);
     free(h_len);
     free(h_score);
 
-    return ret;
+    return gpu_filter_output;
 }
 
 size_t InitializeProcessor (int t, int f){
@@ -722,22 +726,6 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
     }
 }
 
-std::vector<tile_output> SendBatchRequest (std::vector<filter_tile> tiles, uint8_t align_fields, int thresh) {
-        std::vector<tile_output> filtered_op;
-
-        return filtered_op;
-}
-
-extend_output GACTXRequest (extend_tile tile, uint8_t align_fields) {
-        extend_output op;
-
-        return op;
-}
-
-void SendRequest (size_t ref_offset, size_t query_offset, size_t ref_length, size_t query_length, uint8_t align_fields){
-
-}
-
 void ShutdownProcessor(){
     cudaFree(d_ref_seq);
     cudaFree(d_query_seq);
@@ -766,11 +754,8 @@ void ShutdownProcessor(){
 DRAM *g_DRAM = nullptr;
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
-ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
-SendRequest_ptr g_SendRequest = SendRequest;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;       
-SendBatchRequest_ptr g_SendBatchRequest = SendBatchRequest;
-GACTXRequest_ptr g_GACTXRequest = GACTXRequest;
+ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;

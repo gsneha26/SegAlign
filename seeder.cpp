@@ -7,14 +7,11 @@
 
 #include "tbb/parallel_for_each.h"
 
-struct timeval t1, t2, t3; 
-long usec1, sec1, msec1;
-long usec2, sec2, msec2;
-
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
+std::atomic<uint64_t> seeder_body::num_hsps(0);
 
-filter_input seeder_body::operator()(seeder_input input) {
+printer_input seeder_body::operator()(seeder_input input) {
 
     seeder_payload &payload = get<0>(input);
 
@@ -24,9 +21,10 @@ filter_input seeder_body::operator()(seeder_input input) {
 
     size_t token = get<1>(input);
 
-    seeder_output output;
-    output.fwHits.clear();
-    output.rcHits.clear();
+    std::vector<hsp> fw_segments;
+    std::vector<hsp> rc_segments;
+    fw_segments.clear();
+    rc_segments.clear();
 
     uint64_t index = 0;
     uint64_t transition_index = 0;
@@ -42,7 +40,6 @@ filter_input seeder_body::operator()(seeder_input input) {
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
 
-        gettimeofday(&t1, NULL);
         //end position
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
         std::vector<uint64_t> seed_offset_vector;
@@ -67,8 +64,7 @@ filter_input seeder_body::operator()(seeder_input input) {
             }
         }
         
-        int num_hits = g_SeedAndFilter(seed_offset_vector, false);
-//        output.fwHits.insert(output.fwHits.end(), seed_hits.begin(), seed_hits.end());
+        fw_segments = g_SeedAndFilter(seed_offset_vector, false);
     }
 
     char* rc_query = (char*) query_chrom.rc_seq.data();
@@ -93,12 +89,9 @@ filter_input seeder_body::operator()(seeder_input input) {
             }
         }
 
-        int num_hits = g_SeedAndFilter(seed_offset_vector, true);
-  //      output.rcHits.insert(output.rcHits.end(), seed_hits.begin(), seed_hits.end());
+        rc_segments = g_SeedAndFilter(seed_offset_vector, true);
     }
-    output.fwHits.clear();
-    output.rcHits.clear();
 
-	return filter_input(filter_payload(query_chrom, output), token);
+	return printer_input(printer_payload(fw_segments, rc_segments), token);
 }
 
