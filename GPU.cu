@@ -64,11 +64,6 @@ uint32_t* query_loc_final;
 uint32_t* len_final;
 uint32_t* score_final;
 
-uint32_t* h_r_loc;
-uint32_t* h_q_loc;
-uint32_t* h_len;
-uint32_t* h_score;
-
 thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
 uint32_t* d_done = thrust::raw_pointer_cast(&d_done_vec[0]);
 
@@ -456,6 +451,11 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
         return ret;
     }
 
+    uint32_t* h_r_loc;
+    uint32_t* h_q_loc;
+    uint32_t* h_len;
+    uint32_t* h_score;
+
     gpu_lock.lock();
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
@@ -492,6 +492,11 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
     fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_r_starts, d_q_starts, d_len, d_score, d_done, ref_loc_final, query_loc_final, len_final, score_final, num_hits);
 
+    h_r_loc = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
+    h_q_loc = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
+    h_len   = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
+    h_score = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
+
     err = cudaMemcpy(h_r_loc, ref_loc_final, num_anchors*sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
@@ -516,6 +521,8 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
         exit(1);
     }
 
+    gpu_lock.unlock();
+
     for(int i = 0; i < num_anchors; i++){
         if(rev)
             fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t-\t%d\n", (h_r_loc[i]+1), (h_r_loc[i]+h_len[i]), (query_len - h_q_loc[i] - h_len[i]), (query_len - h_q_loc[i]-1), h_score[i]);
@@ -525,7 +532,10 @@ int SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
 
 //    fprintf(stdout, "Stats %d %d %d\n", rev, num_anchors, num_hits);
 
-    gpu_lock.unlock();
+    free(h_r_loc);
+    free(h_q_loc);
+    free(h_len);
+    free(h_score);
 
     return ret;
 }
@@ -587,11 +597,6 @@ size_t InitializeProcessor (int t, int f){
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
-
-    h_r_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_q_loc      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_len        = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
-    h_score      = (uint32_t*) calloc(MAX_HITS, sizeof(uint32_t));
 
     sub_mat = (int *)malloc(25 * sizeof(int)); 
 
@@ -756,11 +761,6 @@ void ShutdownProcessor(){
     cudaFree(query_loc_final);
     cudaFree(len_final);
     cudaFree(score_final);
-    
-    free(h_r_loc);
-    free(h_q_loc);
-    free(h_len);
-    free(h_score);
 }
 
 DRAM *g_DRAM = nullptr;

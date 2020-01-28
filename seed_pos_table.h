@@ -41,7 +41,6 @@ class SeedPosTable {
 
         int GetKmerSize();
         int GetShapeSize();
-        std::vector<seed_hit> DSOFT(std::vector<uint64_t> seed_offset_vector, int threshold, uint32_t chunk_offset);
         int TouchKmerPos(std::string kmer); 
 };
 

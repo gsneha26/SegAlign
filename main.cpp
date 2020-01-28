@@ -134,19 +134,6 @@ int main(int argc, char** argv)
     cfg.query_name         = (std::string) cfg_file.Value("FASTA_files", "query_name"); 
     cfg.query_filename     = (std::string) cfg_file.Value("FASTA_files", "query_filename"); 
 
-    // D-SOFT parameters
-    cfg.seed_shape_str          = (std::string) cfg_file.Value("DSOFT_params", "seed_shape");
-    cfg.bin_size                = cfg_file.Value("DSOFT_params", "bin_size");
-    cfg.dsoft_threshold         = cfg_file.Value("DSOFT_params", "dsoft_threshold");
-    cfg.num_seeds_batch         = cfg_file.Value("DSOFT_params", "num_seeds_batch");
-    cfg.chunk_size              = cfg_file.Value("DSOFT_params", "chunk_size");
-    cfg.seed_occurence_multiple = cfg_file.Value("DSOFT_params", "seed_occurence_multiple");
-    cfg.max_candidates          = cfg_file.Value("DSOFT_params", "max_candidates");
-    cfg.num_nz_bins             = cfg_file.Value("DSOFT_params", "num_nz_bins");
-    cfg.ignore_lower            = cfg_file.Value("DSOFT_params", "ignore_lower");
-    cfg.use_transition          = cfg_file.Value("DSOFT_params", "use_transition");
-    cfg.hash_size               = cfg_file.Value("DSOFT_params", "hash_size");
-
     // GACT scoring
     cfg.gact_sub_mat[0]  = cfg_file.Value("Scoring", "sub_AA");
     cfg.gact_sub_mat[1]  = cfg_file.Value("Scoring", "sub_AC");
@@ -161,6 +148,19 @@ int main(int argc, char** argv)
     cfg.gact_sub_mat[10] = cfg_file.Value("Scoring", "sub_N");
     cfg.gap_open         = cfg_file.Value("Scoring", "gap_open");
     cfg.gap_extend       = cfg_file.Value("Scoring", "gap_extend");
+
+    // D-SOFT parameters
+    cfg.seed_shape_str          = (std::string) cfg_file.Value("Seed_params", "seed_shape");
+    cfg.bin_size                = cfg_file.Value("Seed_params", "bin_size");
+    cfg.dsoft_threshold         = cfg_file.Value("Seed_params", "dsoft_threshold");
+    cfg.num_seeds_batch         = cfg_file.Value("Seed_params", "num_seeds_batch");
+    cfg.chunk_size              = cfg_file.Value("Seed_params", "chunk_size");
+    cfg.seed_occurence_multiple = cfg_file.Value("Seed_params", "seed_occurence_multiple");
+    cfg.max_candidates          = cfg_file.Value("Seed_params", "max_candidates");
+    cfg.num_nz_bins             = cfg_file.Value("Seed_params", "num_nz_bins");
+    cfg.ignore_lower            = cfg_file.Value("Seed_params", "ignore_lower");
+    cfg.use_transition          = cfg_file.Value("Seed_params", "use_transition");
+    cfg.hash_size               = cfg_file.Value("Seed_params", "hash_size");
 
     // Banded GACT filter
     cfg.xdrop                 = cfg_file.Value("Filter_params", "xdrop");

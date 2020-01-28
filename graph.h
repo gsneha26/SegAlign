@@ -43,7 +43,12 @@ struct Configuration {
     std::string reference_filename;
     std::string query_filename;
 
-	// D-SOFT parameters
+	//Scoring
+	int gact_sub_mat[11];
+	int gap_open;
+	int gap_extend;
+
+	//Seed parameters
     std::string seed_shape_str;
 	int bin_size;
 	int dsoft_threshold;
@@ -56,16 +61,11 @@ struct Configuration {
     bool use_transition;
     int hash_size;
     
-	// GACT scoring
-	int gact_sub_mat[11];
-	int gap_open;
-	int gap_extend;
-
-    // Banded GACT filter
+    //Filter parameters
     int xdrop; 
     int xdrop_threshold;
 
-    // GACT-X
+    //Extension parameters
     int tile_size;
     int tile_overlap;
     int extension_threshold;
