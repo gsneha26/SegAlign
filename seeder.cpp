@@ -92,6 +92,6 @@ printer_input seeder_body::operator()(seeder_input input) {
         rc_segments = g_SeedAndFilter(seed_offset_vector, true);
     }
 
-	return printer_input(printer_payload(fw_segments, rc_segments), token);
+	return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
 }
 
