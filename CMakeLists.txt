@@ -37,9 +37,7 @@ add_executable(wga
     seed_pos_table.cpp
     ntcoding.cpp
     seeder.cpp
-    filter.cpp
-    extender.cpp
-    maf_printer.cpp
+    segment_printer.cpp
     main.cpp
     )
 set_property(TARGET wga PROPERTY CUDA_STANDARD 11)
