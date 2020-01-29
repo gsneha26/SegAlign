@@ -1,26 +1,10 @@
+#include "graph.h"
 #include <thrust/scan.h>
+#include <thrust/find.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include "graph.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <algorithm>
-#include <mutex>
-#include <cstring>
-#include <cstdlib>
-#include <vector>
+#include <thrust/execution_policy.h>
 #include "tbb/scalable_allocator.h"
-#include <stdio.h>
-#include <stdlib.h>
-
-#define MAX_BLOCKS 1<<10
-#define MAX_THREADS 1024 
-#define TILE_SIZE 32
-#define MAX_HITS 100000000 
-#define MAX_SEEDS 10000000 
-#define BLOCK_SIZE 128 
-#define NUM_WARPS 4
 
 std::mutex gpu_lock;
 
@@ -54,12 +38,9 @@ uint64_t* d_seed_offsets;
 uint32_t* d_r_starts;
 uint32_t* d_q_starts;
 uint32_t* d_len;
-uint32_t* d_score;
+int* d_score;
 
-uint32_t* ref_loc_final;
-uint32_t* query_loc_final;
-uint32_t* len_final;
-uint32_t* score_final;
+hsp* hsp_final;
 
 thrust::device_vector<uint32_t> d_done_vec(MAX_HITS);
 uint32_t* d_done = thrust::raw_pointer_cast(&d_done_vec[0]);
@@ -128,7 +109,7 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 }
 
 __global__
-void fill_output (uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, uint32_t* d_score, uint32_t* d_done, uint32_t* ref_loc_final, uint32_t* query_loc_final, uint32_t* len_final, uint32_t* score_final, int num_hits){
+void fill_output (uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, int* d_score, uint32_t* d_done, hsp* hsp_final, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -144,18 +125,18 @@ void fill_output (uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, u
 
         if(id > 0){
             if(index > d_done[id-1]){
-                ref_loc_final[index-1] = d_r_starts[id];
-                query_loc_final[index-1] = d_q_starts[id];
-                len_final[index-1] = d_len[id];
-                score_final[index-1] = d_score[id];
+                hsp_final[index-1].ref_start    = d_r_starts[id];
+                hsp_final[index-1].query_start  = d_q_starts[id];
+                hsp_final[index-1].len          = d_len[id];
+                hsp_final[index-1].score        = d_score[id];
             }
         }
         else{
             if(index == 1){
-                ref_loc_final[0] = d_r_starts[0];
-                query_loc_final[0] = d_q_starts[0];
-                len_final[0] = d_len[0];
-                score_final[0] = d_score[0];
+                hsp_final[0].ref_start    = d_r_starts[0];
+                hsp_final[0].query_start  = d_q_starts[0];
+                hsp_final[0].len          = d_len[0];
+                hsp_final[0].score        = d_score[0];
             }
         }
     }
@@ -433,7 +414,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
 }
 
 __global__
-void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, uint32_t* d_score, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits){
+void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_r_starts, uint32_t* d_q_starts, uint32_t* d_len, int* d_score, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -718,12 +699,10 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
 
-    uint32_t* h_r_loc;
-    uint32_t* h_q_loc;
-    uint32_t* h_len;
-    uint32_t* h_score;
+    hsp* h_hsp;
 
     gpu_lock.lock();
+
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[i] = seed_offset_vector[i];
     }
@@ -763,32 +742,11 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-    fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_r_starts, d_q_starts, d_len, d_score, d_done, ref_loc_final, query_loc_final, len_final, score_final, num_hits);
-
-    h_r_loc = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
-    h_q_loc = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
-    h_len   = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
-    h_score = (uint32_t*) calloc(num_anchors, sizeof(uint32_t));
-
-    err = cudaMemcpy(h_r_loc, ref_loc_final, num_anchors*sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
-        exit(1);
-    }
+    fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_r_starts, d_q_starts, d_len, d_score, d_done, hsp_final, num_hits);
     
-    err = cudaMemcpy(h_q_loc, query_loc_final, num_anchors*sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
-        exit(1);
-    }
-    
-    err = cudaMemcpy(h_len, len_final, num_anchors*sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy failed!\n");
-        exit(1);
-    }
+    h_hsp = (hsp*) calloc(num_anchors, sizeof(hsp));
 
-    err = cudaMemcpy(h_score, score_final, num_anchors*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(h_hsp, hsp_final, num_anchors*sizeof(hsp), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
@@ -797,37 +755,11 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     gpu_lock.unlock();
 
     std::vector<hsp> gpu_filter_output;
-    hsp h1;
     for(int i = 0; i < num_anchors; i++){
-        h1.ref_start = h_r_loc[i];
-        h1.len = h_len[i];
-        h1.score = h_score[i];
-
-        if(rev)
-            h1.query_start = query_len - h_q_loc[i] - h_len[i] -1;
-        else
-            h1.query_start = h_q_loc[i];
-
-        gpu_filter_output.push_back(h1);
+        gpu_filter_output.push_back(h_hsp[i]);
     }
 
-
-//    std::vector<hsp>::iterator ip1; 
-//    ip = std::unique(gpu_filter_output.begin(), gpu_filter_output.begin() + num_anchors); 
-//    gpu_filter_output.resize(std::distance(gpu_filter_output.begin(), ip)); 
-
-//    std::vector<int> v = { 1, 1, 3, 3, 3, 10, 1, 3, 3, 7, 7, 8 }, i; 
-//    std::vector<int>::iterator ip; 
-//    ip = std::unique(v.begin(), v.begin() + 12); 
-//    v.resize(std::distance(v.begin(), ip)); 
-//    for (ip = v.begin(); ip != v.end(); ++ip) { 
-//        printf("%d\n", *ip ); 
-//    } 
-
-    free(h_r_loc);
-    free(h_q_loc);
-    free(h_len);
-    free(h_score);
+    free(h_hsp);
 
     return gpu_filter_output;
 }
@@ -860,31 +792,13 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
-    err = cudaMalloc(&d_score, MAX_HITS*sizeof(uint32_t));
+    err = cudaMalloc(&d_score, MAX_HITS*sizeof(int32_t));
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
 
-    err = cudaMalloc(&ref_loc_final, MAX_HITS*sizeof(uint32_t));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
-        exit(1);
-    }
-
-    err = cudaMalloc(&query_loc_final, MAX_HITS*sizeof(uint32_t));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
-        exit(1);
-    }
-
-    err = cudaMalloc(&len_final, MAX_HITS*sizeof(uint32_t));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
-        exit(1);
-    }
-
-    err = cudaMalloc(&score_final, MAX_HITS*sizeof(uint32_t));
+    err = cudaMalloc(&hsp_final, MAX_HITS*sizeof(hsp));
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
@@ -1033,10 +947,7 @@ void ShutdownProcessor(){
     cudaFree(d_len);
     cudaFree(d_score);
 
-    cudaFree(ref_loc_final);
-    cudaFree(query_loc_final);
-    cudaFree(len_final);
-    cudaFree(score_final);
+    cudaFree(hsp_final);
 }
 
 DRAM *g_DRAM = nullptr;

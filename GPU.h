@@ -1,8 +1,20 @@
-#include "DRAM.h"                                                                                                                                                                        
+#include "DRAM.h"
 #include <vector>
 #include <string.h>
 #include <stdio.h>
 #include <mutex>
+#include <algorithm>
+#include <cstring>
+#include <cstdlib>
+#include <stdlib.h>
+
+#define MAX_BLOCKS 1<<10
+#define MAX_THREADS 1024 
+#define TILE_SIZE 32
+#define MAX_HITS 100000000 
+#define MAX_SEEDS 13*262144  //make it 13*chunk_size
+#define BLOCK_SIZE 128 
+#define NUM_WARPS 4
 
 struct hsp {
     uint32_t ref_start;
@@ -10,6 +22,13 @@ struct hsp {
     uint32_t len;
     uint32_t score;
 };
+
+//struct greater_than_max {
+//    __host__ __device__
+//        bool operator()(uint32_t x) {
+//            return x > MAX_HITS;
+//        }
+//};
 
 typedef size_t(*InitializeProcessor_ptr)(int t, int f);
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint64_t* pos_table, uint32_t ref_size);
