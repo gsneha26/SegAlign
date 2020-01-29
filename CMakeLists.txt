@@ -11,7 +11,7 @@ set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
 #set(CMAKE_CXX_COMPILER "nvcc")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -g -pg -std=c++11")
 #set(CUDA_FLAGS "${CUDA_FLAGS} -std=c++11 -O4 -lineinfo -use_fast_math")
 #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++11 -Xptxas -dlcm=cg -arch=sm_52")

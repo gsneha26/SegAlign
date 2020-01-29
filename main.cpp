@@ -318,7 +318,7 @@ int main(int argc, char** argv)
         }
 
         std::string maf_filename = description + ".maf";
-        mafFile = fopen(maf_filename.c_str(), "w");
+//        mafFile = fopen(maf_filename.c_str(), "w");
 
         // start alignment
         tbb::flow::graph align_graph;
@@ -372,7 +372,7 @@ int main(int argc, char** argv)
         align_graph.wait_for_all();
         delete[] rev_read_char;
 
-        fclose(mafFile);
+//        fclose(mafFile);
     }
 
     gzclose(f_rd);
@@ -383,7 +383,8 @@ int main(int argc, char** argv)
     seconds = end_time.tv_sec - start_time.tv_sec;
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
 
-    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld msec \n", mseconds);
+    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld sec \n", seconds);
+//    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld msec \n", mseconds);
 
     fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
