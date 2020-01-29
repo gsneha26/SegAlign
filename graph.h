@@ -58,10 +58,9 @@ struct Configuration {
     int xdrop_threshold;
 
     //Extension parameters
-    int tile_size;
-    int tile_overlap;
     int extension_threshold;
     int ydrop;
+    std::string lastz_path;
 
 	//Multi-threading
 	int num_threads;
