@@ -1,6 +1,7 @@
 #include <atomic>
 #include "ntcoding.h"
 #include "graph.h"
+#include <stddef.h>
 
 std::mutex io_lock;
 
@@ -13,6 +14,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &rc_segments = get<2>(payload);
 
     std::string filename = "tmp"+std::to_string(index)+".segments";
+    std::string maf_filename = "tmp"+std::to_string(index)+".maf";
+    std::string filename1 = "tmp"+std::to_string(index)+".segments1";
     FILE* segmentFile = fopen(filename.c_str(), "w");
     int print_header = 1;
 
@@ -38,5 +41,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     }
 
     fclose(segmentFile);
+
+    std::string str;
+    str = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename+" > "+maf_filename;
+    system(str.c_str());
+
+    str = "rm "+filename;
+    system(str.c_str());
+
     get<0>(op).try_put(token);
 };

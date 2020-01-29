@@ -165,10 +165,9 @@ int main(int argc, char** argv)
     cfg.xdrop_threshold = cfg_file.Value("Filter_params", "xdrop_threshold");
 
     // GACT-X
-    cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
     cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
-    cfg.tile_size           = cfg_file.Value("Extension_params", "tile_size");
-    cfg.tile_overlap        = cfg_file.Value("Extension_params", "tile_overlap");
+    cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
+    cfg.lastz_path          = (std::string) cfg_file.Value("Extension_params", "lastz_path");
 
     // Multi-threading
     cfg.num_threads  = cfg_file.Value("Multithreading", "num_threads");

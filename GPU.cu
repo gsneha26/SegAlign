@@ -522,14 +522,10 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         h1.len = h_len[i];
         h1.score = h_score[i];
 
-        if(rev){
-//            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t-\t%d\n", (h_r_loc[i]+1), (h_r_loc[i]+h_len[i]), (query_len - h_q_loc[i] - h_len[i]), (query_len - h_q_loc[i]-1), h_score[i]);
+        if(rev)
             h1.query_start = query_len - h_q_loc[i] - h_len[i] -1;
-        }
-        else{
-//            fprintf(stdout, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t+\t%d\n", (h_r_loc[i]+1), (h_r_loc[i] + h_len[i]), (h_q_loc[i]+1), (h_q_loc[i]+h_len[i]), h_score[i]);
+        else
             h1.query_start = h_q_loc[i];
-        }
 
         gpu_filter_output.push_back(h1);
     }
