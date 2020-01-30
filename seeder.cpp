@@ -64,7 +64,8 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
         
-        fw_segments = g_SeedAndFilter(seed_offset_vector, false);
+        if(seed_offset_vector.size() > 0)
+            fw_segments = g_SeedAndFilter(seed_offset_vector, false);
     }
 
     char* rc_query = (char*) query_chrom.rc_seq.data();
@@ -89,7 +90,8 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
 
-        rc_segments = g_SeedAndFilter(seed_offset_vector, true);
+        if(seed_offset_vector.size() > 0)
+            rc_segments = g_SeedAndFilter(seed_offset_vector, true);
     }
 
 	return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
