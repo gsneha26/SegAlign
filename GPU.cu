@@ -418,6 +418,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     __shared__ uint32_t ref_loc[NUM_WARPS];
     __shared__ uint32_t query_loc;
     __shared__ int total_score[NUM_WARPS];
+    __shared__ int seed_score[NUM_WARPS];
     __shared__ int prev_score[NUM_WARPS];
     __shared__ int prev_max_score[NUM_WARPS];
     __shared__ int prev_max_pos[NUM_WARPS];
@@ -469,6 +470,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             if(lane_id == 0){ 
                 ref_loc[warp_id]   = d_pos_table[id1+warp_id];
                 total_score[warp_id] = 0; 
+                seed_score[warp_id] = 0; 
             }
 
             //////////////////////////////////////////////////////////////////
@@ -483,6 +485,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
             if(lane_id == 0){
                 total_score[warp_id] += thread_score;
+                seed_score[warp_id] = thread_score;
             }
             __syncwarp();
 
@@ -541,6 +544,12 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
                 xdrop_done = ((max_thread_score-thread_score) > xdrop);
                 __syncwarp();
+
+//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
+//                    printf("1 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
+//
+//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
+//                    printf("2 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
 
 #pragma unroll
                 for (int offset = 1; offset < warp_size; offset = offset << 1){
@@ -630,6 +639,12 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
                 }
 
+//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
+//                    printf("1 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
+//
+//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
+//                    printf("2 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
+
                 if(lane_id == warp_size-1){
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
@@ -654,11 +669,19 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             //////////////////////////////////////////////////////////////////
 
             if(lane_id == 0){
+//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
+//                    printf("1 %d %d %d %d %d\n", left_extent[warp_id], right_extent[warp_id], total_score[warp_id], ref_loc[warp_id] - left_extent[warp_id], query_loc - left_extent[warp_id]);
+//
+//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
+//                    printf("2 %d %d %d %d %d\n", left_extent[warp_id], right_extent[warp_id], total_score[warp_id], ref_loc[warp_id] - left_extent[warp_id], query_loc - left_extent[warp_id]);
+
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1;
 
                 if(total_score[warp_id] >= xdrop_threshold){
                     d_hsp[dram_address].ref_start = ref_loc[warp_id] - left_extent[warp_id];
                     d_hsp[dram_address].query_start = query_loc - left_extent[warp_id];
+//                    d_hsp[dram_address].ref_start = ref_loc[warp_id];
+//                    d_hsp[dram_address].query_start = query_loc;
                     d_hsp[dram_address].len = left_extent[warp_id]+right_extent[warp_id]+seed_size;
                     d_hsp[dram_address].score = total_score[warp_id];
                     d_done[dram_address] = 1;
@@ -712,15 +735,15 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-    if(rev)
-        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
-    else
-        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
-
 //    if(rev)
-//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+//        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
 //    else
-//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+//        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+
+    if(rev)
+        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+    else
+        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
 
     thrust::inclusive_scan(d_done_vec.begin(), d_done_vec.begin() + num_hits, d_done_vec.begin());
 
@@ -746,6 +769,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     for(int i = 0; i < num_anchors; i++){
         gpu_filter_output.push_back(h_hsp[i]);
     }
+    
+//    printf("%d %d %d\n", num_seeds, num_hits, num_anchors);
 
     free(h_hsp);
 
