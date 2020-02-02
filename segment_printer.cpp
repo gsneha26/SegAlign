@@ -42,18 +42,18 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     fclose(segmentFile);
 
-    std::string str;
+    std::string cmd;
+    int status;
 
-    str = "uniq "+filename+" > "+filename1;
-    system(str.c_str());
+    cmd = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename+" > "+maf_filename;
+    status = system(cmd.c_str());
+//    cmd = "rm "+filename;
+//    status = system(cmd.c_str());
 
-    str = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename1+" > "+maf_filename;
-//    str = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename+" > "+maf_filename;
-    system(str.c_str());
-
-//    str = "rm "+filename;
-    str = "rm "+filename1+" "+ filename;
-    system(str.c_str());
+//    cmd = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename1+" > "+maf_filename;
+//    status = system(cmd.c_str());
+//    cmd = "rm "+filename1+" "+ filename;
+//    status = system(cmd.c_str());
 
     get<0>(op).try_put(token);
 };
