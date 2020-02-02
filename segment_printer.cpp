@@ -29,14 +29,14 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         }
 
         io_lock.lock();
-        fprintf(segmentFile, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t+\t%d\n", (e.ref_start+1), (e.ref_start+e.len), (e.query_start+1), (e.query_start+e.len), e.score);
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len), e.score);
         io_lock.unlock();
     }
 
     for (auto e: rc_segments) {
 
         io_lock.lock();
-        fprintf(segmentFile, "ce11.chr1\t%d\t%d\tcb4.chr1\t%d\t%d\t-\t%d\n", (e.ref_start+1), (e.ref_start+e.len), (e.query_start+1), (e.query_start+e.len), e.score);
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len), e.score);
         io_lock.unlock();
     }
 
@@ -45,12 +45,12 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string cmd;
     int status;
 
-    cmd = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename+" > "+maf_filename;
+    cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf --segments="+filename+" > "+maf_filename;
     status = system(cmd.c_str());
 //    cmd = "rm "+filename;
 //    status = system(cmd.c_str());
 
-//    cmd = cfg.lastz_path+" ~/WGA_GPU/data/ce11_chr1.fa ~/WGA_GPU/data/cb4_chr1.fa --format=maf --segments="+filename1+" > "+maf_filename;
+//    cmd = cfg.lastz_path+" ~/WGA_GPU/data/hg38_chr1.fa ~/WGA_GPU/data/mm10_chr1.fa --format=maf --segments="+filename1+" > "+maf_filename;
 //    status = system(cmd.c_str());
 //    cmd = "rm "+filename1+" "+ filename;
 //    status = system(cmd.c_str());
