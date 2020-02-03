@@ -13,8 +13,9 @@ const char C_NT = 1;
 const char G_NT = 2;
 const char T_NT = 3;
 const char N_NT = 4;
+const char X_NT = 4;
 
-int mat_offset[] = {0, 1, 3, 6};                                                             
+int mat_offset[] = {0, 1, 3, 6, 10};
 int err;                            
 int check_status = 0;
 
@@ -55,23 +56,27 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = N_NT;
-        char dst_rc = N_NT;
-        if ((ch == 'a') || (ch == 'A')){
+        char dst = X_NT;
+        char dst_rc = X_NT;
+        if (ch == 'A'){
             dst = A_NT;
             dst_rc = T_NT;
         }
-        else if ((ch == 'c') || (ch == 'C')){ 
+        else if (ch == 'C'){ 
             dst = C_NT;
             dst_rc = G_NT;
         }
-        else if ((ch == 'g') || (ch == 'G')){
+        else if (ch == 'G'){
             dst = G_NT;
             dst_rc = C_NT;
         }
-        else if ((ch == 't') || (ch == 'T')){
+        else if (ch == 'T'){
             dst = T_NT;
             dst_rc = A_NT;
+        }
+        else if ((ch == 'n') || (ch == 'N')){
+            dst = N_NT;
+            dst_rc = N_NT;
         }
         dst_seq[i] = dst;
         dst_seq_rc[len -1 -i] = dst_rc;
@@ -90,15 +95,17 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = N_NT;
-        if ((ch == 'a') || (ch == 'A'))
+        char dst = X_NT;
+        if (ch == 'A')
             dst = A_NT;
-        else if ((ch == 'c') || (ch == 'C'))
+        else if (ch == 'C')
             dst = C_NT;
-        else if ((ch == 'g') || (ch == 'G'))
+        else if (ch == 'G')
             dst = G_NT;
-        else if ((ch == 't') || (ch == 'T'))
+        else if (ch == 'T')
             dst = T_NT;
+        else if ((ch == 'n') || (ch == 'N'))
+            dst = N_NT;
         dst_seq[i] = dst;
     }
 }
@@ -193,9 +200,9 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
     int ref_pos;
     int query_pos;
 
-    __shared__ int sub_mat[25];
+    __shared__ int sub_mat[36];
 
-    if(thread_id < 25){
+    if(thread_id < 36){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
 
@@ -228,7 +235,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
 
             thread_score = 0;
             if(lane_id < seed_size){
-                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*5+seed_query[lane_id]];
+                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*6+seed_query[lane_id]];
             }
 
             for (int offset = warp_size >> 1; offset > 0; offset = offset >> 1)
@@ -254,7 +261,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                 thread_score = 0;
 
                 if(ref_pos < ref_len && query_pos < query_len){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -323,7 +330,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                 thread_score = 0;
 
                 if(ref_pos >= 0  && query_pos >= 0){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -441,9 +448,9 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     int query_pos;
     int max_pos;
 
-    __shared__ int sub_mat[25];
+    __shared__ int sub_mat[36];
 
-    if(thread_id < 25){
+    if(thread_id < 36){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
 
@@ -477,7 +484,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
             thread_score = 0;
             if(lane_id < seed_size){
-                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*5+seed_query[lane_id]];
+                thread_score = sub_mat[d_ref_seq[ref_loc[warp_id]+lane_id]*6+seed_query[lane_id]];
             }
 
             for (int offset = warp_size >> 1; offset > 0; offset = offset >> 1)
@@ -506,7 +513,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 thread_score = 0;
 
                 if(ref_pos < ref_len && query_pos < query_len){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -544,12 +551,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 
                 xdrop_done = ((max_thread_score-thread_score) > xdrop);
                 __syncwarp();
-
-//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
-//                    printf("1 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
-//
-//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
-//                    printf("2 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
 
 #pragma unroll
                 for (int offset = 1; offset < warp_size; offset = offset << 1){
@@ -595,7 +596,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 thread_score = 0;
 
                 if(ref_pos >= 0  && query_pos >= 0){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*5+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -639,12 +640,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
                 }
 
-//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
-//                    printf("1 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
-//
-//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
-//                    printf("2 %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
-
                 if(lane_id == warp_size-1){
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
@@ -669,19 +664,12 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             //////////////////////////////////////////////////////////////////
 
             if(lane_id == 0){
-//                if(ref_loc[warp_id] == 10307043 && query_loc == 959)
-//                    printf("1 %d %d %d %d %d\n", left_extent[warp_id], right_extent[warp_id], total_score[warp_id], ref_loc[warp_id] - left_extent[warp_id], query_loc - left_extent[warp_id]);
-//
-//                if(ref_loc[warp_id] == 10307042 && query_loc == 958)
-//                    printf("2 %d %d %d %d %d\n", left_extent[warp_id], right_extent[warp_id], total_score[warp_id], ref_loc[warp_id] - left_extent[warp_id], query_loc - left_extent[warp_id]);
 
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1;
 
                 if(total_score[warp_id] >= xdrop_threshold){
                     d_hsp[dram_address].ref_start = ref_loc[warp_id] - left_extent[warp_id];
                     d_hsp[dram_address].query_start = query_loc - left_extent[warp_id];
-//                    d_hsp[dram_address].ref_start = ref_loc[warp_id];
-//                    d_hsp[dram_address].query_start = query_loc;
                     d_hsp[dram_address].len = left_extent[warp_id]+right_extent[warp_id]+seed_size;
                     d_hsp[dram_address].score = total_score[warp_id];
                     d_done[dram_address] = 1;
@@ -735,15 +723,15 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-//    if(rev)
-//        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
-//    else
-//        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
-
     if(rev)
-        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
     else
-        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+        find_anchors <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+
+//    if(rev)
+//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_rc_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
+//    else
+//        find_anchors1 <<<num_seeds,BLOCK_SIZE>>> (num_seeds, d_ref_seq, d_query_seq, d_index_table, d_pos_table, d_seed_offsets, d_sub_mat, cfg.xdrop, cfg.xdrop_threshold, d_done, ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp);
 
     thrust::inclusive_scan(d_done_vec.begin(), d_done_vec.begin() + num_hits, d_done_vec.begin());
 
@@ -800,29 +788,34 @@ size_t InitializeProcessor (int t, int f){
     }
 
     int *sub_mat;
-    sub_mat = (int *)malloc(25 * sizeof(int)); 
+    sub_mat = (int *)malloc(36 * sizeof(int)); 
 
-    sub_mat[24] = cfg.gact_sub_mat[10];
+    sub_mat[28] = cfg.gact_sub_mat[10];
+    sub_mat[29] = -1000;//cfg.gact_sub_mat[10];
+    sub_mat[34] = -1000;//cfg.gact_sub_mat[10];
+    sub_mat[35] = -1000;//cfg.gact_sub_mat[10];
     for(int i = 0; i < 4; i++){
-        sub_mat[i*5+4] = cfg.gact_sub_mat[10];
-        sub_mat[4*5+i] = cfg.gact_sub_mat[10];
-        sub_mat[i*5+i] = cfg.gact_sub_mat[i*4 + i - mat_offset[i]];
+        sub_mat[i*6+4] = cfg.gact_sub_mat[10];
+        sub_mat[4*6+i] = cfg.gact_sub_mat[10];
+        sub_mat[i*6+5] = -1000;//cfg.gact_sub_mat[10];
+        sub_mat[5*6+i] = -1000;//cfg.gact_sub_mat[10];
+        sub_mat[i*6+i] = cfg.gact_sub_mat[i*4 + i - mat_offset[i]];
     }
 
     for(int i = 0; i < 4; i++){
         for(int j = i+1; j < 4; j++){
-            sub_mat[i*5+j] = cfg.gact_sub_mat[i*4 + j - mat_offset[i]];
-            sub_mat[j*5+i] = sub_mat[i*5+j];
+            sub_mat[i*6+j] = cfg.gact_sub_mat[i*4 + j - mat_offset[i]];
+            sub_mat[j*6+i] = sub_mat[i*6+j];
         }
     }
 
-    err = cudaMalloc(&d_sub_mat, 25*sizeof(int)); 
+    err = cudaMalloc(&d_sub_mat, 36*sizeof(int)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!\n");
         exit(1);
     }
 
-    err = cudaMemcpy(d_sub_mat, sub_mat, 25*sizeof(int), cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_sub_mat, sub_mat, 36*sizeof(int), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
@@ -836,7 +829,7 @@ size_t InitializeProcessor (int t, int f){
 void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
-    printf("Ref len: %d\n", len);
+    printf("Ref len: %lu\n", len);
     
     char* d_ref_seq_tmp;
     err = cudaMalloc(&d_ref_seq_tmp, len*sizeof(char)); 
@@ -865,7 +858,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 void SendQueryWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     query_len = len;
-    printf("Query len: %d\n", len);
+    printf("Query len: %lu\n", len);
     
     char* d_query_seq_tmp;
 
