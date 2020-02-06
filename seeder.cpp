@@ -64,8 +64,12 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
         
-        if(seed_offset_vector.size() > 0)
-            fw_segments = g_SeedAndFilter(seed_offset_vector, false);
+        if(seed_offset_vector.size() > 0){
+//            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false); 
+//            fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
+//            anchors.clear();
+            fw_segments = g_SeedAndFilter(seed_offset_vector, false); 
+        }
     }
 
     char* rc_query = (char*) query_chrom.rc_seq.data();
@@ -90,8 +94,12 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
 
-        if(seed_offset_vector.size() > 0)
+        if(seed_offset_vector.size() > 0){
+//            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true); 
+//            rc_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
+//            anchors.clear();
             rc_segments = g_SeedAndFilter(seed_offset_vector, true);
+        }
     }
 
 	return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
