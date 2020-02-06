@@ -170,6 +170,7 @@ int main(int argc, char** argv)
     cfg.lastz_path          = (std::string) cfg_file.Value("Extension_params", "lastz_path");
 
     // Multi-threading
+//    cfg.num_threads  = 1;//tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
 
     //Output
@@ -230,6 +231,7 @@ int main(int argc, char** argv)
 
     // transfer reference to FPGA DRAM
     g_SendRefWriteRequest (0, g_DRAM->referenceSize);
+    cfg.ref_len = g_DRAM->referenceSize;
 
     gzclose(f_rd);
         
@@ -298,6 +300,7 @@ int main(int argc, char** argv)
 
         //send query to FPGA DRAM
         g_SendQueryWriteRequest (g_DRAM->referenceSize, seq_len);
+        cfg.query_len = seq_len;
         
         std::vector<seed_interval> interval_list;
         interval_list.clear();

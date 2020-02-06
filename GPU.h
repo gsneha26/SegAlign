@@ -23,13 +23,6 @@ struct hsp {
     uint32_t score;
 };
 
-//struct greater_than_max {
-//    __host__ __device__
-//        bool operator()(uint32_t x) {
-//            return x > MAX_HITS;
-//        }
-//};
-
 typedef size_t(*InitializeProcessor_ptr)(int t, int f);
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint64_t* pos_table, uint32_t ref_size);
 typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev);

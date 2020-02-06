@@ -425,7 +425,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     __shared__ uint32_t ref_loc[NUM_WARPS];
     __shared__ uint32_t query_loc;
     __shared__ int total_score[NUM_WARPS];
-    __shared__ int seed_score[NUM_WARPS];
     __shared__ int prev_score[NUM_WARPS];
     __shared__ int prev_max_score[NUM_WARPS];
     __shared__ int prev_max_pos[NUM_WARPS];
@@ -436,7 +435,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ uint32_t right_extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
-    __shared__ char seed_query[32];
     __shared__ uint32_t seed_hit_prefix;
 
     int thread_score;
@@ -467,9 +465,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
         }
         seed_hit_prefix = seed_hit_num[block_id]; 
     }
-
-    if(warp_id == 0)
-        seed_query[lane_id] = d_query_seq[query_loc+lane_id]; 
     __syncthreads();
 
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
@@ -477,7 +472,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
             if(lane_id == 0){ 
                 ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size;
                 total_score[warp_id] = 0; 
-                seed_score[warp_id] = 0; 
             }
 
             //////////////////////////////////////////////////////////////////
@@ -532,6 +526,9 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                         }
                     }
                 }
+
+//                if(ref_loc[warp_id] == 10317345 && query_loc == 6692)    
+//                    printf("Right %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
 
                 xdrop_done = ((max_thread_score-thread_score) > xdrop);
                 __syncwarp();
@@ -625,6 +622,9 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
                 }
 
+//                if(ref_loc[warp_id] == 10317345 && query_loc == 6692)    
+//                    printf("Left %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
+
                 if(lane_id == warp_size-1){
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
@@ -656,8 +656,8 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 if(total_score[warp_id] >= xdrop_threshold){
                     d_hsp[dram_address].ref_start = ref_loc[warp_id] - left_extent[warp_id];
                     d_hsp[dram_address].query_start = query_loc - left_extent[warp_id];
-//                    d_hsp[dram_address].ref_start = ref_loc[warp_id] -1;
-//                    d_hsp[dram_address].query_start = query_loc -1;
+//                    d_hsp[dram_address].ref_start = ref_loc[warp_id];
+//                    d_hsp[dram_address].query_start = query_loc;
                     d_hsp[dram_address].len = left_extent[warp_id]+right_extent[warp_id];
                     d_hsp[dram_address].score = total_score[warp_id];
                     d_done[dram_address] = 1;
@@ -760,21 +760,24 @@ size_t InitializeProcessor (int t, int f){
 
     err = cudaMalloc(&d_seed_offsets, 13*cfg.chunk_size*sizeof(uint64_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        fprintf(stderr, "Error: cudaMalloc failed1!\n");
         exit(1);
     }
+    printf("Done1\n");
 
     err = cudaMalloc(&d_hsp, MAX_HITS*sizeof(hsp));
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        fprintf(stderr, "Error: cudaMalloc failed2!\n");
         exit(1);
     }
+    printf("Done2\n");
 
     err = cudaMalloc(&d_hsp_reduced, MAX_HITS*sizeof(hsp));
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        fprintf(stderr, "Error: cudaMalloc failed3!\n");
         exit(1);
     }
+    printf("Done3\n");
 
     int *sub_mat;
     sub_mat = (int *)malloc(36 * sizeof(int)); 
@@ -887,7 +890,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
 
     err = cudaMalloc(&d_index_table, index_table_size*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        fprintf(stderr, "Error: cudaMalloc failed!s1\n");
         exit(1);
     }
     
@@ -899,7 +902,8 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
 
     err = cudaMalloc(&d_pos_table, num_index*sizeof(uint64_t)); 
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc failed!\n");
+        fprintf(stderr, "Error: cudaMalloc failed!s2\n");
+//        fprintf(stderr, "Error: cudaMalloc failed!s2 %s\n", err);
         exit(1);
     }
 
