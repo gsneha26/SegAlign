@@ -26,6 +26,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
+    for (auto e: rc_segments) {
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+    }
+
 //    int diag = 0;
 //    int diag_old = 0;
 //    int r_extent = 0;
@@ -46,19 +50,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //            }
 //        }
 //    }
-
-//    int diag;
-//    for (auto e: fw_segments) {
-//        diag = e.ref_start-e.query_start+cfg.query_len;
-//        if(e.query_start > diagHashplus[diag]){
-//            fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//            diagHashplus[diag] = e.query_start+e.len;
-//        }
-//    }
-
-    for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-    }
 
 //    diag = 0;
 //    diag_old = 0;
@@ -81,6 +72,15 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //        }
 //    }
 
+//    int diag;
+//    for (auto e: fw_segments) {
+//        diag = e.ref_start-e.query_start+cfg.query_len;
+//        if(e.query_start > diagHashplus[diag]){
+//            fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+//            diagHashplus[diag] = e.query_start+e.len;
+//        }
+//    }
+
 //    diag = 0;
 //    for (auto e: rc_segments) {
 //        diag = e.ref_start-e.query_start+cfg.query_len;
@@ -98,13 +98,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //    cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf- --segments="+filename+" > "+maf_filename;
 //    status = system(cmd.c_str());
 //    cmd = "rm "+filename;
-//    status = system(cmd.c_str());
-
-//    cmd = "uniq "+filename+" > "+filename1;
-//    status = system(cmd.c_str());
-//    cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf- --segments="+filename1+" > "+maf_filename;
-//    status = system(cmd.c_str());
-//    cmd = "rm "+filename1+" "+ filename;
 //    status = system(cmd.c_str());
 
     get<0>(op).try_put(token);
