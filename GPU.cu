@@ -903,7 +903,6 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
     err = cudaMalloc(&d_pos_table, num_index*sizeof(uint64_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!s2\n");
-//        fprintf(stderr, "Error: cudaMalloc failed!s2 %s\n", err);
         exit(1);
     }
 
