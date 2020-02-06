@@ -36,22 +36,18 @@ struct Configuration {
     std::string reference_filename;
     std::string query_filename;
 
-	//Scoring
-	int gact_sub_mat[11];
-	int gap_open;
-	int gap_extend;
+    //Scoring
+    int gact_sub_mat[11];
+    int gap_open;
+    int gap_extend;
 
-	//Seed parameters
+    //Seed parameters
     std::string seed_shape_str;
-	int bin_size;
-	int num_seeds_batch;
+    int bin_size;
+    int num_seeds_batch;
     int chunk_size;
-	int seed_occurence_multiple;
-	int max_candidates;
-	int num_nz_bins;
     bool ignore_lower;
     bool use_transition;
-    int hash_size;
     
     //Filter parameters
     int xdrop; 
@@ -62,8 +58,8 @@ struct Configuration {
     int ydrop;
     std::string lastz_path;
 
-	//Multi-threading
-	int num_threads;
+    //Multi-threading
+    int num_threads;
 
     // Output
     std::string output_filename;

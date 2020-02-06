@@ -153,12 +153,8 @@ int main(int argc, char** argv)
     cfg.bin_size                = cfg_file.Value("Seed_params", "bin_size");
     cfg.num_seeds_batch         = cfg_file.Value("Seed_params", "num_seeds_batch");
     cfg.chunk_size              = cfg_file.Value("Seed_params", "chunk_size");
-    cfg.seed_occurence_multiple = cfg_file.Value("Seed_params", "seed_occurence_multiple");
-    cfg.max_candidates          = cfg_file.Value("Seed_params", "max_candidates");
-    cfg.num_nz_bins             = cfg_file.Value("Seed_params", "num_nz_bins");
     cfg.ignore_lower            = cfg_file.Value("Seed_params", "ignore_lower");
     cfg.use_transition          = cfg_file.Value("Seed_params", "use_transition");
-    cfg.hash_size               = cfg_file.Value("Seed_params", "hash_size");
 
     // Banded GACT filter
     cfg.xdrop                 = cfg_file.Value("Filter_params", "xdrop");
@@ -231,7 +227,6 @@ int main(int argc, char** argv)
 
     // transfer reference to FPGA DRAM
     g_SendRefWriteRequest (0, g_DRAM->referenceSize);
-    cfg.ref_len = g_DRAM->referenceSize;
 
     gzclose(f_rd);
         
@@ -300,7 +295,6 @@ int main(int argc, char** argv)
 
         //send query to FPGA DRAM
         g_SendQueryWriteRequest (g_DRAM->referenceSize, seq_len);
-        cfg.query_len = seq_len;
         
         std::vector<seed_interval> interval_list;
         interval_list.clear();
