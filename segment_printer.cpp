@@ -6,6 +6,8 @@
 std::mutex io_lock;
 //int* diagHashminus = (int*) calloc(1000000000, sizeof(int));
 //int* diagHashplus = (int*) calloc(1000000000, sizeof(int));
+int batch = 0;
+int batch_old = 0;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
     auto &payload = get<0>(input); 
@@ -14,91 +16,106 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &index = get<0>(payload);
     auto &fw_segments = get<1>(payload);
     auto &rc_segments = get<2>(payload);
+    auto &do_lastz = get<3>(payload);
 
-    std::string filename = "tmp"+std::to_string(token)+".segments";
-    std::string maf_filename = "tmp"+std::to_string(token)+".maf";
-    std::string filename1 = "tmp"+std::to_string(token)+".segments1";
-    FILE* segmentFile = fopen(filename.c_str(), "a");
+    if(do_lastz == false){
+        std::string filename_plus  = "tmp"+std::to_string(token)+".segments.plus";
+        std::string filename_minus = "tmp"+std::to_string(token)+".segments.minus";
 
-    fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+        FILE* segmentFile_plus  = fopen(filename_plus.c_str(), "a");
+        FILE* segmentFile_minus = fopen(filename_minus.c_str(), "a");
 
-    for (auto e: fw_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-    }
+        for (auto e: fw_segments) {
+            fprintf(segmentFile_plus, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        }
 
-    for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-    }
+        for (auto e: rc_segments) {
+            fprintf(segmentFile_minus, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        }
 
-//    int diag = 0;
-//    int diag_old = 0;
-//    int r_extent = 0;
-//    int q_extent = 0;
+//        int diag = 0;
+//        int diag_old = 0;
+//        int r_extent = 0;
+//        int q_extent = 0;
+//        
+//        for (auto e: fw_segments) {
+//        
+//            diag = e.ref_start-e.query_start;
+//            if(diag != diag_old){
+//                r_extent = 0;
+//                q_extent = 0;
+//        
+//                if(e.ref_start > r_extent || e.query_start > q_extent){
+//                    fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+//                    r_extent = e.ref_start + e.len;
+//                    q_extent = e.query_start + e.len;
+//                    diag_old = diag;
+//                }
+//            }
+//        }
 //
-//    for (auto e: fw_segments) {
+//        diag = 0;
+//        diag_old = 0;
+//        r_extent = 0;
+//        q_extent = 0;
+//        
+//        for (auto e: rc_segments) {
+//        
+//            diag = e.ref_start-e.query_start;
+//            if(diag != diag_old){
+//                r_extent = 0;
+//                q_extent = 0;
+//        
+//                if(e.ref_start > r_extent || e.query_start > q_extent){
+//                    fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+//                    r_extent = e.ref_start + e.len;
+//                    q_extent = e.query_start + e.len;
+//                    diag_old = diag;
+//                }
+//            }
+//        }
 //
-//        diag = e.ref_start-e.query_start;
-//        if(diag != diag_old){
-//            r_extent = 0;
-//            q_extent = 0;
-//
-//            if(e.ref_start > r_extent || e.query_start > q_extent){
+//        int diag;
+//        for (auto e: fw_segments) {
+//            diag = e.ref_start-e.query_start+cfg.query_len;
+//            if(e.query_start > diagHashplus[diag]){
 //                fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//                r_extent = e.ref_start + e.len;
-//                q_extent = e.query_start + e.len;
-//                diag_old = diag;
+//                diagHashplus[diag] = e.query_start+e.len;
 //            }
 //        }
-//    }
-
-//    diag = 0;
-//    diag_old = 0;
-//    r_extent = 0;
-//    q_extent = 0;
 //
-//    for (auto e: rc_segments) {
-//
-//        diag = e.ref_start-e.query_start;
-//        if(diag != diag_old){
-//            r_extent = 0;
-//            q_extent = 0;
-//
-//            if(e.ref_start > r_extent || e.query_start > q_extent){
+//        diag = 0;
+//        for (auto e: rc_segments) {
+//            diag = e.ref_start-e.query_start+cfg.query_len;
+//            if(e.query_start > diagHashminus[diag]){
 //                fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//                r_extent = e.ref_start + e.len;
-//                q_extent = e.query_start + e.len;
-//                diag_old = diag;
+//                diagHashminus[diag] = e.query_start+e.len;
 //            }
 //        }
-//    }
 
-//    int diag;
-//    for (auto e: fw_segments) {
-//        diag = e.ref_start-e.query_start+cfg.query_len;
-//        if(e.query_start > diagHashplus[diag]){
-//            fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//            diagHashplus[diag] = e.query_start+e.len;
-//        }
-//    }
+        fclose(segmentFile_plus);
+        fclose(segmentFile_minus);
+    }
+    else{
 
-//    diag = 0;
-//    for (auto e: rc_segments) {
-//        diag = e.ref_start-e.query_start+cfg.query_len;
-//        if(e.query_start > diagHashminus[diag]){
-//            fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//            diagHashminus[diag] = e.query_start+e.len;
-//        }
-//    }
+        std::string filename       = "tmp"+std::to_string(index)+".segments";
+        std::string filename_plus  = "tmp"+std::to_string(index)+".segments.plus";
+        std::string filename_minus = "tmp"+std::to_string(index)+".segments.minus";
+        std::string maf_filename   = "tmp"+std::to_string(index)+".maf";
 
-    fclose(segmentFile);
+//        fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+        std::string cmd;
+        int status;
 
-    std::string cmd;
-    int status;
-
-//    cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf- --segments="+filename+" > "+maf_filename;
-//    status = system(cmd.c_str());
-//    cmd = "rm "+filename;
-//    status = system(cmd.c_str());
+//        cmd = "cat "+filename_plus+" >> "+filename;
+//        status = system(cmd.c_str());
+//        cmd = "cat "+filename_minus+" >> "+filename;
+//        status = system(cmd.c_str());
+//        cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf- --segments="+filename+" > "+maf_filename;
+//        status = system(cmd.c_str());
+//        cmd = "rm "+filename_plus+" "+filename_minus;
+//        status = system(cmd.c_str());
+    }
 
     get<0>(op).try_put(token);
 };

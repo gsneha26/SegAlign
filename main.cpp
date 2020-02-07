@@ -166,8 +166,8 @@ int main(int argc, char** argv)
     cfg.lastz_path          = (std::string) cfg_file.Value("Extension_params", "lastz_path");
 
     // Multi-threading
-//    cfg.num_threads  = 1;//tbb::task_scheduler_init::default_num_threads();
-    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads  = 1;//tbb::task_scheduler_init::default_num_threads();
+//    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
 
     //Output
     cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
@@ -347,6 +347,7 @@ int main(int argc, char** argv)
                 [&](seeder_payload &op) -> bool {
                 while (true)
                 {
+//                if (num_invoked < num_intervals + cfg.num_threads) {
                 if (num_invoked < num_intervals) {
                     seed_interval& inter = get<1>(op);
                     seed_interval curr_inter = interval_list[num_invoked++];
