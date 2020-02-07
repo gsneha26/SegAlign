@@ -84,7 +84,7 @@ struct seed_interval {
 typedef std::vector<hsp> hsp_output; 
 
 typedef tbb::flow::tuple <reader_output, seed_interval> seeder_payload;
-typedef tbb::flow::tuple<int, hsp_output, hsp_output> printer_payload;
+typedef tbb::flow::tuple<int, hsp_output, hsp_output, bool> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
 typedef tbb::flow::tuple<printer_payload, size_t> printer_input;
 
@@ -99,6 +99,5 @@ struct seeder_body{
 
 struct segment_printer_body{
 	void operator()(printer_input input, printer_node::output_ports_type & op);
-//	size_t operator()(printer_input input);
 };
 

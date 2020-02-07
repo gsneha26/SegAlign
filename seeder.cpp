@@ -34,9 +34,9 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
 
+    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) %u\n", query_chrom.description.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
+
     char* query = (char*) query_chrom.seq.data();
-                    
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) \n", query_chrom.description.c_str(), num_invoked, num_intervals, start_pos, end_pos);
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
 
@@ -63,12 +63,11 @@ printer_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-        
+
         if(seed_offset_vector.size() > 0){
-//            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false); 
-//            fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
-//            anchors.clear();
-            fw_segments = g_SeedAndFilter(seed_offset_vector, false); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false); 
+            fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
+//            fw_segments = g_SeedAndFilter(seed_offset_vector, false); 
         }
     }
 
@@ -95,13 +94,11 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-//            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true); 
-//            rc_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
-//            anchors.clear();
-            rc_segments = g_SeedAndFilter(seed_offset_vector, true);
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true); 
+            rc_segments.insert(rc_segments.end(), anchors.begin(), anchors.end());
+//            rc_segments = g_SeedAndFilter(seed_offset_vector, true);
         }
     }
-
-	return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, false), token);
 }
 

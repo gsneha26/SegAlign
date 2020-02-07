@@ -763,21 +763,18 @@ size_t InitializeProcessor (int t, int f){
         fprintf(stderr, "Error: cudaMalloc failed1!\n");
         exit(1);
     }
-    printf("Done1\n");
 
     err = cudaMalloc(&d_hsp, MAX_HITS*sizeof(hsp));
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed2!\n");
         exit(1);
     }
-    printf("Done2\n");
 
     err = cudaMalloc(&d_hsp_reduced, MAX_HITS*sizeof(hsp));
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed3!\n");
         exit(1);
     }
-    printf("Done3\n");
 
     int *sub_mat;
     sub_mat = (int *)malloc(36 * sizeof(int)); 
