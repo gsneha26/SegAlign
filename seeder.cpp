@@ -34,7 +34,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) %u\n", query_chrom.description.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
+    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u)\n", query_chrom.description.c_str(), num_invoked, num_intervals, start_pos, end_pos);
 
     char* query = (char*) query_chrom.seq.data();
 
@@ -99,6 +99,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 //            rc_segments = g_SeedAndFilter(seed_offset_vector, true);
         }
     }
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, false), token);
+
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
 }
 
