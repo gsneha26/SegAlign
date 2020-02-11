@@ -167,7 +167,7 @@ int main(int argc, char** argv)
     cfg.do_gapped            = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads  = 8;//tbb::task_scheduler_init::default_num_threads();
 
     //Output
     cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
