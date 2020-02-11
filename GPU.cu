@@ -30,7 +30,7 @@ char* d_query_rc_seq;
 int *d_sub_mat;
 
 uint32_t* d_index_table;
-uint64_t* d_pos_table;
+uint32_t* d_pos_table;
 
 uint64_t* h_seed_offsets;
 uint64_t* d_seed_offsets;
@@ -166,7 +166,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -410,7 +410,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
 }
 
 __global__
-void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -442,8 +442,8 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     bool xdrop_done;
     int temp;
     int temp_pos;
-    int ref_pos;
-    int query_pos;
+    uint32_t ref_pos;
+    uint32_t query_pos;
     int max_pos;
 
     __shared__ int sub_mat[36];
@@ -676,7 +676,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 }
 
 __global__
-void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint64_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, int* seed_hit_num, int num_hits, hsp* d_hsp){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -706,8 +706,8 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     int max_thread_score;
     bool xdrop_done;
     int temp;
-    int ref_pos;
-    int query_pos;
+    uint32_t ref_pos;
+    uint32_t query_pos;
 
     __shared__ int sub_mat[36];
 
@@ -1126,7 +1126,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len){
     cudaFree(d_query_seq_tmp);
 }
 
-void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_t* pos_table, uint32_t num_index){
+void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index){
     cudaError_t err;
 
     h_seed_offsets = (uint64_t*) malloc(13*cfg.chunk_size*sizeof(uint64_t));
@@ -1143,17 +1143,26 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint64_
         exit(1);
     }
 
-    err = cudaMalloc(&d_pos_table, num_index*sizeof(uint64_t)); 
+//    uint32_t* h_pos_table;
+//    h_pos_table = (uint32_t*) calloc(num_index, sizeof(uint32_t));
+//
+//    for(uint32_t i = 0; i < num_index; i++){
+//        h_pos_table[i] = pos_table[i];
+//    }
+
+    err = cudaMalloc(&d_pos_table, num_index*sizeof(uint32_t)); 
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc failed!s2\n");
         exit(1);
     }
 
-    err = cudaMemcpy(d_pos_table, pos_table, num_index*sizeof(uint64_t), cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_pos_table, pos_table, num_index*sizeof(uint32_t), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed!\n");
         exit(1);
     }
+
+//    free(h_pos_table);
 }
 
 void ShutdownProcessor(){
