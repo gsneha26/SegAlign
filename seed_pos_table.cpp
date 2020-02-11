@@ -59,6 +59,7 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape
 
     tbb::parallel_sort(pos_table_, pos_table_+num_index);
 
+    tmp_pos_table_ = (uint32_t*) calloc(num_index, sizeof(uint32_t));
     uint32_t curr_index = 0;
     uint32_t seed, pos; 
 
@@ -66,6 +67,7 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape
         pos  = ((pos_table_[i] << 32) >> 32);
         seed = (pos_table_[i] >> 32);
         pos_table_[i] = pos;
+        tmp_pos_table_[i] = pos;
         if (seed > curr_index) {
             for (uint32_t s = curr_index; s < seed; s++) {
                 index_table_[s] = i;
@@ -78,10 +80,11 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape
         index_table_[i] = num_index;
     }
 
-    g_SendSeedPosTable(index_table_, index_table_size_, pos_table_, num_index);
+    g_SendSeedPosTable(index_table_, index_table_size_, tmp_pos_table_, num_index);
 }
 
 SeedPosTable::~SeedPosTable() {
     free(index_table_);
     free(pos_table_);
+    free(tmp_pos_table_);
 }
