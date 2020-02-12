@@ -98,7 +98,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     int status;
 
     if(cfg.do_gapped){
-        cmd = cfg.lastz_path+" "+cfg.reference_filename+" " +cfg.query_filename+" --format=maf- --segments="+filename+" > "+maf_filename;
+        cmd = cfg.lastz_path+" "+cfg.reference_filename_2bit+" " +cfg.query_filename_2bit+" --format=maf- --segments="+filename+" > "+maf_filename;
         status = system(cmd.c_str());
     }
 //    cmd = "rm "+filename_plus+" "+filename_minus;
