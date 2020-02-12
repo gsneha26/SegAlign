@@ -129,9 +129,11 @@ int main(int argc, char** argv)
 
     // FASTA files
     cfg.reference_name     = (std::string) cfg_file.Value("FASTA_files", "reference_name"); 
-    cfg.reference_filename = (std::string) cfg_file.Value("FASTA_files", "reference_filename"); 
     cfg.query_name         = (std::string) cfg_file.Value("FASTA_files", "query_name"); 
+    cfg.reference_filename = (std::string) cfg_file.Value("FASTA_files", "reference_filename"); 
     cfg.query_filename     = (std::string) cfg_file.Value("FASTA_files", "query_filename"); 
+    cfg.reference_filename_2bit = (std::string) cfg_file.Value("FASTA_files", "reference_filename_2bit"); 
+    cfg.query_filename_2bit     = (std::string) cfg_file.Value("FASTA_files", "query_filename_2bit"); 
 
     // GACT scoring
     cfg.gact_sub_mat[0]  = cfg_file.Value("Scoring", "sub_AA");
