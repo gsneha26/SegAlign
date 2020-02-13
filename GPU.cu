@@ -778,6 +778,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 }
 
 size_t InitializeProcessor (int t, int f){
+
+    printf("Initializer\n");
     size_t ret = 0;
     cudaError_t err;
     int nDevices;
@@ -787,7 +789,7 @@ size_t InitializeProcessor (int t, int f){
         fprintf(stderr, "Error: No GPU device found!\n");
         exit(1);
     }
-    printf("Number of devices: %d\n", nDevices);
+    //printf("Number of devices: %d\n", nDevices);
 
     NUM_DEVICES = nDevices; 
 
@@ -798,6 +800,8 @@ size_t InitializeProcessor (int t, int f){
     d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
+d_done_vec.reserve(NUM_DEVICES);
+d_hit_num_vec.reserve(NUM_DEVICES);
 
     int *sub_mat;
     sub_mat = (int *)malloc(36 * sizeof(int)); 
@@ -822,14 +826,21 @@ size_t InitializeProcessor (int t, int f){
     }
 
     for(int g = 0; g < NUM_DEVICES; g++){
+
+	//printf("Start for device %d\n", g);
         cudaSetDevice(g);
 
-        thrust::device_vector<uint32_t> d_done_vec_tmp(MAX_HITS);
-        thrust::device_vector<uint32_t> d_hit_num_vec_tmp(MAX_SEEDS);
+//        thrust::device_vector<uint32_t> d_done_vec_tmp(MAX_HITS);
+//        thrust::device_vector<uint32_t> d_hit_num_vec_tmp(MAX_SEEDS);
 
-        d_done_vec.push_back(d_done_vec_tmp);
-        d_hit_num_vec.push_back(d_hit_num_vec_tmp);
+	//printf("Start cudaMalloc for device %d\n", g);
+        d_done_vec.emplace_back(MAX_HITS, 0);
+        //d_done_vec.push_back(d_done_vec_tmp);
+	//printf("Start cudaMalloc for device %d\n", g);
+        d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
+        //d_hit_num_vec.push_back(d_hit_num_vec_tmp);
 
+	//printf("Start cudaMalloc for device %d\n", g);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
@@ -866,6 +877,7 @@ size_t InitializeProcessor (int t, int f){
         }
 
         available_gpus.push_back(g);
+	//printf("End for device %d\n", g);
     }
 
     free(sub_mat);
@@ -986,22 +998,28 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 }
 
 void ShutdownProcessor(){
-    cudaFree(d_ref_seq);
-    cudaFree(d_query_seq);
-    cudaFree(d_query_rc_seq);
-
-    cudaFree(d_sub_mat);
-
-    cudaFree(d_index_table);
-    cudaFree(d_pos_table);
 
     free(h_seed_offsets);
-    cudaFree(d_seed_offsets);
 
-    cudaFree(d_hsp);
-    cudaFree(d_hsp_reduced);
-    cudaFree(d_done_array);
-    cudaFree(d_hit_num_array);
+    d_done_vec.clear();
+    d_hit_num_vec.clear();
+
+    cudaDeviceReset();
+
+//    cudaFree(d_ref_seq);
+//    cudaFree(d_query_seq);
+//    cudaFree(d_query_rc_seq);
+//
+//    cudaFree(d_sub_mat);
+//
+//    cudaFree(d_index_table);
+//    cudaFree(d_pos_table);
+//
+//    free(h_seed_offsets);
+//    cudaFree(d_seed_offsets);
+//
+//    cudaFree(d_hsp);
+//    cudaFree(d_hsp_reduced);
 }
 
 DRAM *g_DRAM = nullptr;
