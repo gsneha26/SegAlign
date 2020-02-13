@@ -703,7 +703,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     err = cudaSetDevice(g);
 
-    gpu_lock.lock();
+//    gpu_lock.lock();
 //    printf("create\n");
 
     for (uint32_t i = 0; i < num_seeds; i++) {
@@ -756,7 +756,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-    gpu_lock.unlock();
+//    gpu_lock.unlock();
 
     std::vector<hsp> gpu_filter_output;
     for(int i = 0; i < num_anchors; i++){
@@ -779,7 +779,6 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
 size_t InitializeProcessor (int t, int f){
 
-    printf("Initializer\n");
     size_t ret = 0;
     cudaError_t err;
     int nDevices;
@@ -789,7 +788,7 @@ size_t InitializeProcessor (int t, int f){
         fprintf(stderr, "Error: No GPU device found!\n");
         exit(1);
     }
-    //printf("Number of devices: %d\n", nDevices);
+    printf("Number of devices: %d\n", nDevices);
 
     NUM_DEVICES = nDevices; 
 
