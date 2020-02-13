@@ -43,8 +43,10 @@ uint64_t** d_seed_offsets;
 hsp** d_hsp;
 hsp** d_hsp_reduced;
 
-uint32_t** d_done;
-uint32_t** seed_hit_num_array;
+std::vector<thrust::device_vector<uint32_t> > d_done_vec;
+std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
+uint32_t** d_done_array;
+uint32_t** d_hit_num_array;
 
 __global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
@@ -702,14 +704,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     err = cudaSetDevice(g);
 
     gpu_lock.lock();
-
-    thrust::device_ptr<uint32_t> pd_done_vec (d_done[g]);
-    thrust::device_ptr<uint32_t> pd_seed_hit_num (seed_hit_num_array[g]);
-    thrust::device_vector<uint32_t> d_done_vec (pd_done_vec, pd_done_vec+MAX_HITS);
-    thrust::device_vector<uint32_t> seed_hit_num (pd_seed_hit_num, pd_seed_hit_num+MAX_SEEDS);
-
-    uint32_t* d_done_vec_ptr = thrust::raw_pointer_cast(&d_done_vec[0]);
-    uint32_t* seed_hit_num_ptr = thrust::raw_pointer_cast(&seed_hit_num[0]);
+//    printf("create\n");
 
     for (uint32_t i = 0; i < num_seeds; i++) {
         h_seed_offsets[g][i] = seed_offset_vector[i];
@@ -721,11 +716,13 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-    find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table[g], d_seed_offsets[g], seed_hit_num_ptr);
+//    printf("before find_num_hits\n");
+    find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table[g], d_seed_offsets[g], d_hit_num_array[g]);
 
-    thrust::inclusive_scan(seed_hit_num.begin(), seed_hit_num.begin() + num_seeds, seed_hit_num.begin());
+    thrust::inclusive_scan(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin() + num_seeds, d_hit_num_vec[g].begin());
+//    printf("after find_num_hits\n");
 
-    err = cudaMemcpy(&num_hits, seed_hit_num_ptr+num_seeds-1, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(&num_hits, d_hit_num_array[g]+num_seeds-1, sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed! num_hits\n");
         exit(1);
@@ -737,19 +734,19 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 //        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
 
     if(rev)
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_vec_ptr, ref_len, query_len, seed_size, seed_hit_num_ptr, num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
     else
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_vec_ptr, ref_len, query_len, seed_size, seed_hit_num_ptr, num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
 
-    thrust::inclusive_scan(d_done_vec.begin(), d_done_vec.begin() + num_hits, d_done_vec.begin());
+    thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + num_hits, d_done_vec[g].begin());
 
-    err = cudaMemcpy(&num_anchors, d_done_vec_ptr+num_hits-1, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(&num_anchors, d_done_array[g]+num_hits-1, sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed! num_anchors %s\n", cudaGetErrorString(err));
         exit(1);
     }
 
-    fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_vec_ptr, d_hsp[g], d_hsp_reduced[g], num_hits);
+    fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
     
     h_hsp = (hsp*) calloc(num_anchors, sizeof(hsp));
 
@@ -796,8 +793,8 @@ size_t InitializeProcessor (int t, int f){
 
     h_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
-    d_done = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    seed_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
@@ -825,25 +822,22 @@ size_t InitializeProcessor (int t, int f){
     }
 
     for(int g = 0; g < NUM_DEVICES; g++){
-
         cudaSetDevice(g);
+
+        thrust::device_vector<uint32_t> d_done_vec_tmp(MAX_HITS);
+        thrust::device_vector<uint32_t> d_hit_num_vec_tmp(MAX_SEEDS);
+
+        d_done_vec.push_back(d_done_vec_tmp);
+        d_hit_num_vec.push_back(d_hit_num_vec_tmp);
+
+        d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
+        d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
+
         h_seed_offsets[g] = (uint64_t*) malloc(13*cfg.chunk_size*sizeof(uint64_t));
 
         err = cudaMalloc(&d_seed_offsets[g], 13*cfg.chunk_size*sizeof(uint64_t)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed1!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_done[g], MAX_HITS*sizeof(uint32_t));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed2!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&seed_hit_num_array[g], MAX_HITS*sizeof(uint32_t));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed2!\n");
             exit(1);
         }
 
@@ -1006,6 +1000,8 @@ void ShutdownProcessor(){
 
     cudaFree(d_hsp);
     cudaFree(d_hsp_reduced);
+    cudaFree(d_done_array);
+    cudaFree(d_hit_num_array);
 }
 
 DRAM *g_DRAM = nullptr;
