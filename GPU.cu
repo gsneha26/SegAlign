@@ -37,7 +37,6 @@ int **d_sub_mat;
 uint32_t** d_index_table;
 uint32_t** d_pos_table;
 
-uint64_t** h_seed_offsets;
 uint64_t** d_seed_offsets;
 
 hsp** d_hsp;
@@ -690,6 +689,11 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*cfg.chunk_size);
 
+uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
+    for (uint32_t i = 0; i < num_seeds; i++) {
+        tmp_offset[i] = seed_offset_vector[i];
+    }
+
     hsp* h_hsp;
 
     int g;
@@ -703,24 +707,25 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     err = cudaSetDevice(g);
 
-//    gpu_lock.lock();
-//    printf("create\n");
+//    for (uint32_t i = 0; i < num_seeds; i++) {
+//        h_seed_offsets[g][i] = seed_offset_vector[i];
+//    }
+//
+//    err = cudaMemcpy(d_seed_offsets[g], h_seed_offsets[g], num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
+//    if (err != cudaSuccess) {
+//        fprintf(stderr, "Error: cudaMemcpy failed! seed_offset\n");
+//        exit(1);
+//    }
 
-    for (uint32_t i = 0; i < num_seeds; i++) {
-        h_seed_offsets[g][i] = seed_offset_vector[i];
-    }
-
-    err = cudaMemcpy(d_seed_offsets[g], h_seed_offsets[g], num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_seed_offsets[g], tmp_offset, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed! seed_offset\n");
         exit(1);
     }
 
-//    printf("before find_num_hits\n");
     find_num_hits <<<MAX_BLOCKS, MAX_THREADS>>> (num_seeds, d_index_table[g], d_seed_offsets[g], d_hit_num_array[g]);
 
     thrust::inclusive_scan(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin() + num_seeds, d_hit_num_vec[g].begin());
-//    printf("after find_num_hits\n");
 
     err = cudaMemcpy(&num_hits, d_hit_num_array[g]+num_seeds-1, sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
@@ -756,7 +761,12 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
-//    gpu_lock.unlock();
+    {
+    std::unique_lock<std::mutex> locker(mu);
+    available_gpus.push_back(g);
+    locker.unlock();
+    cv.notify_one();
+    }
 
     std::vector<hsp> gpu_filter_output;
     for(int i = 0; i < num_anchors; i++){
@@ -766,13 +776,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 //    printf("%d %d %d\n", num_seeds, num_hits, num_anchors);
 
     free(h_hsp);
-
-    {
-    std::unique_lock<std::mutex> locker(mu);
-    available_gpus.push_back(g);
-    locker.unlock();
-    cv.notify_one();
-    }
+free(tmp_offset);
 
     return gpu_filter_output;
 }
@@ -792,7 +796,6 @@ size_t InitializeProcessor (int t, int f){
 
     NUM_DEVICES = nDevices; 
 
-    h_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -826,24 +829,13 @@ d_hit_num_vec.reserve(NUM_DEVICES);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-	//printf("Start for device %d\n", g);
         cudaSetDevice(g);
 
-//        thrust::device_vector<uint32_t> d_done_vec_tmp(MAX_HITS);
-//        thrust::device_vector<uint32_t> d_hit_num_vec_tmp(MAX_SEEDS);
-
-	//printf("Start cudaMalloc for device %d\n", g);
         d_done_vec.emplace_back(MAX_HITS, 0);
-        //d_done_vec.push_back(d_done_vec_tmp);
-	//printf("Start cudaMalloc for device %d\n", g);
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
-        //d_hit_num_vec.push_back(d_hit_num_vec_tmp);
 
-	//printf("Start cudaMalloc for device %d\n", g);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
-
-        h_seed_offsets[g] = (uint64_t*) malloc(13*cfg.chunk_size*sizeof(uint64_t));
 
         err = cudaMalloc(&d_seed_offsets[g], 13*cfg.chunk_size*sizeof(uint64_t)); 
         if (err != cudaSuccess) {
@@ -998,27 +990,10 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
 void ShutdownProcessor(){
 
-    free(h_seed_offsets);
-
     d_done_vec.clear();
     d_hit_num_vec.clear();
 
     cudaDeviceReset();
-
-//    cudaFree(d_ref_seq);
-//    cudaFree(d_query_seq);
-//    cudaFree(d_query_rc_seq);
-//
-//    cudaFree(d_sub_mat);
-//
-//    cudaFree(d_index_table);
-//    cudaFree(d_pos_table);
-//
-//    free(h_seed_offsets);
-//    cudaFree(d_seed_offsets);
-//
-//    cudaFree(d_hsp);
-//    cudaFree(d_hsp_reduced);
 }
 
 DRAM *g_DRAM = nullptr;
