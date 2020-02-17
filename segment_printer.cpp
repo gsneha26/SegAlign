@@ -26,11 +26,11 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
 
     for (auto e: fw_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "chr1\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
     for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "chr1\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
 //        int diag = 0;
@@ -99,7 +99,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     int status;
 
     if(cfg.do_gapped){
-        cmd = cfg.lastz_path+" "+cfg.reference_filename_2bit+" " +cfg.query_filename_2bit+" --format=maf- --segments="+filename+" > "+maf_filename;
+        cmd = cfg.lastz_path+" "+cfg.data_folder+cfg.reference_name+"/chr1.2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format=maf- --segments="+filename+" > "+maf_filename;
         status = system(cmd.c_str());
     }
 //    cmd = "rm "+filename_plus+" "+filename_minus;

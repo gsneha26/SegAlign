@@ -35,8 +35,7 @@ struct Configuration {
     std::string query_name;
     std::string reference_filename;
     std::string query_filename;
-    std::string reference_filename_2bit;
-    std::string query_filename_2bit;
+    std::string data_folder;
 
     //Scoring
     int gact_sub_mat[11];
