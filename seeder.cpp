@@ -15,7 +15,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
     seeder_payload &payload = get<0>(input);
 
-    auto &query_chrom = get<0>(payload);
+    auto &chrom = get<0>(payload);
     
     auto &data = get<1>(payload);
 
@@ -34,9 +34,9 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u)\n", query_chrom.description.c_str(), num_invoked, num_intervals, start_pos, end_pos);
+    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u)\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos);
 
-    char* query = (char*) query_chrom.seq.data();
+    char* query = (char*) chrom.q_seq.data();
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
 
@@ -71,7 +71,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    char* rc_query = (char*) query_chrom.rc_seq.data();
+    char* rc_query = (char*) chrom.q_rc_seq.data();
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
         std::vector<uint64_t> seed_offset_vector;
@@ -100,6 +100,6 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, query_chrom.description), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr), token);
 }
 
