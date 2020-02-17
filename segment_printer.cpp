@@ -16,6 +16,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &index = get<0>(payload);
     auto &fw_segments = get<1>(payload);
     auto &rc_segments = get<2>(payload);
+    auto &query_chr = get<3>(payload);
 
     std::string filename       = "tmp"+std::to_string(index)+".segments";
     std::string maf_filename   = "tmp"+std::to_string(index)+".maf";
@@ -25,11 +26,11 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
 
     for (auto e: fw_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
     for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
 //        int diag = 0;
@@ -73,7 +74,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //                }
 //            }
 //        }
-//
+
 //        int diag;
 //        for (auto e: fw_segments) {
 //            diag = e.ref_start-e.query_start+cfg.query_len;
