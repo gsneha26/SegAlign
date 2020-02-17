@@ -70,9 +70,10 @@ extern Configuration cfg;
 extern SeedPosTable *sa;
 
 struct reader_output {
-	std::string description;
-	bond::blob seq;
-	bond::blob rc_seq;
+	std::string ref_chr;
+	std::string query_chr;
+	bond::blob q_seq;
+	bond::blob q_rc_seq;
 };
 
 struct seed_interval {

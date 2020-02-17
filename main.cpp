@@ -54,11 +54,11 @@ long useconds, seconds, mseconds;
 Configuration cfg;
 SeedPosTable *sa;
 
-//reference
-std::vector<std::string> r_chr_id;
-std::vector<uint32_t>  r_chr_len;
-std::vector<uint32_t>  r_chr_len_unpadded;
-std::vector<uint32_t>  r_chr_coord;
+// query
+std::vector<std::string> q_chr_id;
+std::vector<uint32_t>  q_chr_len;
+std::vector<size_t>  q_chr_coord;
+uint32_t q_chr_count = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 char* RevComp(bond::blob read) {
@@ -113,8 +113,7 @@ char* RevComp(bond::blob read) {
     return rc;
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv){
 
     if (argc != 1) {
         printf("Usage: %s \n", argv[0]);
@@ -165,7 +164,7 @@ int main(int argc, char** argv)
     cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads  = 1;//tbb::task_scheduler_init::default_num_threads();
 
     //Output
     cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
@@ -188,183 +187,156 @@ int main(int argc, char** argv)
     g_DRAM = new DRAM;
     
     gettimeofday(&start_time, NULL);
-    gzFile f_rd = gzopen(cfg.reference_filename.c_str(), "r");
-    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
+    gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
+    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
         
     kseq_t *kseq_rd = kseq_init(f_rd);
     
-	r_chr_coord.push_back(g_DRAM->bufferPosition);
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
         
-        r_chr_id.push_back(description);
-        r_chr_len.push_back(seq_len);
-        
-        // for padding
-        size_t extra = seq_len % WORD_SIZE;
+        q_chr_coord.push_back(g_DRAM->bufferPosition);
+        q_chr_id.push_back(description);
+        q_chr_len.push_back(seq_len);
 
-        if (g_DRAM->bufferPosition + seq_len + extra > g_DRAM->size) {
+        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
         
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        if (extra != 0)
-        {
-            extra = WORD_SIZE - extra;
-            memset(g_DRAM->buffer + g_DRAM->bufferPosition + seq_len, 'N', extra);
-
-            seq_len += extra;
-        }
         g_DRAM->bufferPosition += seq_len;
-
-        r_chr_coord.push_back(g_DRAM->bufferPosition);
-        
+        q_chr_count++;
     }
     g_DRAM->referenceSize = g_DRAM->bufferPosition;
-
-    // transfer reference to FPGA DRAM
-    g_SendRefWriteRequest (0, g_DRAM->referenceSize);
-
     gzclose(f_rd);
-        
-    gettimeofday(&end_time, NULL);
 
+    gettimeofday(&end_time, NULL);
     useconds = end_time.tv_usec - start_time.tv_usec;
     seconds = end_time.tv_sec - start_time.tv_sec;
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-
-    fprintf(stderr, "Time elapsed (loading reference): %ld msec \n", mseconds);
-
-    fprintf(stderr, "\nConstructing seed position table ...\n");
+    fprintf(stderr, "Time elapsed (loading query from file): %ld msec \n", mseconds);
 
     gettimeofday(&start_time, NULL);
-
-    sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->referenceSize, cfg.seed_shape_str);
-
-    gettimeofday(&end_time, NULL);
-
-    useconds = end_time.tv_usec - start_time.tv_usec;
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-
-    fprintf(stderr, "Time elapsed (constructing seed position table): %ld msec \n", mseconds);
-
-    fprintf(stderr, "\nLoading query ...\n");
-    
-    gettimeofday(&start_time, NULL);
-    f_rd = gzopen(cfg.query_filename.c_str(), "r");
-    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
+    f_rd = gzopen(cfg.reference_filename.c_str(), "r");
+    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
         
     kseq_rd = kseq_init(f_rd);
     
+    std::string q_chr;
+    std::string r_chr;
+    uint32_t q_len;
+    uint32_t q_start;
+
     while (kseq_read(kseq_rd) >= 0) {
-        // reset bufferPosition to end of reference
+
+        // reset bufferPosition to end of query
         g_DRAM->bufferPosition = g_DRAM->referenceSize;
 
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        fprintf(stderr, "Starting %s ...\n", description.c_str());
-        
-        // for padding
-        size_t extra = seq_len % WORD_SIZE;
+        printf("Ref %s\n", description.c_str());
 
-        if (g_DRAM->bufferPosition + seq_len + extra > g_DRAM->size) {
-            fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len + extra, g_DRAM->size);
+        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+            fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
             exit(EXIT_FAILURE); 
         }
         
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        
-        bond::blob chrom_seq = bond::blob(g_DRAM->buffer + g_DRAM->bufferPosition, seq_len);
-        char *rev_read_char = RevComp(chrom_seq);
-        bond::blob chrom_rc_seq = bond::blob(rev_read_char, seq_len);
 
-//        if (extra != 0)
-//        {
-//            extra = WORD_SIZE - extra;
-//            memset(g_DRAM->buffer + g_DRAM->bufferPosition + seq_len, 'N', extra);
-//
-//            seq_len += extra;
-//        }
-        
+        sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->bufferPosition, seq_len, cfg.seed_shape_str);
+
+        g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
-        //send query to FPGA DRAM
-        g_SendQueryWriteRequest (g_DRAM->referenceSize, seq_len);
+        for(uint32_t c = 0; c < q_chr_count; c++){
 
-        std::vector<seed_interval> interval_list;
-        interval_list.clear();
+            q_chr = q_chr_id[c];
+            q_len = q_chr_len[c];
+            q_start = q_chr_coord[c];
+            printf("Query %s\n", q_chr.c_str());
 
-        uint32_t curr_pos = 0;
-        uint32_t end_pos = chrom_seq.size() - sa->GetShapeSize();
+            g_SendQueryWriteRequest (q_start, q_len);
 
-        while (curr_pos < end_pos) {
-            uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
-            seed_interval inter;
-            inter.start = start;
-            inter.end = end;
-            inter.num_invoked = 0;
-            inter.num_intervals = 0;
-            interval_list.push_back(inter);
-            curr_pos += cfg.num_seeds_batch;
+            bond::blob chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
+            char *rev_read_char = RevComp(chrom_seq);
+            bond::blob chrom_rc_seq = bond::blob(rev_read_char, q_len);
+
+            std::vector<seed_interval> interval_list;
+            interval_list.clear();
+
+            uint32_t curr_pos = 0;
+            uint32_t end_pos = chrom_seq.size() - sa->GetShapeSize();
+
+            while (curr_pos < end_pos) {
+                uint32_t start = curr_pos;
+                uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
+                seed_interval inter;
+                inter.start = start;
+                inter.end = end;
+                inter.num_invoked = 0;
+                inter.num_intervals = 0;
+                interval_list.push_back(inter);
+                curr_pos += cfg.num_seeds_batch;
+            }
+
+            // start alignment
+            tbb::flow::graph align_graph;
+
+            printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
+
+            tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
+
+            tbb::flow::make_edge(seeder, printer);
+
+            tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
+
+            tbb::flow::make_edge(gatekeeper, seeder);
+
+            tbb::flow::buffer_node<size_t> ticketer(align_graph);
+
+            // Allocate tickets
+            for (size_t t = 0ull; t < cfg.num_threads; t++)
+                ticketer.try_put(t);
+
+            tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
+
+            tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
+
+            uint32_t num_invoked = 0;
+            uint32_t num_intervals = interval_list.size();
+
+            tbb::flow::source_node<seeder_payload> reader(align_graph,
+                    [&](seeder_payload &op) -> bool {
+                    while (true)
+                    {
+                    if (num_invoked < num_intervals) {
+                        seed_interval& inter = get<1>(op);
+                        seed_interval curr_inter = interval_list[num_invoked++];
+                        inter.start = curr_inter.start;
+                        inter.end = curr_inter.end;
+                        inter.num_invoked = num_invoked;
+                        inter.num_intervals = num_intervals;
+                        reader_output& chrom = get<0>(op);
+                        chrom.query_chr = q_chr;
+                        chrom.ref_chr = description;
+                        chrom.q_seq = chrom_seq;
+                        chrom.q_rc_seq = chrom_rc_seq;
+                        return true;
+                    }
+                    return false;
+                    }
+                    }, true);
+
+            tbb::flow::make_edge(reader, tbb::flow::input_port<0>(gatekeeper));
+            
+            align_graph.wait_for_all();
+            delete[] rev_read_char;
+
         }
 
-        // start alignment
-        tbb::flow::graph align_graph;
-    
-        printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
-        
-        tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
-    
-        tbb::flow::make_edge(seeder, printer);
-    
-        tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
-
-        tbb::flow::make_edge(gatekeeper, seeder);
-    
-        tbb::flow::buffer_node<size_t> ticketer(align_graph);
-
-        // Allocate tickets
-        for (size_t t = 0ull; t < cfg.num_threads; t++)
-            ticketer.try_put(t);
-
-        tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
-
-        tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
-        
-        uint32_t num_invoked = 0;
-        uint32_t num_intervals = interval_list.size();
-
-        tbb::flow::source_node<seeder_payload> reader(align_graph,
-                [&](seeder_payload &op) -> bool {
-                while (true)
-                {
-                if (num_invoked < num_intervals) {
-                    seed_interval& inter = get<1>(op);
-                    seed_interval curr_inter = interval_list[num_invoked++];
-                    inter.start = curr_inter.start;
-                    inter.end = curr_inter.end;
-                    inter.num_invoked = num_invoked;
-                    inter.num_intervals = num_intervals;
-                    reader_output& query_chrom = get<0>(op);
-                    query_chrom.description = description;
-                    query_chrom.seq = chrom_seq;
-                    query_chrom.rc_seq = chrom_rc_seq;
-                    return true;
-                }
-                return false;
-                }
-                }, true);
-
-        tbb::flow::make_edge(reader, tbb::flow::input_port<0>(gatekeeper));
-        
-        align_graph.wait_for_all();
-        delete[] rev_read_char;
     }
-
     gzclose(f_rd);
     
     gettimeofday(&end_time, NULL);
@@ -374,7 +346,6 @@ int main(int argc, char** argv)
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
 
     fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld sec \n", seconds);
-//    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld msec \n", mseconds);
 
     fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
