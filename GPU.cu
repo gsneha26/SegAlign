@@ -792,9 +792,9 @@ size_t InitializeProcessor (int t, int f){
         fprintf(stderr, "Error: No GPU device found!\n");
         exit(1);
     }
-    printf("Number of devices: %d\n", nDevices);
 
     NUM_DEVICES = nDevices; 
+    printf("Using %d GPU(s)\n", NUM_DEVICES);
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -879,7 +879,6 @@ d_hit_num_vec.reserve(NUM_DEVICES);
 void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
-    printf("Ref len: %lu\n", len);
     d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     
     for(int g = 0; g < NUM_DEVICES; g++){
@@ -913,7 +912,6 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 void SendQueryWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     query_len = len;
-    printf("Query len: %lu\n", len);
     
     d_query_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     d_query_rc_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
@@ -957,7 +955,6 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    printf("%u %u\n", index_table_size, num_index);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
