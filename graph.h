@@ -44,7 +44,6 @@ struct Configuration {
 
     //Seed parameters
     std::string seed_shape_str;
-    int bin_size;
     int num_seeds_batch;
     int chunk_size;
     bool ignore_lower;
