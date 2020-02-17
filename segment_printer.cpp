@@ -30,7 +30,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     }
 
     for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
 //        int diag = 0;
