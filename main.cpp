@@ -122,7 +122,7 @@ int main(int argc, char** argv){
 
     ConfigFile cfg_file("params.cfg");
     gettimeofday(&start_time, NULL);
-    fprintf(stderr, "Loading configuration file ...\n");
+    fprintf(stderr, "Loading configuration file ...");
 
     // FASTA files
     cfg.reference_name     = (std::string) cfg_file.Value("FASTA_files", "reference_name"); 
@@ -164,7 +164,7 @@ int main(int argc, char** argv){
     cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads  = 1;//tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
 
     //Output
     cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
@@ -174,18 +174,17 @@ int main(int argc, char** argv){
     useconds = end_time.tv_usec - start_time.tv_usec;
     seconds = end_time.tv_sec - start_time.tv_sec;
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-    fprintf(stderr, "Time elapsed (loading configuration): %ld\n", mseconds);
-
-    fprintf(stderr, "\nUse transition: %d\n", cfg.use_transition);
+    fprintf(stderr, "Time elapsed (loading configuration): %ld\n\n", mseconds);
 
     int nthreads = cfg.num_threads;
     tbb::task_scheduler_init init(nthreads);
-    fprintf(stderr, "\nUsing %d threads ...\n", cfg.num_threads);
+    fprintf(stderr, "Using %d threads\n", cfg.num_threads);
     g_InitializeProcessor (0, 0);
 
     /////////// USER LOGIC ////////////////////
     g_DRAM = new DRAM;
     
+    fprintf(stderr, "\nReading query file ...\n");
     gettimeofday(&start_time, NULL);
     gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
@@ -208,16 +207,15 @@ int main(int argc, char** argv){
         g_DRAM->bufferPosition += seq_len;
         q_chr_count++;
     }
-    g_DRAM->referenceSize = g_DRAM->bufferPosition;
+    g_DRAM->querySize = g_DRAM->bufferPosition;
     gzclose(f_rd);
 
     gettimeofday(&end_time, NULL);
     useconds = end_time.tv_usec - start_time.tv_usec;
     seconds = end_time.tv_sec - start_time.tv_sec;
     mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-    fprintf(stderr, "Time elapsed (loading query from file): %ld msec \n", mseconds);
+    fprintf(stderr, "Time elapsed (loading complete query from file): %ld msec \n\n", mseconds);
 
-    gettimeofday(&start_time, NULL);
     f_rd = gzopen(cfg.reference_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
         
@@ -230,13 +228,14 @@ int main(int argc, char** argv){
 
     while (kseq_read(kseq_rd) >= 0) {
 
+        gettimeofday(&start_time, NULL);
         // reset bufferPosition to end of query
-        g_DRAM->bufferPosition = g_DRAM->referenceSize;
+        g_DRAM->bufferPosition = g_DRAM->querySize;
 
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        printf("Ref %s\n", description.c_str());
+        fprintf(stderr, "Loading reference %s ...\n", description.c_str());
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
@@ -250,12 +249,18 @@ int main(int argc, char** argv){
         g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
+        gettimeofday(&end_time, NULL);
+        seconds = end_time.tv_sec - start_time.tv_sec;
+        fprintf(stderr, "Time elapsed (loading reference and creating seed pos table): %ld sec \n\n", seconds);
+
         for(uint32_t c = 0; c < q_chr_count; c++){
+
 
             q_chr = q_chr_id[c];
             q_len = q_chr_len[c];
             q_start = q_chr_coord[c];
-            printf("Query %s\n", q_chr.c_str());
+            fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+            gettimeofday(&start_time, NULL);
 
             g_SendQueryWriteRequest (q_start, q_len);
 
@@ -334,19 +339,15 @@ int main(int argc, char** argv){
             align_graph.wait_for_all();
             delete[] rev_read_char;
 
+            gettimeofday(&end_time, NULL);
+            seconds = end_time.tv_sec - start_time.tv_sec;
+            fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
         }
 
     }
+
     gzclose(f_rd);
     
-    gettimeofday(&end_time, NULL);
-
-    useconds = end_time.tv_usec - start_time.tv_usec;
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-
-    fprintf(stderr, "Time elapsed (loading query + complete pipeline): %ld sec \n", seconds);
-
     fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
     fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
