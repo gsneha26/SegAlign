@@ -6,7 +6,7 @@
 
 DRAM::DRAM()
 	: size(4ull * 1024ull * 1024ull * 1024ull), // 4GB FPGA memory
-	referenceSize(0),
+	querySize(0),
 	bufferPosition(0)
 {
 
