@@ -60,8 +60,6 @@ std::vector<uint32_t>  r_chr_len;
 std::vector<uint32_t>  r_chr_len_unpadded;
 std::vector<uint32_t>  r_chr_coord;
 
-FILE* mafFile;
-
 ////////////////////////////////////////////////////////////////////////////////
 char* RevComp(bond::blob read) {
 
@@ -314,8 +312,6 @@ int main(int argc, char** argv)
             curr_pos += cfg.num_seeds_batch;
         }
 
-        std::string maf_filename = description + ".maf";
-
         // start alignment
         tbb::flow::graph align_graph;
     
@@ -367,8 +363,6 @@ int main(int argc, char** argv)
         
         align_graph.wait_for_all();
         delete[] rev_read_char;
-
-//        fclose(mafFile);
     }
 
     gzclose(f_rd);
