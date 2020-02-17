@@ -151,7 +151,6 @@ int main(int argc, char** argv)
 
     // D-SOFT parameters
     cfg.seed_shape_str          = (std::string) cfg_file.Value("Seed_params", "seed_shape");
-    cfg.bin_size                = cfg_file.Value("Seed_params", "bin_size");
     cfg.num_seeds_batch         = cfg_file.Value("Seed_params", "num_seeds_batch");
     cfg.chunk_size              = cfg_file.Value("Seed_params", "chunk_size");
     cfg.ignore_lower            = cfg_file.Value("Seed_params", "ignore_lower");
@@ -243,7 +242,7 @@ int main(int argc, char** argv)
 
     gettimeofday(&start_time, NULL);
 
-    sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->referenceSize, cfg.seed_shape_str, cfg.bin_size);
+    sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->referenceSize, cfg.seed_shape_str);
 
     gettimeofday(&end_time, NULL);
 

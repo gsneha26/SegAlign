@@ -11,14 +11,13 @@ class SeedPosTable {
         uint32_t ref_size_;
         int kmer_size_;
         int shape_size_;
-        int bin_size_;
         uint32_t *index_table_;
         uint64_t *pos_table_;
         uint32_t *tmp_pos_table_;
 
     public:
         SeedPosTable();
-        SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape, int bin_size);
+        SeedPosTable(char* ref_str, uint32_t ref_length, std::string shape);
         ~SeedPosTable();
 
         int GetKmerSize();
