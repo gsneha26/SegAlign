@@ -100,6 +100,6 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, query_chrom.description), token);
 }
 
