@@ -18,8 +18,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &rc_segments = get<2>(payload);
     auto &query_chr = get<3>(payload);
 
-    std::string filename       = "tmp"+std::to_string(index)+".segments";
-    std::string maf_filename   = "tmp"+std::to_string(index)+".maf";
+    std::string filename       = "tmp"+std::to_string(index)+"."+query_chr+".segments";
+    std::string maf_filename   = "tmp"+std::to_string(index)+"."+query_chr+".maf";
 
     FILE* segmentFile = fopen(filename.c_str(), "w");
 
