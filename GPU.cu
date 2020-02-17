@@ -957,6 +957,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    printf("%u %u\n", index_table_size, num_index);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
