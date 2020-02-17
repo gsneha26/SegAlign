@@ -165,7 +165,7 @@ int main(int argc, char** argv)
     cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
     cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
     cfg.lastz_path          = (std::string) cfg_file.Value("Extension_params", "lastz_path");
-    cfg.do_gapped            = cfg_file.Value("Extension_params", "do_gapped");
+    cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
     cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
@@ -296,7 +296,7 @@ int main(int argc, char** argv)
 
         //send query to FPGA DRAM
         g_SendQueryWriteRequest (g_DRAM->referenceSize, seq_len);
-        
+
         std::vector<seed_interval> interval_list;
         interval_list.clear();
 
@@ -316,7 +316,6 @@ int main(int argc, char** argv)
         }
 
         std::string maf_filename = description + ".maf";
-//        mafFile = fopen(maf_filename.c_str(), "w");
 
         // start alignment
         tbb::flow::graph align_graph;
