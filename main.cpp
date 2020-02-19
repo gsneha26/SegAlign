@@ -294,8 +294,8 @@ int main(int argc, char** argv){
             tbb::flow::source_node<seeder_payload> reader(align_graph,
                     [&](seeder_payload &op) -> bool {
                     while (true){
-//                    if(q_chr_invoked < q_chr_count){  
-                    if(q_chr_invoked < 2){//q_chr_count){  
+                    if(q_chr_invoked < q_chr_count){  
+//                    if(q_chr_invoked < 2){//q_chr_count){  
                         if(new_chr){
                             new_chr = false;
                             printf("done intervals chr %d %d\n", q_chr_invoked, q_chr_count);
