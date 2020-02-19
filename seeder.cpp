@@ -10,6 +10,7 @@
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
 std::atomic<uint64_t> seeder_body::num_hsps(0);
+std::atomic<uint64_t> seeder_body::num_seeded_regions(0);
 
 printer_input seeder_body::operator()(seeder_input input) {
 
@@ -34,8 +35,11 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u)\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos);
+    struct timeval start_time, end_time;
+    long useconds, seconds, mseconds;
+    fprintf (stderr, "fwd Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
 
+    gettimeofday(&start_time, NULL);
     char* query = (char*) chrom.q_seq.data();
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
@@ -67,10 +71,12 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false); 
             fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
-//            fw_segments = g_SeedAndFilter(seed_offset_vector, false); 
+            seeder_body::num_seeds += seed_offset_vector.size();
+            seeder_body::num_hsps += anchors.size();
         }
     }
 
+//    fprintf (stderr, "rev Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
     char* rc_query = (char*) chrom.q_rc_seq.data();
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
@@ -96,10 +102,18 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true); 
             rc_segments.insert(rc_segments.end(), anchors.begin(), anchors.end());
-//            rc_segments = g_SeedAndFilter(seed_offset_vector, true);
+            seeder_body::num_seeds += seed_offset_vector.size();
+            seeder_body::num_hsps += anchors.size();
         }
     }
+    gettimeofday(&end_time, NULL);
 
+    useconds = end_time.tv_usec - start_time.tv_usec;
+    seconds = end_time.tv_sec - start_time.tv_sec;
+    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
+//    fprintf(stdout, "%d Time elapsed (seeder): %ld\n", num_invoked, mseconds);
+
+    seeder_body::num_seeded_regions += 1;
     return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr), token);
 }
 
