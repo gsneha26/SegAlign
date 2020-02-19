@@ -96,6 +96,7 @@ struct seeder_body{
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
+	static std::atomic<uint64_t> num_seeded_regions;
 	printer_input operator()(seeder_input input);
 };
 
