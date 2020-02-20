@@ -12,7 +12,10 @@ wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installer
 sudo sh cuda_10.2.89_440.33.01_linux.run
 #add to ~/.bashrc : export PATH="/usr/local/cuda/bin/:$PATH"
 wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
-tar -xvf lastz-1.04.03.tar.gz
-cd WGA_GPU
+tar -xvf lastz-1.04.03.tar.gz lastz_src
+cd lastz_src/src
+make
+cp lastz ~/WGA_GPU/build
+cd ~/WGA_GPU
 git clone https://github.com/01org/tbb
 #Download bond which Yatish sent via Gmail
