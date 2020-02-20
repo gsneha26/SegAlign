@@ -678,7 +678,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     cudaError_t err;
     seed_size = 19;
@@ -739,9 +739,9 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
 //        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
 
     if(rev)
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
     else
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
 
     thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + num_hits, d_done_vec[g].begin());
 
@@ -868,9 +868,12 @@ d_hit_num_vec.reserve(NUM_DEVICES);
         }
 
         available_gpus.push_back(g);
-	//printf("End for device %d\n", g);
+        //printf("End for device %d\n", g);
     }
 
+    
+    d_query_seq    = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
+    d_query_rc_seq = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
     free(sub_mat);
 
     return ret;
@@ -909,14 +912,12 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     }
 }
 
-void SendQueryWriteRequest (size_t start_addr, size_t len){
+void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
     cudaError_t err;
     query_len = len;
-    
-    d_query_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
 
     for(int g = 0; g < NUM_DEVICES; g++){
+        printf("%d w\n", g);
 
         cudaSetDevice(g);
         char* d_query_seq_tmp;
@@ -932,19 +933,19 @@ void SendQueryWriteRequest (size_t start_addr, size_t len){
             exit(1);
         }
 
-        err = cudaMalloc(&d_query_seq[g], len*sizeof(char)); 
+        err = cudaMalloc(&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed!\n");
             exit(1);
         }
 
-        err = cudaMalloc(&d_query_rc_seq[g], len*sizeof(char)); 
+        err = cudaMalloc(&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed!\n");
             exit(1);
         }
 
-        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[g], d_query_rc_seq[g]);
+        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
         cudaFree(d_query_seq_tmp);
     }

@@ -48,7 +48,7 @@ SOFTWARE.
 
 KSEQ_INIT2(, gzFile, gzread)
 
-struct timeval start_time, end_time;
+struct timeval start_time, end_time, start_time1;
 long useconds, seconds, mseconds;
 
 Configuration cfg;
@@ -59,6 +59,7 @@ std::vector<std::string> q_chr_id;
 std::vector<uint32_t>  q_chr_len;
 std::vector<size_t>  q_chr_coord;
 uint32_t q_chr_count = 0;
+int a = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 char* RevComp(bond::blob read) {
@@ -278,8 +279,10 @@ int main(int argc, char** argv){
 
         uint32_t num_invoked = 0;
         uint32_t num_intervals = 0;  
+        uint32_t prev_num_intervals = 0;  
         uint32_t total_intervals = 0;
         uint32_t q_chr_invoked = 0;
+        uint32_t buffer = 0;
         bool new_chr = true;
         bond::blob chrom_seq;
         bond::blob chrom_rc_seq;
@@ -297,9 +300,11 @@ int main(int argc, char** argv){
                     q_chr = q_chr_id[q_chr_invoked];
                     q_len = q_chr_len[q_chr_invoked];
                     q_start = q_chr_coord[q_chr_invoked];
+                    buffer = q_chr_invoked%2;
+
                     fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
 
-                    g_SendQueryWriteRequest (q_start, q_len);
+                    g_SendQueryWriteRequest (q_start, q_len, buffer);
 
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
@@ -333,6 +338,7 @@ int main(int argc, char** argv){
                         inter.end = curr_inter.end;
                         inter.num_invoked = num_invoked;
                         inter.num_intervals = num_intervals;
+                        inter.buffer = buffer;
                         reader_output& chrom = get<0>(op);
                         chrom.query_chr = q_chr;
                         chrom.ref_chr = description;
@@ -341,7 +347,15 @@ int main(int argc, char** argv){
                         return true;
                     }
                     else{
+                        if(a == 0){
+                            a= 1;
+                            gettimeofday(&start_time1, NULL);
+                            fprintf(stdout, "Starting query ...%lu \n", start_time1.tv_sec);
+                        }
                         if(seeder_body::num_seeded_regions.load() == total_intervals){
+                            a =0;
+                            gettimeofday(&start_time1, NULL);
+                            fprintf(stdout, "Starting query inside...%lu \n", start_time1.tv_sec);
                             q_chr_invoked++;
                             new_chr = true;
                         }
@@ -349,6 +363,8 @@ int main(int argc, char** argv){
                 }
             }
             else{
+                gettimeofday(&start_time1, NULL);
+                fprintf(stdout, "Starting query ...%lu \n", start_time1.tv_sec);
                 return false;
             }
 

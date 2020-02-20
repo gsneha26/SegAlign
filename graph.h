@@ -81,6 +81,7 @@ struct seed_interval {
     uint32_t end;
     uint32_t num_invoked;
     uint32_t num_intervals;
+    uint32_t buffer;
 };
 
 typedef std::vector<hsp> hsp_output; 
