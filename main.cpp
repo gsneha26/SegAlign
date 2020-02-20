@@ -253,128 +253,116 @@ int main(int argc, char** argv){
         seconds = end_time.tv_sec - start_time.tv_sec;
         fprintf(stderr, "Time elapsed (loading reference and creating seed pos table): %ld sec \n\n", seconds);
 
-//        for(uint32_t c = 0; c < q_chr_count; c++){
-        int c= 0;
+        // start alignment
+        tbb::flow::graph align_graph;
 
-            // start alignment
-            tbb::flow::graph align_graph;
+        printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
 
-            printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
+        tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
 
-            tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
+        tbb::flow::make_edge(seeder, printer);
 
-            tbb::flow::make_edge(seeder, printer);
+        tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
 
-            tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
+        tbb::flow::make_edge(gatekeeper, seeder);
 
-            tbb::flow::make_edge(gatekeeper, seeder);
+        tbb::flow::buffer_node<size_t> ticketer(align_graph);
 
-            tbb::flow::buffer_node<size_t> ticketer(align_graph);
+        // Allocate tickets
+        for (size_t t = 0ull; t < cfg.num_threads; t++)
+            ticketer.try_put(t);
 
-            // Allocate tickets
-            for (size_t t = 0ull; t < cfg.num_threads; t++)
-                ticketer.try_put(t);
+        tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
 
-            tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
+        tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
-            tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
+        uint32_t num_invoked = 0;
+        uint32_t num_intervals = 0;  
+        uint32_t total_intervals = 0;
+        uint32_t q_chr_invoked = 0;
+        bool new_chr = true;
+        bond::blob chrom_seq;
+        bond::blob chrom_rc_seq;
+        char *rev_read_char = RevComp(chrom_seq);
 
-            uint32_t num_invoked = 0;
-            uint32_t num_intervals = 0; //interval_list.size();
-            uint32_t total_intervals = 0; //interval_list.size();
-            uint32_t q_chr_invoked = 0;
-            bool new_chr = true;
-            bond::blob chrom_seq ;//= bond::blob(g_DRAM->buffer + q_start, q_len);
-            bond::blob chrom_rc_seq ;//= bond::blob(rev_read_char, q_len);
-            char *rev_read_char = RevComp(chrom_seq);
+        std::vector<seed_interval> interval_list;
 
-            std::vector<seed_interval> interval_list;
+        gettimeofday(&start_time, NULL);
+        tbb::flow::source_node<seeder_payload> reader(align_graph,
+            [&](seeder_payload &op) -> bool {
+            while (true){
+            if(q_chr_invoked < q_chr_count){  
+                if(new_chr){
+                    new_chr = false;
+                    q_chr = q_chr_id[q_chr_invoked];
+                    q_len = q_chr_len[q_chr_invoked];
+                    q_start = q_chr_coord[q_chr_invoked];
+                    fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
 
-            gettimeofday(&start_time, NULL);
-            tbb::flow::source_node<seeder_payload> reader(align_graph,
-                    [&](seeder_payload &op) -> bool {
-                    while (true){
-                    if(q_chr_invoked < q_chr_count){  
-//                    if(q_chr_invoked < 2){//q_chr_count){  
-                        if(new_chr){
-                            new_chr = false;
-                            printf("done intervals chr %d %d\n", q_chr_invoked, q_chr_count);
-                            
-                            q_chr = q_chr_id[q_chr_invoked];
-                            q_len = q_chr_len[q_chr_invoked];
-                            q_start = q_chr_coord[q_chr_invoked];
-                            fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+                    g_SendQueryWriteRequest (q_start, q_len);
 
-                            g_SendQueryWriteRequest (q_start, q_len);
+                    chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
+                    rev_read_char = RevComp(chrom_seq);
+                    chrom_rc_seq = bond::blob(rev_read_char, q_len);
 
-                            chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
-                            rev_read_char = RevComp(chrom_seq);
-                            chrom_rc_seq = bond::blob(rev_read_char, q_len);
+                    interval_list.clear();
 
-                            interval_list.clear();
+                    uint32_t curr_pos = 0;
+                    uint32_t end_pos = chrom_seq.size() - sa->GetShapeSize();
 
-                            uint32_t curr_pos = 0;
-                            uint32_t end_pos = chrom_seq.size() - sa->GetShapeSize();
-
-                            while (curr_pos < end_pos) {
-                                uint32_t start = curr_pos;
-                                uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
-                                seed_interval inter;
-                                inter.start = start;
-                                inter.end = end;
-                                inter.num_invoked = 0;
-                                inter.num_intervals = 0;
-                                interval_list.push_back(inter);
-                                curr_pos += cfg.num_seeds_batch;
-                            }
-                            total_intervals += interval_list.size();
-                            num_intervals = interval_list.size();
-                            num_invoked = 0;
-                        }
-                        else{
-                            if (num_invoked < num_intervals) {
-//                                printf("%d %d\n", num_invoked, num_intervals);
-                                seed_interval& inter = get<1>(op);
-                                seed_interval curr_inter = interval_list[num_invoked++];
-                                inter.start = curr_inter.start;
-                                inter.end = curr_inter.end;
-                                inter.num_invoked = num_invoked;
-                                inter.num_intervals = num_intervals;
-                                reader_output& chrom = get<0>(op);
-                                chrom.query_chr = q_chr;
-                                chrom.ref_chr = description;
-                                chrom.q_seq = chrom_seq;
-                                chrom.q_rc_seq = chrom_rc_seq;
-//                                printf("%d %d\n", num_invoked, num_intervals);
-                                return true;
-                            }
-                            else{
-//                                    printf("here %d\n", seeder_body::num_seeded_regions.load());
-                                if(seeder_body::num_seeded_regions.load() == total_intervals){
-                                    q_chr_invoked++;
-                                    new_chr = true;
-//                                    printf("done intervals %d %d\n", q_chr_invoked, q_chr_count);
-                                }
-                            }
-                        }
+                    while (curr_pos < end_pos) {
+                        uint32_t start = curr_pos;
+                        uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
+                        seed_interval inter;
+                        inter.start = start;
+                        inter.end = end;
+                        inter.num_invoked = 0;
+                        inter.num_intervals = 0;
+                        interval_list.push_back(inter);
+                        curr_pos += cfg.num_seeds_batch;
+                    }
+                    total_intervals += interval_list.size();
+                    num_intervals = interval_list.size();
+                    num_invoked = 0;
+                }
+                else{
+                    if (num_invoked < num_intervals) {
+                        seed_interval& inter = get<1>(op);
+                        seed_interval curr_inter = interval_list[num_invoked++];
+                        inter.start = curr_inter.start;
+                        inter.end = curr_inter.end;
+                        inter.num_invoked = num_invoked;
+                        inter.num_intervals = num_intervals;
+                        reader_output& chrom = get<0>(op);
+                        chrom.query_chr = q_chr;
+                        chrom.ref_chr = description;
+                        chrom.q_seq = chrom_seq;
+                        chrom.q_rc_seq = chrom_rc_seq;
+                        return true;
                     }
                     else{
-                        printf("out\n");
-                        return false;
+                        if(seeder_body::num_seeded_regions.load() == total_intervals){
+                            q_chr_invoked++;
+                            new_chr = true;
+                        }
                     }
+                }
+            }
+            else{
+                return false;
+            }
 
-                    }
-                    }, true);
+            }
+            }, true);
 
-            tbb::flow::make_edge(reader, tbb::flow::input_port<0>(gatekeeper));
-            
-            align_graph.wait_for_all();
+        tbb::flow::make_edge(reader, tbb::flow::input_port<0>(gatekeeper));
+        
+        align_graph.wait_for_all();
 
-            gettimeofday(&end_time, NULL);
-            seconds = end_time.tv_sec - start_time.tv_sec;
-            fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
-//        }
-    delete[] rev_read_char;
+        gettimeofday(&end_time, NULL);
+        seconds = end_time.tv_sec - start_time.tv_sec;
+        fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
+        delete[] rev_read_char;
     }
 
     gzclose(f_rd);
