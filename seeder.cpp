@@ -34,6 +34,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t end_pos = data.end;
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
+    uint32_t buffer = data.buffer;
 
     struct timeval start_time, end_time;
     long useconds, seconds, mseconds;
@@ -69,7 +70,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer); 
             fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();
@@ -100,7 +101,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer); 
             rc_segments.insert(rc_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();
