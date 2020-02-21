@@ -24,8 +24,8 @@ std::vector<int> available_gpus;
 std::mutex mu;
 std::condition_variable cv;
 
-int ref_len;
-int query_len;
+uint32_t ref_len;
+uint32_t query_length[2];
 int seed_size;
 
 char** d_ref_seq;
@@ -170,7 +170,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, uint32_t ref_len, uint32_t query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -436,7 +436,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 }
 
 __global__
-void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, int ref_len, int query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int *d_sub_mat, int xdrop, int xdrop_threshold, uint32_t* d_done, uint32_t ref_len, uint32_t query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -678,7 +678,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t query_len){
 
     cudaError_t err;
     seed_size = 19;
@@ -702,6 +702,7 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
         cv.wait(locker, [](){return !available_gpus.empty();});
     }
     g = available_gpus.back();
+//    printf("%u %d\n", query_len, query_length[buffer]);
     available_gpus.pop_back();
     locker.unlock();
 
@@ -739,9 +740,9 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
 //        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
 
     if(rev)
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
     else
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_len, seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.xdrop_threshold, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
 
     thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + num_hits, d_done_vec[g].begin());
 
@@ -793,7 +794,7 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
-    NUM_DEVICES = nDevices; 
+    NUM_DEVICES = 4;//nDevices; 
     printf("Using %d GPU(s)\n", NUM_DEVICES);
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
@@ -914,10 +915,9 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
 void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
     cudaError_t err;
-    query_len = len;
+    query_length[buffer] = len;
 
     for(int g = 0; g < NUM_DEVICES; g++){
-        printf("%d w\n", g);
 
         cudaSetDevice(g);
         char* d_query_seq_tmp;
