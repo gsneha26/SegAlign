@@ -58,7 +58,6 @@ SeedPosTable *sa;
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t>  q_chr_len;
 std::vector<size_t>  q_chr_coord;
-uint32_t q_chr_count = 0;
 int a = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +155,7 @@ int main(int argc, char** argv){
 
     // Banded GACT filter
     cfg.xdrop                 = cfg_file.Value("Filter_params", "xdrop");
-    cfg.xdrop_threshold = cfg_file.Value("Filter_params", "xdrop_threshold");
+    cfg.xdrop_threshold       = cfg_file.Value("Filter_params", "xdrop_threshold");
 
     // GACT-X
     cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
@@ -165,7 +164,7 @@ int main(int argc, char** argv){
     cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads  = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads  = 48;//tbb::task_scheduler_init::default_num_threads();
 
     //Output
     cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
@@ -191,6 +190,11 @@ int main(int argc, char** argv){
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
         
     kseq_t *kseq_rd = kseq_init(f_rd);
+    std::vector<seed_interval> interval_list;
+    interval_list.clear();
+    std::vector<uint32_t> chr_num_intervals;
+    uint32_t q_chr_count = 0;
+    uint32_t prev_num_intervals = 0;
     
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
@@ -200,12 +204,33 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_chr_len.push_back(seq_len);
 
+//        printf("%s %u\n", description.c_str(), seq_len);
+
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
         
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
         g_DRAM->bufferPosition += seq_len;
+
+        uint32_t curr_pos = 0;
+        uint32_t end_pos = seq_len - 19;//sa->GetShapeSize();
+
+        while (curr_pos < end_pos) {
+            uint32_t start = curr_pos;
+            uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
+            seed_interval inter;
+            inter.start = start;
+            inter.end = end;
+            inter.num_invoked = 0;
+            inter.num_intervals = 0;
+            interval_list.push_back(inter);
+            curr_pos += cfg.num_seeds_batch;
+        }
+        
+        chr_num_intervals.push_back(interval_list.size()-prev_num_intervals);
+        prev_num_intervals = interval_list.size();
+
         q_chr_count++;
     }
     g_DRAM->querySize = g_DRAM->bufferPosition;
@@ -228,6 +253,9 @@ int main(int argc, char** argv){
     uint32_t q_start;
 
     while (kseq_read(kseq_rd) >= 0) {
+
+        short* chr_invoked = (short*) calloc(q_chr_count, sizeof(short));
+        short* chr_sent = (short*) calloc(q_chr_count, sizeof(short));
 
         gettimeofday(&start_time, NULL);
         // reset bufferPosition to end of query
@@ -277,97 +305,124 @@ int main(int argc, char** argv){
 
         tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
-        uint32_t num_invoked = 0;
+        uint32_t intervals_invoked = 0;
+        uint32_t chr_intervals = 0;
         uint32_t num_intervals = 0;  
-        uint32_t prev_num_intervals = 0;  
-        uint32_t total_intervals = 0;
-        uint32_t q_chr_invoked = 0;
+        uint32_t total_intervals = 0;  
+        uint32_t prev_chr_intervals[2] = {0, 0};  
         uint32_t buffer = 0;
         bool new_chr = true;
         bond::blob chrom_seq;
         bond::blob chrom_rc_seq;
         char *rev_read_char = RevComp(chrom_seq);
 
-        std::vector<seed_interval> interval_list;
+        std::string send_q_chr;
+        uint32_t send_q_len;
+        uint32_t send_q_start;
+        uint32_t send_buffer;
+        uint32_t prev_buffer = 0;
+
+        send_q_chr = q_chr_id[0];
+        send_q_len = q_chr_len[0];
+        send_q_start = q_chr_coord[0];
+        send_buffer = 0;
+        prev_buffer = 0;
+        prev_chr_intervals[0] = chr_num_intervals[0]; 
+        g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
+        send_q_chr = q_chr_id[1];
+        send_q_len = q_chr_len[1];
+        send_q_start = q_chr_coord[1];
+        send_buffer = 1;
+        g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
+        chr_sent[0] = 1;
+
+        bool send_chr = false;
+        bool invoke_chr = true; 
+        uint32_t num_chr_sent = 2;
+        uint32_t num_chr_invoked = 0;
 
         gettimeofday(&start_time, NULL);
         tbb::flow::source_node<seeder_payload> reader(align_graph,
             [&](seeder_payload &op) -> bool {
             while (true){
-            if(q_chr_invoked < q_chr_count){  
-                if(new_chr){
-                    new_chr = false;
-                    q_chr = q_chr_id[q_chr_invoked];
-                    q_len = q_chr_len[q_chr_invoked];
-                    q_start = q_chr_coord[q_chr_invoked];
-                    buffer = q_chr_invoked%2;
+            if(num_chr_invoked < q_chr_count){  
+                if(num_chr_invoked < num_chr_sent && invoke_chr){
 
-                    fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+                    q_chr = q_chr_id[num_chr_invoked];
+                    q_len = q_chr_len[num_chr_invoked];
+                    q_start = q_chr_coord[num_chr_invoked];
+                    buffer = num_chr_invoked%2;
+                    total_intervals += chr_intervals;
+                    chr_intervals = chr_num_intervals[num_chr_invoked];
 
-                    g_SendQueryWriteRequest (q_start, q_len, buffer);
+//                    fprintf(stderr, "Starting query %s %d ...\n", q_chr.c_str(), chr_intervals);
 
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
                     chrom_rc_seq = bond::blob(rev_read_char, q_len);
 
-                    interval_list.clear();
+                    intervals_invoked = 0;
+                    invoke_chr = false;
+                }
+                else if(num_chr_sent < q_chr_count && send_chr && prev_buffer == (num_chr_sent%2)){
 
-                    uint32_t curr_pos = 0;
-                    uint32_t end_pos = chrom_seq.size() - sa->GetShapeSize();
+                    send_q_chr = q_chr_id[num_chr_sent];
+                    send_q_len = q_chr_len[num_chr_sent];
+                    send_q_start = q_chr_coord[num_chr_sent];
+                    prev_buffer = send_buffer;
+                    prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
+                    send_buffer = num_chr_sent%2;
 
-                    while (curr_pos < end_pos) {
-                        uint32_t start = curr_pos;
-                        uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
-                        seed_interval inter;
-                        inter.start = start;
-                        inter.end = end;
-                        inter.num_invoked = 0;
-                        inter.num_intervals = 0;
-                        interval_list.push_back(inter);
-                        curr_pos += cfg.num_seeds_batch;
-                    }
-                    total_intervals += interval_list.size();
-                    num_intervals = interval_list.size();
-                    num_invoked = 0;
+//                    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+
+                    g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
+                    send_chr = false;
+                    num_chr_sent++;
                 }
                 else{
-                    if (num_invoked < num_intervals) {
+
+                    uint32_t curr_intervals_done;
+
+                    if(prev_buffer == 0){
+                        curr_intervals_done = seeder_body::num_seeded_regions0.load();
+                    }
+                    else{
+                        curr_intervals_done = seeder_body::num_seeded_regions1.load();
+                    }
+
+                    if(chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
+                        send_chr = true;
+//                        fprintf(stderr, "Starting query %s %d ...\n", q_chr.c_str(), chr_intervals);
+                    }
+
+                    if (intervals_invoked < chr_intervals) {
                         seed_interval& inter = get<1>(op);
-                        seed_interval curr_inter = interval_list[num_invoked++];
+                        seed_interval curr_inter = interval_list[total_intervals + intervals_invoked++];
                         inter.start = curr_inter.start;
                         inter.end = curr_inter.end;
-                        inter.num_invoked = num_invoked;
-                        inter.num_intervals = num_intervals;
+                        inter.num_invoked = intervals_invoked;
+                        inter.num_intervals = chr_intervals;
                         inter.buffer = buffer;
+                        inter.len = q_len; 
                         reader_output& chrom = get<0>(op);
                         chrom.query_chr = q_chr;
                         chrom.ref_chr = description;
                         chrom.q_seq = chrom_seq;
                         chrom.q_rc_seq = chrom_rc_seq;
+                        if(intervals_invoked == chr_intervals) {
+//                            fprintf(stdout, "here %s\n", q_chr.c_str());
+                            invoke_chr = true;
+                            num_chr_invoked++;
+                        }
                         return true;
-                    }
-                    else{
-                        if(a == 0){
-                            a= 1;
-                            gettimeofday(&start_time1, NULL);
-                            fprintf(stdout, "Starting query ...%lu \n", start_time1.tv_sec);
-                        }
-                        if(seeder_body::num_seeded_regions.load() == total_intervals){
-                            a =0;
-                            gettimeofday(&start_time1, NULL);
-                            fprintf(stdout, "Starting query inside...%lu \n", start_time1.tv_sec);
-                            q_chr_invoked++;
-                            new_chr = true;
-                        }
                     }
                 }
             }
             else{
                 gettimeofday(&start_time1, NULL);
-                fprintf(stdout, "Starting query ...%lu \n", start_time1.tv_sec);
+                fprintf(stdout, "Completed\n");//Starting query ...%lu \n", start_time1.tv_sec);
                 return false;
             }
-
             }
             }, true);
 

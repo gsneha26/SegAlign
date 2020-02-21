@@ -82,6 +82,7 @@ struct seed_interval {
     uint32_t num_invoked;
     uint32_t num_intervals;
     uint32_t buffer;
+    uint32_t len;
 };
 
 typedef std::vector<hsp> hsp_output; 
@@ -97,7 +98,8 @@ struct seeder_body{
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
-	static std::atomic<uint64_t> num_seeded_regions;
+	static std::atomic<uint32_t> num_seeded_regions0;
+	static std::atomic<uint32_t> num_seeded_regions1;
 	printer_input operator()(seeder_input input);
 };
 
