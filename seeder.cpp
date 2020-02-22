@@ -14,7 +14,6 @@ std::atomic<uint32_t> seeder_body::num_seeded_regions0(0);
 std::atomic<uint32_t> seeder_body::num_seeded_regions1(0);
 
 printer_input seeder_body::operator()(seeder_input input) {
-    printf("here\n");
 
     seeder_payload &payload = get<0>(input);
 
