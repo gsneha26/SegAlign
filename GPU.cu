@@ -678,7 +678,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t query_len){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     cudaError_t err;
     seed_size = 19;
@@ -702,7 +702,6 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
         cv.wait(locker, [](){return !available_gpus.empty();});
     }
     g = available_gpus.back();
-//    printf("%u %d\n", query_len, query_length[buffer]);
     available_gpus.pop_back();
     locker.unlock();
 
@@ -794,7 +793,7 @@ size_t InitializeProcessor (int t, int f){
         exit(1);
     }
 
-    NUM_DEVICES = 4;//nDevices; 
+    NUM_DEVICES = nDevices; 
     printf("Using %d GPU(s)\n", NUM_DEVICES);
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));

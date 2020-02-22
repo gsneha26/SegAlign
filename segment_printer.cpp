@@ -33,11 +33,11 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
 
     for (auto e: fw_segments) {
-        fprintf(segmentFile, "chr1\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
     for (auto e: rc_segments) {
-        fprintf(segmentFile, "chr1\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
+        fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
 //    int diag = 0;
@@ -102,34 +102,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     fclose(segmentFile);
 
-//    io_lock.lock();
-//    filenames.push_back(filename);
-//    io_lock.unlock();
-
     std::string cmd;
     int status;
 
     if(cfg.do_gapped){
-//    if(cfg.do_gapped && token > 15){
-//        while(filenames.empty() == false){
-//            io_lock.lock();
-//            std::string f = filenames.back();
-//            printf("%s\n", f.c_str());
-//            filenames.pop_back();
-//            io_lock.unlock();
-//            cmd = cfg.lastz_path+" "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format=maf- --segments="+f+" > "+f+".maf";
-            cmd = cfg.lastz_path+" "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format=maf- --segments="+filename+" > "+maf_filename;
+            cmd = "lastz "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format="+ cfg.output_format +" --segments="+filename+" > "+maf_filename;
             status = system(cmd.c_str());
-//        }
     }
-//    cmd = "rm "+filename_plus+" "+filename_minus;
-//    status = system(cmd.c_str());
-    gettimeofday(&end_time, NULL);
-
-    useconds = end_time.tv_usec - start_time.tv_usec;
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-//    fprintf(stdout, "%d Time elapsed (segment printer): %ld\n", index, mseconds);
 
     get<0>(op).try_put(token);
 };
