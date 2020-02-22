@@ -125,49 +125,50 @@ int main(int argc, char** argv){
     fprintf(stderr, "Loading configuration file ...");
 
     // FASTA files
-    cfg.reference_name     = (std::string) cfg_file.Value("FASTA_files", "reference_name"); 
-    cfg.query_name         = (std::string) cfg_file.Value("FASTA_files", "query_name"); 
-    cfg.reference_filename = (std::string) cfg_file.Value("FASTA_files", "reference_filename"); 
-    cfg.query_filename     = (std::string) cfg_file.Value("FASTA_files", "query_filename"); 
-    cfg.data_folder = (std::string) cfg_file.Value("FASTA_files", "data_folder");
+    cfg.reference_name      = (std::string) cfg_file.Value("FASTA_files", "reference_name"); 
+    cfg.query_name          = (std::string) cfg_file.Value("FASTA_files", "query_name"); 
+    cfg.reference_filename  = (std::string) cfg_file.Value("FASTA_files", "reference_filename"); 
+    cfg.query_filename      = (std::string) cfg_file.Value("FASTA_files", "query_filename"); 
+    cfg.data_folder         = (std::string) cfg_file.Value("FASTA_files", "data_folder");
 
     // GACT scoring
-    cfg.gact_sub_mat[0]  = cfg_file.Value("Scoring", "sub_AA");
-    cfg.gact_sub_mat[1]  = cfg_file.Value("Scoring", "sub_AC");
-    cfg.gact_sub_mat[2]  = cfg_file.Value("Scoring", "sub_AG");
-    cfg.gact_sub_mat[3]  = cfg_file.Value("Scoring", "sub_AT");
-    cfg.gact_sub_mat[4]  = cfg_file.Value("Scoring", "sub_CC");
-    cfg.gact_sub_mat[5]  = cfg_file.Value("Scoring", "sub_CG");
-    cfg.gact_sub_mat[6]  = cfg_file.Value("Scoring", "sub_CT");
-    cfg.gact_sub_mat[7]  = cfg_file.Value("Scoring", "sub_GG");
-    cfg.gact_sub_mat[8]  = cfg_file.Value("Scoring", "sub_GT");
-    cfg.gact_sub_mat[9]  = cfg_file.Value("Scoring", "sub_TT");
-    cfg.gact_sub_mat[10] = cfg_file.Value("Scoring", "sub_N");
-    cfg.gap_open         = cfg_file.Value("Scoring", "gap_open");
-    cfg.gap_extend       = cfg_file.Value("Scoring", "gap_extend");
+    cfg.gact_sub_mat[0]     = cfg_file.Value("Scoring", "sub_AA");
+    cfg.gact_sub_mat[1]     = cfg_file.Value("Scoring", "sub_AC");
+    cfg.gact_sub_mat[2]     = cfg_file.Value("Scoring", "sub_AG");
+    cfg.gact_sub_mat[3]     = cfg_file.Value("Scoring", "sub_AT");
+    cfg.gact_sub_mat[4]     = cfg_file.Value("Scoring", "sub_CC");
+    cfg.gact_sub_mat[5]     = cfg_file.Value("Scoring", "sub_CG");
+    cfg.gact_sub_mat[6]     = cfg_file.Value("Scoring", "sub_CT");
+    cfg.gact_sub_mat[7]     = cfg_file.Value("Scoring", "sub_GG");
+    cfg.gact_sub_mat[8]     = cfg_file.Value("Scoring", "sub_GT");
+    cfg.gact_sub_mat[9]     = cfg_file.Value("Scoring", "sub_TT");
+    cfg.gact_sub_mat[10]    = cfg_file.Value("Scoring", "sub_N");
+    cfg.gap_open            = cfg_file.Value("Scoring", "gap_open");
+    cfg.gap_extend          = cfg_file.Value("Scoring", "gap_extend");
 
-    // D-SOFT parameters
-    cfg.seed_shape_str          = (std::string) cfg_file.Value("Seed_params", "seed_shape");
-    cfg.num_seeds_batch         = cfg_file.Value("Seed_params", "num_seeds_batch");
-    cfg.chunk_size              = cfg_file.Value("Seed_params", "chunk_size");
-    cfg.ignore_lower            = cfg_file.Value("Seed_params", "ignore_lower");
-    cfg.use_transition          = cfg_file.Value("Seed_params", "use_transition");
+    // Seeding parameters
+    cfg.seed_shape_str      = (std::string) cfg_file.Value("Seed_params", "seed_shape");
+    cfg.num_seeds_batch     = cfg_file.Value("Seed_params", "num_seeds_batch");
+    cfg.chunk_size          = cfg_file.Value("Seed_params", "chunk_size");
+    cfg.ignore_lower        = cfg_file.Value("Seed_params", "ignore_lower");
+    cfg.use_transition      = cfg_file.Value("Seed_params", "use_transition");
+    cfg.step                = cfg_file.Value("Seed_params", "step");
 
-    // Banded GACT filter
-    cfg.xdrop                 = cfg_file.Value("Filter_params", "xdrop");
-    cfg.xdrop_threshold       = cfg_file.Value("Filter_params", "xdrop_threshold");
+    // Filtering parameters
+    cfg.xdrop               = cfg_file.Value("Filter_params", "xdrop");
+    cfg.xdrop_threshold     = cfg_file.Value("Filter_params", "xdrop_threshold");
 
-    // GACT-X
+    // Extension parameters
     cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
     cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
-    cfg.lastz_path          = (std::string) cfg_file.Value("Extension_params", "lastz_path");
     cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads  = 48;//tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads         = tbb::task_scheduler_init::default_num_threads();
 
-    //Output
-    cfg.output_filename = (std::string) cfg_file.Value("Output", "output_filename");
+    //Output parameters
+    cfg.output_format       = (std::string) cfg_file.Value("Output", "output_format");
+    cfg.output_filename     = (std::string) cfg_file.Value("Output", "output_filename");
 
     gettimeofday(&end_time, NULL);
 
@@ -203,8 +204,6 @@ int main(int argc, char** argv){
         q_chr_coord.push_back(g_DRAM->bufferPosition);
         q_chr_id.push_back(description);
         q_chr_len.push_back(seq_len);
-
-//        printf("%s %u\n", description.c_str(), seq_len);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -273,7 +272,7 @@ int main(int argc, char** argv){
         
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
 
-        sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->bufferPosition, seq_len, cfg.seed_shape_str);
+        sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->bufferPosition, seq_len, cfg.seed_shape_str, cfg.step);
 
         g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;
@@ -403,14 +402,12 @@ int main(int argc, char** argv){
                         inter.num_invoked = intervals_invoked;
                         inter.num_intervals = chr_intervals;
                         inter.buffer = buffer;
-                        inter.len = q_len; 
                         reader_output& chrom = get<0>(op);
                         chrom.query_chr = q_chr;
                         chrom.ref_chr = description;
                         chrom.q_seq = chrom_seq;
                         chrom.q_rc_seq = chrom_rc_seq;
                         if(intervals_invoked == chr_intervals) {
-//                            fprintf(stdout, "here %s\n", q_chr.c_str());
                             invoke_chr = true;
                             num_chr_invoked++;
                         }

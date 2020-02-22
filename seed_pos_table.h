@@ -17,7 +17,7 @@ class SeedPosTable {
 
     public:
         SeedPosTable();
-        SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape);
+        SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape, uint32_t step);
         ~SeedPosTable();
 
         int GetKmerSize();
