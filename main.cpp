@@ -164,7 +164,7 @@ int main(int argc, char** argv){
     cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
 
     // Multi-threading
-    cfg.num_threads         = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads         = 1;//tbb::task_scheduler_init::default_num_threads();
 
     //Output parameters
     cfg.output_format       = (std::string) cfg_file.Value("Output", "output_format");
@@ -354,14 +354,13 @@ int main(int argc, char** argv){
                     total_intervals += chr_intervals;
                     chr_intervals = chr_num_intervals[num_chr_invoked];
 
-//                    fprintf(stderr, "Starting query %s %d ...\n", q_chr.c_str(), chr_intervals);
-
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
                     chrom_rc_seq = bond::blob(rev_read_char, q_len);
 
                     intervals_invoked = 0;
                     invoke_chr = false;
+                    fprintf(stderr, "Starting query %s %d ...\n", q_chr.c_str(), chr_intervals);
                 }
                 else if(num_chr_sent < q_chr_count && send_chr && prev_buffer == (num_chr_sent%2)){
 
@@ -372,7 +371,7 @@ int main(int argc, char** argv){
                     prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
                     send_buffer = num_chr_sent%2;
 
-//                    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+                    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
 
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
                     send_chr = false;
@@ -380,6 +379,7 @@ int main(int argc, char** argv){
                 }
                 else{
 
+                    fprintf(stderr, "else Starting query %s %d %d...\n", q_chr.c_str(), chr_intervals, intervals_invoked);
                     uint32_t curr_intervals_done;
 
                     if(prev_buffer == 0){
@@ -411,8 +411,11 @@ int main(int argc, char** argv){
                             invoke_chr = true;
                             num_chr_invoked++;
                         }
+                        fprintf(stderr, "if Starting query %s %d %d...\n", q_chr.c_str(), chr_intervals, intervals_invoked);
                         return true;
                     }
+                        return true;
+                    fprintf(stderr, "end Starting query %s %d %d...\n", q_chr.c_str(), chr_intervals, intervals_invoked);
                 }
             }
             else{
@@ -421,6 +424,7 @@ int main(int argc, char** argv){
                 return false;
             }
             }
+            printf("done %d\n", 
             }, true);
 
         tbb::flow::make_edge(reader, tbb::flow::input_port<0>(gatekeeper));
