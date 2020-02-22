@@ -44,10 +44,11 @@ struct Configuration {
 
     //Seed parameters
     std::string seed_shape_str;
-    int num_seeds_batch;
-    int chunk_size;
+    uint32_t num_seeds_batch;
+    uint32_t chunk_size;
     bool ignore_lower;
     bool use_transition;
+    uint32_t step;
     
     //Filter parameters
     int xdrop; 
@@ -56,13 +57,13 @@ struct Configuration {
     //Extension parameters
     int extension_threshold;
     int ydrop;
-    std::string lastz_path;
     bool do_gapped;
 
     //Multi-threading
-    int num_threads;
+    uint32_t num_threads;
 
-    // Output
+    // Output parameters
+    std::string output_format;
     std::string output_filename;
 };
 
@@ -82,7 +83,6 @@ struct seed_interval {
     uint32_t num_invoked;
     uint32_t num_intervals;
     uint32_t buffer;
-    uint32_t len;
 };
 
 typedef std::vector<hsp> hsp_output; 

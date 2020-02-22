@@ -5,6 +5,7 @@
 #include "tbb/parallel_sort.h"
 #include "tbb/blocked_range.h"
 #include "tbb/scalable_allocator.h"
+#include "tbb/tbb.h"
 #include <algorithm>
 #include <atomic>
 
@@ -22,7 +23,7 @@ int SeedPosTable::GetShapeSize() {
     return shape_size_;
 }
 
-SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape) {
+SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape, uint32_t step) {
     shape_size_ = shape.length(); 
     int kmer_size = 0;
     for (int i = 0; i < shape_size_; i++) {
@@ -46,7 +47,7 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_leng
 
     uint32_t num_index = 0;
 
-    for (uint32_t i = 0; i < pos_table_size; i++) {
+    for (uint32_t i = 0; i < pos_table_size; i+=step) {
         uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+i); 
 
         // valid index

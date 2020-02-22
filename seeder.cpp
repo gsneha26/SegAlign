@@ -10,8 +10,8 @@
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
 std::atomic<uint64_t> seeder_body::num_hsps(0);
-std::atomic<uint32_t> seeder_body::num_seeded_regions0(0);// = {0, 0};
-std::atomic<uint32_t> seeder_body::num_seeded_regions1(0);//[2] = {0, 0};
+std::atomic<uint32_t> seeder_body::num_seeded_regions0(0);
+std::atomic<uint32_t> seeder_body::num_seeded_regions1(0);
 
 printer_input seeder_body::operator()(seeder_input input) {
 
@@ -36,16 +36,6 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked = data.num_invoked;
     uint32_t num_intervals = data.num_intervals;
     uint32_t buffer = data.buffer;
-    uint32_t len = data.len;
-
-//    if(num_invoked == 0){
-//        if(buffer == 0){
-//            seeder_body::num_seeded_regions0 = 0;
-//        }
-//        else{
-//            seeder_body::num_seeded_regions1 = 0;
-//        }
-//    }
 
     fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
 
@@ -78,14 +68,13 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, len); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer); 
             fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();
         }
     }
 
-//    fprintf (stderr, "rev Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
     char* rc_query = (char*) chrom.q_rc_seq.data();
     for (uint32_t i = start_pos; i < end_pos; i += cfg.chunk_size) {
         uint32_t e = std::min(i + cfg.chunk_size, end_pos);
@@ -109,7 +98,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, len); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer); 
             rc_segments.insert(rc_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();
@@ -118,11 +107,9 @@ printer_input seeder_body::operator()(seeder_input input) {
 
     if(buffer == 0){
         seeder_body::num_seeded_regions0 += 1;
-//        printf("%s %d %u %u intervals done\n", chrom.query_chr.c_str(), buffer, seeder_body::num_seeded_regions0.load(), num_invoked);
     }
     else{
         seeder_body::num_seeded_regions1 += 1;
-//        printf("%s %d %u %u intervals done\n", chrom.query_chr.c_str(), buffer, seeder_body::num_seeded_regions1.load(), num_invoked);
     }
 
     return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr), token);
