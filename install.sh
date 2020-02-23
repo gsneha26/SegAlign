@@ -22,6 +22,7 @@ gunzip lastz-1.04.03.tar.gz
 tar -xvf lastz-1.04.03.tar 
 cd $HOME/lastz-distrib-1.04.03/src
 make -j
+cd $HOME
 cp $HOME/lastz-distrib-1.04.03/src/lastz $HOME/bin/
 rm -rf lastz-distrib-1.04.03 lastz-1.04.03.tar
 
