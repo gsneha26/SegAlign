@@ -23,7 +23,7 @@ struct hsp {
     uint32_t score;
 };
 
-typedef size_t(*InitializeProcessor_ptr)(int t, int f);
+typedef size_t(*InitializeProcessor_ptr)();
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t ref_size);
 typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer);
 typedef void(*ShutdownProcessor_ptr)();

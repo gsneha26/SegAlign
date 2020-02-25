@@ -55,7 +55,7 @@ printer_input seeder_body::operator()(seeder_input input) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
 
-                if (cfg.use_transition) {
+                if (cfg.transition) {
                     for (int t=0; t < sa->GetKmerSize(); t++) {
                         if (IsTransitionAtPos(t) == 1) {
                             transition_index = (index ^ (TRANSITION_MASK << (2*t)));
@@ -85,7 +85,7 @@ printer_input seeder_body::operator()(seeder_input input) {
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
-                if (cfg.use_transition) {
+                if (cfg.transition) {
                     for (int t=0; t < sa->GetKmerSize(); t++) {
                         if (IsTransitionAtPos(t) == 1) {
                             transition_index = (index ^ (TRANSITION_MASK << (2*t)));
