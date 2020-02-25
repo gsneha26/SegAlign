@@ -1,6 +1,4 @@
-cmake_minimum_required (VERSION 3.8)                                                                                                                                                     
-
-#project(wga)
+cmake_minimum_required (VERSION 3.8)
 
 set(CMAKE_CUDA_COMPILER /usr/local/cuda-10.2/bin/nvcc)
 project(wga LANGUAGES C CXX CUDA)
@@ -9,25 +7,22 @@ find_package(CUDA 8.0 REQUIRED)
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
-#set(CMAKE_CXX_COMPILER "nvcc")
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -g -pg -std=c++11")
-#set(CUDA_FLAGS "${CUDA_FLAGS} -std=c++11 -O4 -lineinfo -use_fast_math")
-#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++11 -Xptxas -dlcm=cg -arch=sm_52")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c -lboost_program_options")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++11 -arch=sm_52")
 
 include(${TBB_ROOT}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_ROOT} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
-#set (XILINX_LINK_LIBS libxilinxopencl.so)
-#link_directories(${XILINX_SDX}/runtime/lib/x86_64 ${LD_LIBRARY_PATH})
 
 find_package(ZLIB REQUIRED)
+FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 # To find and use zlib
 find_path(ZLIB_INCLUDE_DIR zlib.h)
 include_directories(${ZLIB_INCLUDE_DIR})
+
+FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
+INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 add_executable(wga
     Chameleon.cpp
@@ -52,7 +47,6 @@ set_target_properties(wga PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_compile_options(wga PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            --generate-line-info>)
 
-
 if(ZLIB_FOUND)
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries (wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
@@ -62,6 +56,4 @@ if(TARGET zlib::zlib)
     target_link_libraries(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread zlib::zlib ${CUDA_LIBRARIES})
 endif()
 
-#execute_process (
-#    COMMAND bash -c "${XILINX_SDX}/bin/emconfigutil --od . --nd 1  --platform ${AWS_PLATFORM}")     
-
+TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread ${Boost_LIBRARIES})

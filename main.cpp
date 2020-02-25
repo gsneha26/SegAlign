@@ -33,19 +33,23 @@ SOFTWARE.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <boost/program_options.hpp> 
+#include <fstream>
 #include <tbb/task_scheduler_init.h>
 
 #include <zlib.h>
 #include <algorithm>
 #include <iterator>
+#include <iostream>
 #include <vector>
 #include "ConfigFile.h"
 #include "graph.h"
 #include "kseq.h"
 #include "DRAM.h"
 
-////////////////////////////////////////////////////////////////////////////////
+namespace po = boost::program_options;
 
+////////////////////////////////////////////////////////////////////////////////
 KSEQ_INIT2(, gzFile, gzread)
 
 struct timeval start_time, end_time, start_time1;
@@ -115,20 +119,90 @@ char* RevComp(bond::blob read) {
 
 int main(int argc, char** argv){
 
-    if (argc != 1) {
-        printf("Usage: %s \n", argv[0]);
-        return EXIT_FAILURE;
+    ConfigFile cfg_file("params.cfg");
+    po::options_description desc{"Options"};
+    desc.add_options()
+        ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
+        ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
+        ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
+        ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop threshold")
+        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop threshold")
+        ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "threshold for high scoring pairs")
+        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "threshold for gapped alignments")
+        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
+        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
+        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
+        ("output_filename", po::value<std::string>(&cfg.output_filename)->default_value("wga_output"), "output filename")
+        ("help", "Print help messages");
+
+    po::options_description hidden;
+    hidden.add_options()
+        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target file")
+        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query file");
+
+    po::options_description all_options;
+    all_options.add(desc);
+    all_options.add(hidden);
+
+    po::positional_options_description p;
+    p.add("target", 1);
+    p.add("query", 1);
+
+    po::variables_map vm;
+    try{
+        po::store(po::command_line_parser(argc, argv).options(all_options).positional(p).run(), vm);
+        po::notify(vm);
+    }
+    catch(std::exception &e){
+        if(!vm.count("help")){
+            if(!vm.count("target") && !vm.count("query")){
+                std::cout << "You must specify a target and a query file"<< '\n';
+            }
+            else if(!vm.count("query")){
+                std::cout << "You must specify a query file"<< '\n';
+            }
+            else if(!vm.count("target")){
+                std::cout << "You must specify a target file"<< '\n';
+            }
+        }
+
+        std::cout << "Usage: " << argv[0] << " target query [options]" << std::endl;
+        std::cout << desc << std::endl;
+        return false;
     }
 
-    ConfigFile cfg_file("params.cfg");
-    gettimeofday(&start_time, NULL);
-    fprintf(stderr, "Loading configuration file ...");
+    cfg.transition = !cfg.transition;
+    cfg.gapped = !cfg.gapped;
+    if(cfg.seed_shape == "12of19"){
+        cfg.seed = "TTT0T00TT00T0T0TTTT"; 
+    }
+    else if(cfg.seed_shape == "14of22"){
+        cfg.seed = "TTT0T0TT00TT00T0T0TTTT";
+    }
+    else{
+        int seed_len = cfg.seed_shape.size();
+        cfg.seed = cfg.seed_shape;
+        for(int i = 0; i< seed_len; i++){
+            if(cfg.seed_shape[i] == '1')
+                cfg.seed[i] = 'T';
+            else
+                cfg.seed[i] = '0';
+        }
+    }
 
-    // FASTA files
-    cfg.reference_name      = (std::string) cfg_file.Value("FASTA_files", "reference_name"); 
-    cfg.query_name          = (std::string) cfg_file.Value("FASTA_files", "query_name"); 
-    cfg.reference_filename  = (std::string) cfg_file.Value("FASTA_files", "reference_filename"); 
-    cfg.query_filename      = (std::string) cfg_file.Value("FASTA_files", "query_filename"); 
+    if(vm.count("gappedthresh") == 0)
+        cfg.gappedthresh = cfg.hspthresh; 
+
+    std::cout << "Target " << cfg.reference_filename << std::endl;
+    std::cout << "Query " << cfg.query_filename << std::endl;
+    std::cout << "Seed " << cfg.seed << std::endl;
+    std::cout << "Transition " << cfg.transition << std::endl;
+    std::cout << "Gapped " << cfg.gapped << std::endl;
+    std::cout << "xdrop " << cfg.xdrop << std::endl;
+    std::cout << "ydrop " << cfg.ydrop << std::endl;
+    std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
+    std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
+
     cfg.data_folder         = (std::string) cfg_file.Value("FASTA_files", "data_folder");
 
     // GACT scoring
@@ -146,41 +220,11 @@ int main(int argc, char** argv){
     cfg.gap_open            = cfg_file.Value("Scoring", "gap_open");
     cfg.gap_extend          = cfg_file.Value("Scoring", "gap_extend");
 
-    // Seeding parameters
-    cfg.seed_shape_str      = (std::string) cfg_file.Value("Seed_params", "seed_shape");
-    cfg.num_seeds_batch     = cfg_file.Value("Seed_params", "num_seeds_batch");
-    cfg.chunk_size          = cfg_file.Value("Seed_params", "chunk_size");
-    cfg.ignore_lower        = cfg_file.Value("Seed_params", "ignore_lower");
-    cfg.use_transition      = cfg_file.Value("Seed_params", "use_transition");
-    cfg.step                = cfg_file.Value("Seed_params", "step");
-
-    // Filtering parameters
-    cfg.xdrop               = cfg_file.Value("Filter_params", "xdrop");
-    cfg.xdrop_threshold     = cfg_file.Value("Filter_params", "xdrop_threshold");
-
-    // Extension parameters
-    cfg.extension_threshold = cfg_file.Value("Extension_params", "extension_threshold");
-    cfg.ydrop               = cfg_file.Value("Extension_params", "ydrop");
-    cfg.do_gapped           = cfg_file.Value("Extension_params", "do_gapped");
-
-    // Multi-threading
     cfg.num_threads         = tbb::task_scheduler_init::default_num_threads();
-
-    //Output parameters
-    cfg.output_format       = (std::string) cfg_file.Value("Output", "output_format");
-    cfg.output_filename     = (std::string) cfg_file.Value("Output", "output_filename");
-
-    gettimeofday(&end_time, NULL);
-
-    useconds = end_time.tv_usec - start_time.tv_usec;
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-    fprintf(stderr, "Time elapsed (loading configuration): %ld\n\n", mseconds);
-
-    int nthreads = cfg.num_threads;
-    tbb::task_scheduler_init init(nthreads);
+    cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
+    tbb::task_scheduler_init init(cfg.num_threads);
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
-    g_InitializeProcessor (0, 0);
+    g_InitializeProcessor ();
 
     /////////// USER LOGIC ////////////////////
     g_DRAM = new DRAM;
@@ -272,7 +316,7 @@ int main(int argc, char** argv){
         
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
 
-        sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->bufferPosition, seq_len, cfg.seed_shape_str, cfg.step);
+        sa = new SeedPosTable (g_DRAM->buffer, g_DRAM->bufferPosition, seq_len, cfg.seed, cfg.step);
 
         g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;

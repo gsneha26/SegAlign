@@ -36,6 +36,7 @@ struct Configuration {
     std::string reference_filename;
     std::string query_filename;
     std::string data_folder;
+    std::string scoring_file;
 
     //Scoring
     int gact_sub_mat[11];
@@ -43,21 +44,21 @@ struct Configuration {
     int gap_extend;
 
     //Seed parameters
-    std::string seed_shape_str;
+    std::string seed;
+    std::string seed_shape;
     uint32_t num_seeds_batch;
     uint32_t chunk_size;
-    bool ignore_lower;
-    bool use_transition;
+    bool transition;
     uint32_t step;
     
     //Filter parameters
     int xdrop; 
-    int xdrop_threshold;
+    int hspthresh;
 
     //Extension parameters
-    int extension_threshold;
+    bool gapped;
+    int gappedthresh;
     int ydrop;
-    bool do_gapped;
 
     //Multi-threading
     uint32_t num_threads;
