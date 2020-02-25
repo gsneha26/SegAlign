@@ -86,8 +86,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //        for (auto e: fw_segments) {
 //            diag = e.ref_start-e.query_start+cfg.query_len;
 //            if(e.query_start > diagHashplus[diag]){
-//                fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t+\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
 //                diagHashplus[diag] = e.query_start+e.len;
+//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
 //            }
 //        }
 //
@@ -95,8 +95,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 //        for (auto e: rc_segments) {
 //            diag = e.ref_start-e.query_start+cfg.query_len;
 //            if(e.query_start > diagHashminus[diag]){
-//                fprintf(segmentFile, "%s.chr1\t%d\t%d\t%s.chr1\t%d\t%d\t-\t%d\n", cfg.reference_name.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), cfg.query_name.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
 //                diagHashminus[diag] = e.query_start+e.len;
+//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
 //            }
 //        }
 
@@ -105,9 +105,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string cmd;
     int status;
 
-    if(cfg.do_gapped){
-            cmd = "lastz "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.extension_threshold)+" --segments="+filename+" > "+maf_filename;
-//            printf("%s\n", cmd.c_str());
+    if(cfg.gapped){
+            cmd = "lastz "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
             status = system(cmd.c_str());
     }
 
