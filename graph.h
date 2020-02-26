@@ -16,8 +16,10 @@
 #include <bond/core/blob.h>
 #include <bond/core/reflection.h>
 #include "GPU.h"
-#include "ConfigFile.h"
 #include "seed_pos_table.h"
+
+#define NUC 6 
+#define NUC2 36
 
 using namespace tbb::flow;
 
@@ -37,9 +39,10 @@ struct Configuration {
     std::string query_filename;
     std::string data_folder;
     std::string scoring_file;
+    std::string ambiguous;
 
     //Scoring
-    int gact_sub_mat[11];
+    int sub_mat[NUC2];
     int gap_open;
     int gap_extend;
 
