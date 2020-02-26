@@ -25,8 +25,6 @@ FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 add_executable(wga
-    Chameleon.cpp
-    ConfigFile.cpp
     DRAM.cpp
     GPU.cu
     seed_pos_table.cpp
