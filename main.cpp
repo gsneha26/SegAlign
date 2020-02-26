@@ -42,7 +42,6 @@ SOFTWARE.
 #include <iterator>
 #include <iostream>
 #include <vector>
-#include "ConfigFile.h"
 #include "graph.h"
 #include "kseq.h"
 #include "DRAM.h"
@@ -119,11 +118,11 @@ char* RevComp(bond::blob read) {
 
 int main(int argc, char** argv){
 
-    ConfigFile cfg_file("params.cfg");
     po::options_description desc{"Options"};
     desc.add_options()
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
+        ("ambiguous", po::value<std::string>(&cfg.ambiguous)->default_value("x"), "ambiguous nucleotide")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop threshold")
         ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop threshold")
@@ -203,22 +202,23 @@ int main(int argc, char** argv){
     std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
     std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
 
-    cfg.data_folder         = (std::string) cfg_file.Value("FASTA_files", "data_folder");
+    cfg.data_folder         = "data_folder";
 
-    // GACT scoring
-    cfg.gact_sub_mat[0]     = cfg_file.Value("Scoring", "sub_AA");
-    cfg.gact_sub_mat[1]     = cfg_file.Value("Scoring", "sub_AC");
-    cfg.gact_sub_mat[2]     = cfg_file.Value("Scoring", "sub_AG");
-    cfg.gact_sub_mat[3]     = cfg_file.Value("Scoring", "sub_AT");
-    cfg.gact_sub_mat[4]     = cfg_file.Value("Scoring", "sub_CC");
-    cfg.gact_sub_mat[5]     = cfg_file.Value("Scoring", "sub_CG");
-    cfg.gact_sub_mat[6]     = cfg_file.Value("Scoring", "sub_CT");
-    cfg.gact_sub_mat[7]     = cfg_file.Value("Scoring", "sub_GG");
-    cfg.gact_sub_mat[8]     = cfg_file.Value("Scoring", "sub_GT");
-    cfg.gact_sub_mat[9]     = cfg_file.Value("Scoring", "sub_TT");
-    cfg.gact_sub_mat[10]    = cfg_file.Value("Scoring", "sub_N");
-    cfg.gap_open            = cfg_file.Value("Scoring", "gap_open");
-    cfg.gap_extend          = cfg_file.Value("Scoring", "gap_extend");
+
+    if(vm.count("scoring") == 0){
+        cfg.gap_open            = -430;
+        cfg.gap_extend          = -30;
+
+        int tmp_sub_mat[NUC2] = { 91, -114,  -31, -123, 0, 0,
+                                -114,  100, -125,  -31, 0, 0,
+                                 -31, -125,  100, -114, 0, 0,
+                                -123,  -31, -114,  910, 0, 0,
+                                 0, 0, 0, 0, 0, 0,
+                                 0, 0, 0, 0, 0, 0};
+
+        for(int i = 0; i<NUC2; i++)
+            cfg.sub_mat[i] = tmp_sub_mat[i];
+    }
 
     cfg.num_threads         = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
