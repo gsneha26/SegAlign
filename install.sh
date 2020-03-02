@@ -51,12 +51,10 @@ chmod +x twoBitToFa
 
 echo "export PATH="\$HOME/bin/:\$PATH"" >> ~/.bashrc
 
-cd $HOME/WGA_GPU
-git clone https://github.com/01org/tbb
-
 source ~/.bashrc
 
 cd $HOME/WGA_GPU
+git clone https://github.com/01org/tbb
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
