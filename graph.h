@@ -18,8 +18,10 @@
 #include "GPU.h"
 #include "seed_pos_table.h"
 
-#define NUC 6 
-#define NUC2 36
+#define NUC 7 
+#define NUC2 49
+#define LASTZ_INTERVAL 12000000
+#define WGA_CHUNK 250000
 
 using namespace tbb::flow;
 
@@ -48,9 +50,8 @@ struct Configuration {
 
     //Seed parameters
     std::string seed;
+    uint32_t seed_size;
     std::string seed_shape;
-    uint32_t num_seeds_batch;
-    uint32_t chunk_size;
     bool transition;
     uint32_t step;
     

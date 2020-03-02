@@ -121,6 +121,7 @@ int main(int argc, char** argv){
     po::options_description desc{"Options"};
     desc.add_options()
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
+        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "which nucleotides are considered ambiguous")
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
         ("ambiguous", po::value<std::string>(&cfg.ambiguous)->default_value("x"), "ambiguous nucleotide")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
@@ -137,7 +138,8 @@ int main(int argc, char** argv){
     po::options_description hidden;
     hidden.add_options()
         ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target file")
-        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query file");
+        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query file")
+        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with 2bit files");
 
     po::options_description all_options;
     all_options.add(desc);
@@ -146,6 +148,7 @@ int main(int argc, char** argv){
     po::positional_options_description p;
     p.add("target", 1);
     p.add("query", 1);
+    p.add("data_folder", 1);
 
     po::variables_map vm;
     try{
@@ -154,18 +157,12 @@ int main(int argc, char** argv){
     }
     catch(std::exception &e){
         if(!vm.count("help")){
-            if(!vm.count("target") && !vm.count("query")){
-                std::cout << "You must specify a target and a query file"<< '\n';
-            }
-            else if(!vm.count("query")){
-                std::cout << "You must specify a query file"<< '\n';
-            }
-            else if(!vm.count("target")){
-                std::cout << "You must specify a target file"<< '\n';
+            if(!vm.count("target") || !vm.count("query") || !vm.count("data_folder")){
+                std::cout << "You must specify a target file, a query file and a data folder"<< '\n';
             }
         }
 
-        std::cout << "Usage: " << argv[0] << " target query [options]" << std::endl;
+        std::cout << "Usage: " << argv[0] << " target query data_folder [options]" << std::endl;
         std::cout << desc << std::endl;
         return false;
     }
@@ -174,9 +171,11 @@ int main(int argc, char** argv){
     cfg.gapped = !cfg.gapped;
     if(cfg.seed_shape == "12of19"){
         cfg.seed = "TTT0T00TT00T0T0TTTT"; 
+        cfg.seed_size = 19;
     }
     else if(cfg.seed_shape == "14of22"){
         cfg.seed = "TTT0T0TT00TT00T0T0TTTT";
+        cfg.seed_size = 22;
     }
     else{
         int seed_len = cfg.seed_shape.size();
@@ -187,6 +186,7 @@ int main(int argc, char** argv){
             else
                 cfg.seed[i] = '0';
         }
+        cfg.seed_size = cfg.seed.size();
     }
 
     if(vm.count("gappedthresh") == 0)
@@ -195,32 +195,55 @@ int main(int argc, char** argv){
     std::cout << "Target " << cfg.reference_filename << std::endl;
     std::cout << "Query " << cfg.query_filename << std::endl;
     std::cout << "Seed " << cfg.seed << std::endl;
+    std::cout << "Seed size " << cfg.seed_size << std::endl;
     std::cout << "Transition " << cfg.transition << std::endl;
     std::cout << "Gapped " << cfg.gapped << std::endl;
     std::cout << "xdrop " << cfg.xdrop << std::endl;
     std::cout << "ydrop " << cfg.ydrop << std::endl;
     std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
     std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
-
-    cfg.data_folder         = "data_folder";
-
+    std::cout << "ambiguous " << cfg.ambiguous << std::endl;
 
     if(vm.count("scoring") == 0){
+        std::cout << "Inside" << std::endl;
         cfg.gap_open            = -430;
         cfg.gap_extend          = -30;
 
-        int tmp_sub_mat[NUC2] = { 91, -114,  -31, -123, 0, 0,
-                                -114,  100, -125,  -31, 0, 0,
-                                 -31, -125,  100, -114, 0, 0,
-                                -123,  -31, -114,  910, 0, 0,
-                                 0, 0, 0, 0, 0, 0,
-                                 0, 0, 0, 0, 0, 0};
+        int tmp_sub_mat[4][4] = {{   91, -114,  -31, -123},
+                                 { -114,  100, -125,  -31},
+                                 {  -31, -125,  100, -114},
+                                 { -123,  -31, -114,  910}};
 
-        for(int i = 0; i<NUC2; i++)
-            cfg.sub_mat[i] = tmp_sub_mat[i];
+        for(int i = 0; i < 4; i++){
+            for(int j = 0; j < 4; j++){
+                cfg.sub_mat[i*7+j] = tmp_sub_mat[i][j];
+            }
+        }
+
+        for(int i = 0; i < 4; i++){
+            cfg.sub_mat[i*7+6] = -100;
+            cfg.sub_mat[6*7+i] = -100;
+        }
+
+        for(int i = 0; i < 7; i++){
+            for(int j = 4; j < 6; j++){
+                cfg.sub_mat[i*7+j] = -1000;
+                cfg.sub_mat[j*7+i] = -1000;
+            }
+        }
+
+        cfg.sub_mat[48] = -1000;
+
+        for(int i = 0; i < 7; i++){
+            for(int j = 0; j < 7; j++){
+                std::cout << cfg.sub_mat[i*7+j] << " ";
+            }
+            std::cout << std::endl;
+        }
+
     }
 
-    cfg.num_threads         = tbb::task_scheduler_init::default_num_threads();
+    cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
@@ -257,18 +280,18 @@ int main(int argc, char** argv){
         g_DRAM->bufferPosition += seq_len;
 
         uint32_t curr_pos = 0;
-        uint32_t end_pos = seq_len - 19;//sa->GetShapeSize();
+        uint32_t end_pos = seq_len - cfg.seed_size;
 
         while (curr_pos < end_pos) {
             uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + cfg.num_seeds_batch);
+            uint32_t end = std::min(end_pos, start + LASTZ_INTERVAL);
             seed_interval inter;
             inter.start = start;
             inter.end = end;
             inter.num_invoked = 0;
             inter.num_intervals = 0;
             interval_list.push_back(inter);
-            curr_pos += cfg.num_seeds_batch;
+            curr_pos += LASTZ_INTERVAL;
         }
         
         chr_num_intervals.push_back(interval_list.size()-prev_num_intervals);

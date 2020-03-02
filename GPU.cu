@@ -13,10 +13,10 @@ const char A_NT = 0;
 const char C_NT = 1;
 const char G_NT = 2;
 const char T_NT = 3;
-const char N_NT = 4;
-const char X_NT = 4;
+const char L_NT = 4;
+const char N_NT = 5;
+const char X_NT = 6;
 
-int mat_offset[] = {0, 1, 3, 6, 10};
 int err;                            
 int check_status = 0;
 int NUM_DEVICES;
@@ -77,6 +77,10 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
             dst = T_NT;
             dst_rc = A_NT;
         }
+        else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't')){
+            dst = L_NT;
+            dst_rc = L_NT;
+        }
         else if ((ch == 'n') || (ch == 'N')){
             dst = N_NT;
             dst_rc = N_NT;
@@ -107,6 +111,8 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
             dst = G_NT;
         else if (ch == 'T')
             dst = T_NT;
+        else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
+            dst = L_NT;
         else if ((ch == 'n') || (ch == 'N'))
             dst = N_NT;
         dst_seq[i] = dst;
@@ -681,13 +687,13 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
 std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     cudaError_t err;
-    seed_size = 19;
+    seed_size = cfg.seed_size;
 
     uint32_t num_hits;
     uint32_t num_anchors;
 
     uint32_t num_seeds = seed_offset_vector.size();
-    assert(num_seeds <= 13*cfg.chunk_size);
+    assert(num_seeds <= 13*WGA_CHUNK);
 
 uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
     for (uint32_t i = 0; i < num_seeds; i++) {
@@ -802,30 +808,8 @@ size_t InitializeProcessor (){
     d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
-d_done_vec.reserve(NUM_DEVICES);
-d_hit_num_vec.reserve(NUM_DEVICES);
-
-    int *sub_mat;
-    sub_mat = (int *)malloc(36 * sizeof(int)); 
-
-    sub_mat[28] = cfg.gact_sub_mat[10];
-    sub_mat[29] = -1000;
-    sub_mat[34] = -1000;
-    sub_mat[35] = -1000;
-    for(int i = 0; i < 4; i++){
-        sub_mat[i*6+4] = cfg.gact_sub_mat[10];
-        sub_mat[4*6+i] = cfg.gact_sub_mat[10];
-        sub_mat[i*6+5] = -1000;
-        sub_mat[5*6+i] = -1000;
-        sub_mat[i*6+i] = cfg.gact_sub_mat[i*4 + i - mat_offset[i]];
-    }
-
-    for(int i = 0; i < 4; i++){
-        for(int j = i+1; j < 4; j++){
-            sub_mat[i*6+j] = cfg.gact_sub_mat[i*4 + j - mat_offset[i]];
-            sub_mat[j*6+i] = sub_mat[i*6+j];
-        }
-    }
+    d_done_vec.reserve(NUM_DEVICES);
+    d_hit_num_vec.reserve(NUM_DEVICES);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
@@ -837,7 +821,7 @@ d_hit_num_vec.reserve(NUM_DEVICES);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
-        err = cudaMalloc(&d_seed_offsets[g], 13*cfg.chunk_size*sizeof(uint64_t)); 
+        err = cudaMalloc(&d_seed_offsets[g], 13*WGA_CHUNK*sizeof(uint64_t)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed1!\n");
             exit(1);
@@ -855,25 +839,23 @@ d_hit_num_vec.reserve(NUM_DEVICES);
             exit(1);
         }
 
-        err = cudaMalloc(&d_sub_mat[g], 36*sizeof(int)); 
+        err = cudaMalloc(&d_sub_mat[g], NUC2*sizeof(int)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed!\n");
             exit(1);
         }
 
-        err = cudaMemcpy(d_sub_mat[g], sub_mat, 36*sizeof(int), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_sub_mat[g], cfg.sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMemcpy failed!\n");
             exit(1);
         }
 
         available_gpus.push_back(g);
-        //printf("End for device %d\n", g);
     }
     
     d_query_seq    = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
     d_query_rc_seq = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
-    free(sub_mat);
 
     return ret;
 }
