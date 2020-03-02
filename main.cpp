@@ -162,7 +162,7 @@ int main(int argc, char** argv){
             }
         }
 
-        std::cout << "Usage: ./run_lastz_gpu.sh target query [options]" << std::endl;
+        std::cout << "Usage: run_lastz_gpu.sh target query [options]" << std::endl;
         std::cout << desc << std::endl;
         return false;
     }
