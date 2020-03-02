@@ -1,11 +1,5 @@
 #include "graph.h"
-#include "ntcoding.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 #include <atomic>
-
-#include "tbb/parallel_for_each.h"
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
@@ -68,7 +62,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
             fw_segments.insert(fw_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();
@@ -98,7 +92,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
 
         if(seed_offset_vector.size() > 0){
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer); 
+            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
             rc_segments.insert(rc_segments.end(), anchors.begin(), anchors.end());
             seeder_body::num_seeds += seed_offset_vector.size();
             seeder_body::num_hsps += anchors.size();

@@ -1,27 +1,16 @@
 #pragma once
 #define BOOST_LOCALE_NO_LIB
 #define NOMINMAX
-#include <algorithm>
-
 #include <tbb/flow_graph.h>
 #include <tbb/reader_writer_lock.h>
 #include <tbb/scalable_allocator.h>
-#include <mutex>
 #include <atomic>
 #include <vector>
-#include <stdio.h>
 #include <string>
-#include <cstddef>
-
 #include <bond/core/blob.h>
 #include <bond/core/reflection.h>
-#include "GPU.h"
 #include "seed_pos_table.h"
-
-#define NUC 7 
-#define NUC2 49
-#define LASTZ_INTERVAL 12000000
-#define WGA_CHUNK 250000
+#include "parameters.h"
 
 using namespace tbb::flow;
 
@@ -45,8 +34,6 @@ struct Configuration {
 
     //Scoring
     int sub_mat[NUC2];
-    int gap_open;
-    int gap_extend;
 
     //Seed parameters
     std::string seed;
