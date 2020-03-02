@@ -1,4 +1,5 @@
-!/bin/bash -i
+#!/bin/bash -i 
+
 cd $HOME
 sudo apt update && sudo apt dist-upgrade
 sudo apt-get install \
@@ -20,7 +21,7 @@ cmake -DBOND_ENABLE_GRPC=FALSE ..
 make -j
 sudo make install
 cd $HOME
-rm -rf bond
+sudo rm -rf bond
 
 mkdir bin 
 wget https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.sh
