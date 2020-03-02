@@ -59,13 +59,13 @@ void GenerateShapePos (std::string shape) {
     }
 }
 
-uint32_t GetKmerIndexAtPos (char* sequence, uint32_t pos) {
+uint32_t GetKmerIndexAtPos (char* sequence, uint32_t pos, uint32_t seed_size) {
     uint32_t kmer = 0;
 
     bool N_char = false;
     uint32_t nt = 0;
 
-    for(int i = 0; i < 19; i++){
+    for(int i = 0; i < seed_size; i++){
         nt = NtChar2Int(sequence[pos+i]);
         if (nt == N_NT) {
             kmer = (1 << 31);
