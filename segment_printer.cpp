@@ -1,9 +1,4 @@
-#include <atomic>
-#include "ntcoding.h"
 #include "graph.h"
-#include <stddef.h>
-#include <sys/time.h>
-#include <vector>
 
 std::mutex io_lock;
 //int* diagHashminus = (int*) calloc(1000000000, sizeof(int));
@@ -21,10 +16,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &rc_segments = get<2>(payload);
     auto &query_chr = get<3>(payload);
     auto &ref_chr = get<4>(payload);
-    struct timeval start_time, end_time;
-    long useconds, seconds, mseconds;
 
-    gettimeofday(&start_time, NULL);
     std::string filename       = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".segments";
     std::string maf_filename   = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".maf";
 

@@ -1,9 +1,6 @@
-#include <vector>
-#include <cstdlib>
-#include <stdint.h>
-#include <math.h>
-#include <string>
 #include <assert.h>
+#include "ntcoding.h"
+#include "GPU.h"
 
 class SeedPosTable {
     private:

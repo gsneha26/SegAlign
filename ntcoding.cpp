@@ -1,5 +1,4 @@
 #include "ntcoding.h"
-#include <stdlib.h>
 
 int shape_pos[32];
 int shape_size;

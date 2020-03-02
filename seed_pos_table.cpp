@@ -1,13 +1,5 @@
-#include "ntcoding.h"
-#include "seed_pos_table.h"
-#include "GPU.h"
-#include "tbb/parallel_scan.h"
 #include "tbb/parallel_sort.h"
-#include "tbb/blocked_range.h"
-#include "tbb/scalable_allocator.h"
-#include "tbb/tbb.h"
-#include <algorithm>
-#include <atomic>
+#include "seed_pos_table.h"
 
 SeedPosTable::SeedPosTable() {
     ref_size_ = 0;
