@@ -1,11 +1,13 @@
+!/bin/bash -i
 cd $HOME
 sudo apt update && sudo apt dist-upgrade
-sudo apt install \
+sudo apt-get install \
     build-essential \
     zlib1g \
     clang \
     zlib1g-dev \
     libboost-dev \
+    libboost-all-dev \
     libboost-thread-dev \
     parallel
 
