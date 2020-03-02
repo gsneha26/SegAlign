@@ -1,4 +1,3 @@
-
 #include "ntcoding.h"
 #include <stdlib.h>
 
@@ -43,16 +42,6 @@ uint32_t TransitionNt (uint32_t nt) {
     }
 }
 
-uint32_t KmerToIndex(std::string kmer) {
-    uint32_t index = 0; 
-    char nt;
-    for (int i = 0; i < kmer.length(); i++) {
-        nt = (kmer.at(i));
-        index = (index << 2) + NtChar2Int(nt);
-    }
-    return index;
-}
-
 void GenerateShapePos (std::string shape) {
     shape_size = 0;
     int j = 0;
@@ -72,18 +61,6 @@ void GenerateShapePos (std::string shape) {
 
 uint32_t GetKmerIndexAtPos (char* sequence, uint32_t pos) {
     uint32_t kmer = 0;
-    /*
-    for (int i = 0; i < shape_size; i++) {
-            uint32_t nt = NtChar2Int(sequence[pos+shape_pos[i]]);
-            if (nt != N_NT) {
-                kmer = (kmer << 2) + nt;
-            }
-            else {
-                kmer = (1 << 31);
-                break;
-            }
-    }
-    */
 
     bool N_char = false;
     uint32_t nt = 0;
