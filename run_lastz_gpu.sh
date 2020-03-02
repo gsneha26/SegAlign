@@ -3,7 +3,7 @@
 if [ $# -eq 1 ]
 then
 	cd build/
-	./wga $1
+	wga $1
 else
 	ref=$(basename -s .fa $1)
 	query=$(basename -s .fa $2)
@@ -36,5 +36,5 @@ else
 	rm cmd.sh *.fa
 	
 	cd build/
-	./wga $1 $2 $FOLDER 
+	wga $1 $2 $FOLDER 
 fi
