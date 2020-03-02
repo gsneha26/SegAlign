@@ -106,7 +106,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     int status;
 
     if(cfg.gapped){
-            cmd = "lastz "+cfg.data_folder+cfg.reference_name+"/"+ref_chr+".2bit "+cfg.data_folder+cfg.query_name+"/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
+            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);//+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
+            if(cfg.scoring_file != "")
+                cmd = cmd+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
+            cmd = cmd+" --segments="+filename+" > "+maf_filename;
             status = system(cmd.c_str());
     }
 
