@@ -64,3 +64,4 @@ mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j
+cp wga $HOME/bin/
