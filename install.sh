@@ -8,7 +8,8 @@ sudo apt-get install \
     clang \
     zlib1g-dev \
     libboost-dev \
-    libboost-thread-dev
+    libboost-thread-dev \
+    parallel
 
 git clone --recursive https://github.com/microsoft/bond.git
 curl -sSL https://get.haskellstack.org/ | sh
