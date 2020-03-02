@@ -257,7 +257,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 thread_score = 0;
 
                 if(ref_pos < ref_len && query_pos < query_len){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*NUC+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -344,7 +344,7 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 thread_score = 0;
 
                 if(ref_pos >= 0  && query_pos >= 0){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*NUC+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -520,7 +520,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 thread_score = 0;
 
                 if(ref_pos < ref_len && query_pos < query_len){
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*NUC+d_query_seq[query_pos]];
                 }
 
 #pragma unroll
@@ -597,7 +597,7 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                 if(ref_loc[warp_id] >= pos_offset  && query_loc >= pos_offset){
                     ref_pos   = ref_loc[warp_id] - pos_offset;
                     query_pos = query_loc - pos_offset;
-                    thread_score = sub_mat[d_ref_seq[ref_pos]*6+d_query_seq[query_pos]];
+                    thread_score = sub_mat[d_ref_seq[ref_pos]*NUC+d_query_seq[query_pos]];
                 }
 
 #pragma unroll

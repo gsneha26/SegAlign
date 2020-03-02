@@ -48,7 +48,7 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_leng
     uint32_t num_index = 0;
 
     for (uint32_t i = 0; i < pos_table_size; i+=step) {
-        uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+i); 
+        uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+i, shape_size_); 
 
         // valid index
         if (index != (1 << 31)) {
