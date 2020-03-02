@@ -2,9 +2,7 @@ cd $HOME
 sudo apt update && sudo apt dist-upgrade
 sudo apt install \
     build-essential \
-    zlib1g
-
-sudo apt-get install \
+    zlib1g \
     clang \
     zlib1g-dev \
     libboost-dev \
@@ -57,4 +55,9 @@ cd $HOME/WGA_GPU
 git clone https://github.com/01org/tbb
 
 source ~/.bashrc
-#Download bond which Yatish sent via Gmail
+
+cd $HOME/WGA_GPU
+mkdir build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
+make -j
