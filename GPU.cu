@@ -1,21 +1,11 @@
-#include "graph.h"
+#include "GPU.h"
 #include <thrust/scan.h>
 #include <thrust/find.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include "tbb/scalable_allocator.h"
-#include <condition_variable>
 
 std::mutex gpu_lock;
-
-const char A_NT = 0;
-const char C_NT = 1;
-const char G_NT = 2;
-const char T_NT = 3;
-const char L_NT = 4;
-const char N_NT = 5;
-const char X_NT = 6;
 
 int err;                            
 int check_status = 0;
@@ -26,7 +16,6 @@ std::condition_variable cv;
 
 uint32_t ref_len;
 uint32_t query_length[2];
-int seed_size;
 
 char** d_ref_seq;
 char** d_query_seq;
@@ -684,10 +673,9 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh){
 
     cudaError_t err;
-    seed_size = cfg.seed_size;
 
     uint32_t num_hits;
     uint32_t num_anchors;
@@ -740,14 +728,14 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
     }
 
 //    if(rev)
-//        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.hspthresh, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
+//        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], xdrop, hspthresh, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
 //    else
-//        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.hspthresh, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
+//        find_anchors1 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], xdrop, hspthresh, d_done[g], ref_len, query_len, seed_size, seed_hit_num_array, num_hits, d_hsp[g]);
 
     if(rev)
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
     else
-        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], cfg.xdrop, cfg.hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+        find_anchors2 <<<num_seeds, BLOCK_SIZE>>> (num_seeds, d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_index_table[g], d_pos_table[g], d_seed_offsets[g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
 
     thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + num_hits, d_done_vec[g].begin());
 
@@ -787,7 +775,7 @@ free(tmp_offset);
     return gpu_filter_output;
 }
 
-size_t InitializeProcessor (){
+size_t InitializeProcessor (int* sub_mat){
 
     size_t ret = 0;
     cudaError_t err;
@@ -845,7 +833,7 @@ size_t InitializeProcessor (){
             exit(1);
         }
 
-        err = cudaMemcpy(d_sub_mat[g], cfg.sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMemcpy failed!\n");
             exit(1);

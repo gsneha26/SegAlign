@@ -22,26 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <unistd.h>
-#include <assert.h>
-#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <boost/program_options.hpp> 
-#include <fstream>
+#include <boost/algorithm/string.hpp>
 #include <tbb/task_scheduler_init.h>
-
 #include <zlib.h>
-#include <algorithm>
-#include <iterator>
 #include <iostream>
-#include <vector>
 #include "graph.h"
 #include "kseq.h"
 #include "DRAM.h"
@@ -123,7 +113,6 @@ int main(int argc, char** argv){
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
         ("ambiguous", po::value<std::string>(&cfg.ambiguous), "which nucleotides are considered ambiguous")
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
-        ("ambiguous", po::value<std::string>(&cfg.ambiguous)->default_value("x"), "ambiguous nucleotide")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop threshold")
         ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop threshold")
@@ -192,6 +181,85 @@ int main(int argc, char** argv){
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
 
+    int ambiguous_reward = -100;
+    int ambiguous_penalty = -100;
+    int fill_score = -100;
+    int bad_score = -1000;
+    std::string ambiguous_field = "x";
+
+    std::vector <std::string> fields;
+    boost::split( fields, cfg.ambiguous, boost::is_any_of( "," ) );
+    ambiguous_field = fields[0];
+    if(fields.size() == 3){
+        ambiguous_reward  = std::stoi(fields[1]);
+        ambiguous_penalty = -1*std::stoi(fields[2]);
+    }
+    else if (cfg.ambiguous == "n" || cfg.ambiguous == "iupac"){
+        ambiguous_reward  = 0;
+        ambiguous_penalty = 0;
+    }
+
+    std::cout << ambiguous_field << " " << ambiguous_reward << " " << ambiguous_penalty << std::endl;
+
+    if(vm.count("scoring") == 0){
+
+        //ACGT
+        int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
+                                 { -114,  100, -125,  -31},
+                                 {  -31, -125,  100, -114},
+                                 { -123,  -31, -114,  910}};
+
+        for(int i = 0; i < L_NT; i++){
+            for(int j = 0; j < L_NT; j++){
+                cfg.sub_mat[i*NUC+j] = tmp_sub_mat[i][j];
+            }
+        }
+
+        //lower case characters
+        for(int i = 0; i < L_NT; i++){
+            cfg.sub_mat[i*NUC+L_NT] = bad_score;
+            cfg.sub_mat[L_NT*NUC+i] = bad_score;
+        }
+        cfg.sub_mat[L_NT*NUC+L_NT] = bad_score;
+
+        //N
+        if(ambiguous_field == "n" || ambiguous_field == "iupac"){
+            for(int i = 0; i < N_NT; i++){
+                cfg.sub_mat[i*NUC+N_NT] = ambiguous_penalty;
+                cfg.sub_mat[N_NT*NUC+i] = ambiguous_penalty;
+            }
+            cfg.sub_mat[N_NT*NUC+N_NT] = ambiguous_reward;
+        }
+        else{
+            for(int i = 0; i < N_NT; i++){
+                cfg.sub_mat[i*NUC+N_NT] = bad_score;
+                cfg.sub_mat[N_NT*NUC+i] = bad_score;
+            }
+            cfg.sub_mat[N_NT*NUC+N_NT] = bad_score;
+        }
+
+        //other IUPAC
+        if(ambiguous_field == "iupac"){
+            for(int i = 0; i < X_NT; i++){
+                cfg.sub_mat[i*NUC+X_NT] = ambiguous_penalty;
+                cfg.sub_mat[X_NT*NUC+i] = ambiguous_penalty;
+            }
+            cfg.sub_mat[X_NT*NUC+X_NT] = ambiguous_reward;
+        }
+        else{
+            for(int i = 0; i < L_NT; i++){
+                cfg.sub_mat[i*NUC+X_NT] = fill_score;
+                cfg.sub_mat[X_NT*NUC+i] = fill_score;
+            }
+
+            for(int i = L_NT; i < X_NT; i++){
+                cfg.sub_mat[i*NUC+X_NT] = bad_score;
+                cfg.sub_mat[X_NT*NUC+i] = bad_score;
+            }
+            cfg.sub_mat[X_NT*NUC+X_NT] = fill_score;
+        }
+    }
+
     std::cout << "Target " << cfg.reference_filename << std::endl;
     std::cout << "Query " << cfg.query_filename << std::endl;
     std::cout << "Seed " << cfg.seed << std::endl;
@@ -204,50 +272,18 @@ int main(int argc, char** argv){
     std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
     std::cout << "ambiguous " << cfg.ambiguous << std::endl;
 
-    if(vm.count("scoring") == 0){
-        std::cout << "Inside" << std::endl;
-        cfg.gap_open            = -430;
-        cfg.gap_extend          = -30;
-
-        int tmp_sub_mat[4][4] = {{   91, -114,  -31, -123},
-                                 { -114,  100, -125,  -31},
-                                 {  -31, -125,  100, -114},
-                                 { -123,  -31, -114,  910}};
-
-        for(int i = 0; i < 4; i++){
-            for(int j = 0; j < 4; j++){
-                cfg.sub_mat[i*7+j] = tmp_sub_mat[i][j];
-            }
+    for(int i = 0; i < NUC; i++){
+        for(int j = 0; j < NUC; j++){
+            std::cout << cfg.sub_mat[i*NUC+j] << " ";
         }
-
-        for(int i = 0; i < 4; i++){
-            cfg.sub_mat[i*7+6] = -100;
-            cfg.sub_mat[6*7+i] = -100;
-        }
-
-        for(int i = 0; i < 7; i++){
-            for(int j = 4; j < 6; j++){
-                cfg.sub_mat[i*7+j] = -1000;
-                cfg.sub_mat[j*7+i] = -1000;
-            }
-        }
-
-        cfg.sub_mat[48] = -1000;
-
-        for(int i = 0; i < 7; i++){
-            for(int j = 0; j < 7; j++){
-                std::cout << cfg.sub_mat[i*7+j] << " ";
-            }
-            std::cout << std::endl;
-        }
-
+        std::cout << std::endl;
     }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
-    g_InitializeProcessor ();
+    g_InitializeProcessor (cfg.sub_mat);
 
     /////////// USER LOGIC ////////////////////
     g_DRAM = new DRAM;
