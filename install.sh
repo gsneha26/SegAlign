@@ -12,6 +12,15 @@ sudo apt-get install \
     libboost-thread-dev \
     parallel
 
+mkdir bin 
+wget https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.sh
+chmod +x cmake-3.16.3-Linux-x86_64.sh
+sudo sh cmake-3.16.3-Linux-x86_64.sh
+echo "export PATH="$HOME/cmake-3.16.3-Linux-x86_64/bin/:\$PATH"" >> ~/.bashrc
+rm cmake-3.16.3-Linux-x86_64.sh
+
+source ~/.bashrc
+
 git clone --recursive https://github.com/microsoft/bond.git
 curl -sSL https://get.haskellstack.org/ | sh
 cd bond
@@ -22,13 +31,6 @@ make -j
 sudo make install
 cd $HOME
 sudo rm -rf bond
-
-mkdir bin 
-wget https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.sh
-chmod +x cmake-3.16.3-Linux-x86_64.sh
-sudo sh cmake-3.16.3-Linux-x86_64.sh
-echo "export PATH="$HOME/cmake-3.16.3-Linux-x86_64/bin/:\$PATH"" >> ~/.bashrc
-rm cmake-3.16.3-Linux-x86_64.sh
 
 wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
 sudo sh cuda_10.2.89_440.33.01_linux.run
