@@ -1,9 +1,25 @@
 cd $HOME
 sudo apt update && sudo apt dist-upgrade
-sudo apt install build-essential
-sudo apt install zlib1g-dev
-sudo apt install zlib1g
-sudo apt-get install libboost-dev
+sudo apt install \
+    build-essential \
+    zlib1g
+
+sudo apt-get install \
+    clang \
+    zlib1g-dev \
+    libboost-dev \
+    libboost-thread-dev
+
+git clone --recursive https://github.com/microsoft/bond.git
+curl -sSL https://get.haskellstack.org/ | sh
+cd bond
+mkdir build
+cd build
+cmake -DBOND_ENABLE_GRPC=FALSE ..
+make -j
+sudo make install
+cd $HOME
+rm -rf bond
 
 mkdir bin 
 wget https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.sh
