@@ -4,6 +4,8 @@ if [ $# -eq 1 ] || [ $# -eq 0 ]
 then
 	wga $1
 else
+	refPath=$(readlink -f $1)
+	queryPath=$(readlink -f $2)
 	ref=$(basename -s .fa $1)
 	query=$(basename -s .fa $2)
 	
@@ -14,7 +16,7 @@ else
 	
 	cd $FOLDER
 	mkdir "ref"
-	faSplit byname $1 "ref"/
+	faSplit byname $refPath "ref"/
 	cd "ref"
 	for i in *;
 	do
@@ -26,7 +28,7 @@ else
 	
 	cd $FOLDER
 	mkdir "query"
-	faSplit byname $2 "query"/
+	faSplit byname $queryPath "query"/
 	cd "query"
 	for i in *;
 	do
@@ -39,9 +41,9 @@ else
   cd $FOLDER1
   if [ $# -eq 3 ]
   then
-      wga $1 $2 $FOLDER $3 
+      wga $refPath $queryPath $FOLDER $3 
   else
-      wga $1 $2 $FOLDER  
+      wga $refPath $queryPath $FOLDER  
   fi
 
   rm *.segments

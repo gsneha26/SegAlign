@@ -31,7 +31,9 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_intervals = data.num_intervals;
     uint32_t buffer = data.buffer;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
+    if(cfg.debug){
+	    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with thread %d\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, token);
+    }
 
     char* query = (char*) chrom.q_seq.data();
 
