@@ -201,9 +201,9 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     int query_pos;
     int max_pos;
 
-    __shared__ int sub_mat[36];
+    __shared__ int sub_mat[NUC2];
 
-    if(thread_id < 36){
+    if(thread_id < NUC2){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
 
@@ -281,9 +281,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                         }
                     }
                 }
-
-//                if(ref_loc[warp_id] == 10317345 && query_loc == 6692)    
-//                    printf("Right %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
 
                 xdrop_done = ((max_thread_score-thread_score) > xdrop);
                 __syncwarp();
@@ -377,9 +374,6 @@ void find_anchors1 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
                     xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
                 }
 
-//                if(ref_loc[warp_id] == 10317345 && query_loc == 6692)    
-//                    printf("Left %d %d %d %d\n", thread_id, thread_score, max_thread_score, max_pos);
-
                 if(lane_id == warp_size-1){
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
@@ -465,9 +459,9 @@ void find_anchors2 (int num_seeds, const char* __restrict__  d_ref_seq, const ch
     uint32_t query_pos;
     uint32_t pos_offset;
 
-    __shared__ int sub_mat[36];
+    __shared__ int sub_mat[NUC2];
 
-    if(thread_id < 36){
+    if(thread_id < NUC2){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
 
@@ -701,16 +695,6 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
 
     err = cudaSetDevice(g);
 
-//    for (uint32_t i = 0; i < num_seeds; i++) {
-//        h_seed_offsets[g][i] = seed_offset_vector[i];
-//    }
-//
-//    err = cudaMemcpy(d_seed_offsets[g], h_seed_offsets[g], num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
-//    if (err != cudaSuccess) {
-//        fprintf(stderr, "Error: cudaMemcpy failed! seed_offset\n");
-//        exit(1);
-//    }
-
     err = cudaMemcpy(d_seed_offsets[g], tmp_offset, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy failed! seed_offset\n");
@@ -767,10 +751,10 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
         gpu_filter_output.push_back(h_hsp[i]);
     }
     
-//    printf("%d %d %d\n", num_seeds, num_hits, num_anchors);
+//    printf("%d %d %d %d\n", num_seeds, num_hits, num_anchors, hspthresh);
 
     free(h_hsp);
-free(tmp_offset);
+    free(tmp_offset);
 
     return gpu_filter_output;
 }
@@ -829,13 +813,13 @@ size_t InitializeProcessor (int* sub_mat){
 
         err = cudaMalloc(&d_sub_mat[g], NUC2*sizeof(int)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed4!\n");
             exit(1);
         }
 
         err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMemcpy failed!\n");
+            fprintf(stderr, "Error: cudaMemcpy failed5!\n");
             exit(1);
         }
 
@@ -859,19 +843,19 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
         char* d_ref_seq_tmp;
         err = cudaMalloc(&d_ref_seq_tmp, len*sizeof(char)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed6!\n");
             exit(1);
         }
 
         err = cudaMemcpy(d_ref_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMemcpy failed!\n");
+            fprintf(stderr, "Error: cudaMemcpy failed7!\n");
             exit(1);
         }
 
         err = cudaMalloc(&d_ref_seq[g], len*sizeof(char)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed8!\n");
             exit(1);
         }
 
@@ -891,7 +875,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
         char* d_query_seq_tmp;
         err = cudaMalloc(&d_query_seq_tmp, len*sizeof(char)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed9!\n");
             exit(1);
         }
 
@@ -903,13 +887,13 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
         err = cudaMalloc(&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed10!\n");
             exit(1);
         }
 
         err = cudaMalloc(&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
         if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!\n");
+            fprintf(stderr, "Error: cudaMalloc failed11!\n");
             exit(1);
         }
 

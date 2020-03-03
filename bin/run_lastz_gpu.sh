@@ -1,19 +1,20 @@
 #!/bin/bash
 
-if [ $# -eq 1 ]
+if [ $# -eq 1 ] || [ $# -eq 0 ] 
 then
-	cd build/
 	wga $1
 else
 	ref=$(basename -s .fa $1)
 	query=$(basename -s .fa $2)
 	
-	FOLDER=$HOME/WGA_GPU/data_${ref}_${query}_$RANDOM/
+	FOLDER1=$PWD/output_$RANDOM/
+	FOLDER=$FOLDER1/data_${ref}_${query}_$RANDOM/
+	mkdir $FOLDER1
 	mkdir $FOLDER
 	
 	cd $FOLDER
 	mkdir "ref"
-	time faSplit byname $1 "ref"/
+	faSplit byname $1 "ref"/
 	cd "ref"
 	for i in *;
 	do
@@ -25,7 +26,7 @@ else
 	
 	cd $FOLDER
 	mkdir "query"
-	time faSplit byname $2 "query"/
+	faSplit byname $2 "query"/
 	cd "query"
 	for i in *;
 	do
@@ -35,6 +36,7 @@ else
 	parallel --jobs=$queryChr < cmd.sh
 	rm cmd.sh *.fa
 	
-	cd build/
+  cd $FOLDER1
 	wga $1 $2 $FOLDER 
+  rm -rf $FOLDER
 fi
