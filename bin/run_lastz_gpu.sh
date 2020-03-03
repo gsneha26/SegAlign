@@ -37,6 +37,13 @@ else
 	rm cmd.sh *.fa
 	
   cd $FOLDER1
-	wga $1 $2 $FOLDER 
+  if [ $# -eq 3 ]
+  then
+      wga $1 $2 $FOLDER $3 
+  else
+      wga $1 $2 $FOLDER  
+  fi
+
+  rm *.segments
   rm -rf $FOLDER
 fi
