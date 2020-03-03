@@ -4,7 +4,7 @@ The system has been tested on all the AWS GPU instances with AMI Ubuntu Server 1
 
 * Install dependencies
 ```
-    $./install.sh
+    $source install.sh
 ```
 
 * Run LASTZ_GPU
