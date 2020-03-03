@@ -3,9 +3,6 @@
 CURR=$PWD
 echo $CURR
 
-cd $CURR
-mkdir bin
-
 sudo apt update && sudo apt dist-upgrade
 sudo apt-get install \
     build-essential \
@@ -58,7 +55,7 @@ chmod +x faSplit
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
 chmod +x twoBitToFa
 
-echo "export PATH="\$HOME/bin/:\$PATH"" >> ~/.bashrc
+echo "export PATH="$CURR/bin/:\$PATH"" >> ~/.bashrc
 
 source ~/.bashrc
 
@@ -69,4 +66,3 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j
 cp $CURR/build/wga $CURR/bin/
-cp $CURR/WGA_GPU/run_lastz_gpu.sh $CURR/bin/
