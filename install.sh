@@ -1,7 +1,6 @@
 #!/bin/bash -i 
 
 CURR=$PWD
-echo $CURR
 
 sudo apt update && sudo apt dist-upgrade
 sudo apt-get install \
