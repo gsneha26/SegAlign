@@ -199,15 +199,13 @@ int main(int argc, char** argv){
         ambiguous_penalty = 0;
     }
 
-    std::cout << ambiguous_field << " " << ambiguous_reward << " " << ambiguous_penalty << std::endl;
-
     if(vm.count("scoring") == 0){
 
         //ACGT
         int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
                                  { -114,  100, -125,  -31},
                                  {  -31, -125,  100, -114},
-                                 { -123,  -31, -114,  910}};
+                                 { -123,  -31, -114,  91}};
 
         for(int i = 0; i < L_NT; i++){
             for(int j = 0; j < L_NT; j++){
@@ -260,24 +258,24 @@ int main(int argc, char** argv){
         }
     }
 
-    std::cout << "Target " << cfg.reference_filename << std::endl;
-    std::cout << "Query " << cfg.query_filename << std::endl;
-    std::cout << "Seed " << cfg.seed << std::endl;
-    std::cout << "Seed size " << cfg.seed_size << std::endl;
-    std::cout << "Transition " << cfg.transition << std::endl;
-    std::cout << "Gapped " << cfg.gapped << std::endl;
-    std::cout << "xdrop " << cfg.xdrop << std::endl;
-    std::cout << "ydrop " << cfg.ydrop << std::endl;
-    std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
-    std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
-    std::cout << "ambiguous " << cfg.ambiguous << std::endl;
-
-    for(int i = 0; i < NUC; i++){
-        for(int j = 0; j < NUC; j++){
-            std::cout << cfg.sub_mat[i*NUC+j] << " ";
-        }
-        std::cout << std::endl;
-    }
+//    std::cout << "Target " << cfg.reference_filename << std::endl;
+//    std::cout << "Query " << cfg.query_filename << std::endl;
+//    std::cout << "Seed " << cfg.seed << std::endl;
+//    std::cout << "Seed size " << cfg.seed_size << std::endl;
+//    std::cout << "Transition " << cfg.transition << std::endl;
+//    std::cout << "Gapped " << cfg.gapped << std::endl;
+//    std::cout << "xdrop " << cfg.xdrop << std::endl;
+//    std::cout << "ydrop " << cfg.ydrop << std::endl;
+//    std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
+//    std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
+//    std::cout << "ambiguous " << cfg.ambiguous << std::endl;
+//
+//    for(int i = 0; i < NUC; i++){
+//        for(int j = 0; j < NUC; j++){
+//            std::cout << cfg.sub_mat[i*NUC+j] << " ";
+//        }
+//        std::cout << std::endl;
+//    }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
@@ -356,9 +354,6 @@ int main(int argc, char** argv){
 
     while (kseq_read(kseq_rd) >= 0) {
 
-        short* chr_invoked = (short*) calloc(q_chr_count, sizeof(short));
-        short* chr_sent = (short*) calloc(q_chr_count, sizeof(short));
-
         gettimeofday(&start_time, NULL);
         // reset bufferPosition to end of query
         g_DRAM->bufferPosition = g_DRAM->querySize;
@@ -423,24 +418,25 @@ int main(int argc, char** argv){
         uint32_t send_q_start;
         uint32_t send_buffer;
         uint32_t prev_buffer = 0;
+        uint32_t num_chr_sent = 0;
 
-        send_q_chr = q_chr_id[0];
-        send_q_len = q_chr_len[0];
-        send_q_start = q_chr_coord[0];
-        send_buffer = 0;
+        while(num_chr_sent < 2 && num_chr_sent < q_chr_count){
+
+            send_q_chr = q_chr_id[num_chr_sent];
+            send_q_len = q_chr_len[num_chr_sent];
+            send_q_start = q_chr_coord[num_chr_sent];
+            send_buffer = num_chr_sent%2;
+            fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+            g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
+            num_chr_sent++;
+
+        }
+
         prev_buffer = 0;
         prev_chr_intervals[0] = chr_num_intervals[0]; 
-        g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
-        send_q_chr = q_chr_id[1];
-        send_q_len = q_chr_len[1];
-        send_q_start = q_chr_coord[1];
-        send_buffer = 1;
-        g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
-        chr_sent[0] = 1;
 
         bool send_chr = false;
         bool invoke_chr = true; 
-        uint32_t num_chr_sent = 2;
         uint32_t num_chr_invoked = 0;
 
         gettimeofday(&start_time, NULL);
@@ -493,7 +489,7 @@ int main(int argc, char** argv){
                         curr_intervals_done = seeder_body::num_seeded_regions1.load();
                     }
 
-                    if(chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
+                    if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
                         send_chr = true;
                     }
                 }

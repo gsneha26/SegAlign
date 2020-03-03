@@ -1,9 +1,6 @@
 #include "graph.h"
 
 std::mutex io_lock;
-//int* diagHashminus = (int*) calloc(1000000000, sizeof(int));
-//int* diagHashplus = (int*) calloc(1000000000, sizeof(int));
-//std::vector <std::string> filenames;
 int batch = 0;
 int batch_old = 0;
 
@@ -32,73 +29,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
     }
 
-//    int diag = 0;
-//    int diag_old = 0;
-//    int r_extent = 0;
-//    int q_extent = 0;
-//
-//    for (auto e: fw_segments) {
-//
-//        diag = e.ref_start-e.query_start;
-//        if(diag != diag_old){
-//            r_extent = 0;
-//            q_extent = 0;
-//
-//            if(e.ref_start > r_extent || e.query_start > q_extent){
-//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//                r_extent = e.ref_start + e.len;
-//                q_extent = e.query_start + e.len;
-//                diag_old = diag;
-//            }
-//        }
-//    }
-//
-//    diag = 0;
-//    diag_old = 0;
-//    r_extent = 0;
-//    q_extent = 0;
-//
-//    for (auto e: rc_segments) {
-//
-//        diag = e.ref_start-e.query_start;
-//        if(diag != diag_old){
-//            r_extent = 0;
-//            q_extent = 0;
-//
-//            if(e.ref_start > r_extent || e.query_start > q_extent){
-//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//                r_extent = e.ref_start + e.len;
-//                q_extent = e.query_start + e.len;
-//                diag_old = diag;
-//            }
-//        }
-//    }
-
-//        int diag;
-//        for (auto e: fw_segments) {
-//            diag = e.ref_start-e.query_start+cfg.query_len;
-//            if(e.query_start > diagHashplus[diag]){
-//                diagHashplus[diag] = e.query_start+e.len;
-//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//            }
-//        }
-//
-//        diag = 0;
-//        for (auto e: rc_segments) {
-//            diag = e.ref_start-e.query_start+cfg.query_len;
-//            if(e.query_start > diagHashminus[diag]){
-//                diagHashminus[diag] = e.query_start+e.len;
-//                fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-//            }
-//        }
-
     fclose(segmentFile);
 
     std::string cmd;
     int status;
 
     if(cfg.gapped){
-            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);//+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
+            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
             if(cfg.scoring_file != "")
                 cmd = cmd+" --scoring=" + cfg.scoring_file + " --segments="+filename+" > "+maf_filename;
             cmd = cmd+" --segments="+filename+" > "+maf_filename;
