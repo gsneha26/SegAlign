@@ -111,7 +111,7 @@ int main(int argc, char** argv){
     po::options_description desc{"Options"};
     desc.add_options()
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
-        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "which nucleotides are considered ambiguous")
+        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "ambiguous nucleotides (n/iupac)")
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop threshold")
@@ -122,6 +122,7 @@ int main(int argc, char** argv){
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("output_filename", po::value<std::string>(&cfg.output_filename)->default_value("wga_output"), "output filename")
+        ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
     po::options_description hidden;
@@ -258,36 +259,42 @@ int main(int argc, char** argv){
         }
     }
 
-//    std::cout << "Target " << cfg.reference_filename << std::endl;
-//    std::cout << "Query " << cfg.query_filename << std::endl;
-//    std::cout << "Seed " << cfg.seed << std::endl;
-//    std::cout << "Seed size " << cfg.seed_size << std::endl;
-//    std::cout << "Transition " << cfg.transition << std::endl;
-//    std::cout << "Gapped " << cfg.gapped << std::endl;
-//    std::cout << "xdrop " << cfg.xdrop << std::endl;
-//    std::cout << "ydrop " << cfg.ydrop << std::endl;
-//    std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
-//    std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
-//    std::cout << "ambiguous " << cfg.ambiguous << std::endl;
-//
-//    for(int i = 0; i < NUC; i++){
-//        for(int j = 0; j < NUC; j++){
-//            std::cout << cfg.sub_mat[i*NUC+j] << " ";
-//        }
-//        std::cout << std::endl;
-//    }
-
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
-    fprintf(stderr, "Using %d threads\n", cfg.num_threads);
+
+    if(cfg.debug){
+	std::cout << "Target " << cfg.reference_filename << std::endl;
+	std::cout << "Query " << cfg.query_filename << std::endl;
+	std::cout << "Seed " << cfg.seed << std::endl;
+	std::cout << "Seed size " << cfg.seed_size << std::endl;
+	std::cout << "Transition " << cfg.transition << std::endl;
+	std::cout << "Gapped " << cfg.gapped << std::endl;
+	std::cout << "xdrop " << cfg.xdrop << std::endl;
+	std::cout << "ydrop " << cfg.ydrop << std::endl;
+	std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
+	std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
+	std::cout << "ambiguous " << cfg.ambiguous << std::endl;
+	
+	for(int i = 0; i < NUC; i++){
+	    for(int j = 0; j < NUC; j++){
+	        std::cout << cfg.sub_mat[i*NUC+j] << " ";
+	    }
+	    std::cout << std::endl;
+	}
+	fprintf(stderr, "Using %d threads\n", cfg.num_threads);
+    }
+
     g_InitializeProcessor (cfg.sub_mat);
 
     /////////// USER LOGIC ////////////////////
     g_DRAM = new DRAM;
     
-    fprintf(stderr, "\nReading query file ...\n");
-    gettimeofday(&start_time, NULL);
+    if(cfg.debug){
+	fprintf(stderr, "\nReading query file ...\n");
+	gettimeofday(&start_time, NULL);
+    }
+
     gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
         
@@ -336,11 +343,13 @@ int main(int argc, char** argv){
     g_DRAM->querySize = g_DRAM->bufferPosition;
     gzclose(f_rd);
 
-    gettimeofday(&end_time, NULL);
-    useconds = end_time.tv_usec - start_time.tv_usec;
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-    fprintf(stderr, "Time elapsed (loading complete query from file): %ld msec \n\n", mseconds);
+    if(cfg.debug){
+    	gettimeofday(&end_time, NULL);
+    	useconds = end_time.tv_usec - start_time.tv_usec;
+    	seconds = end_time.tv_sec - start_time.tv_sec;
+    	mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
+    	fprintf(stderr, "Time elapsed (loading complete query from file): %ld msec \n\n", mseconds);
+    }
 
     f_rd = gzopen(cfg.reference_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
@@ -354,14 +363,16 @@ int main(int argc, char** argv){
 
     while (kseq_read(kseq_rd) >= 0) {
 
-        gettimeofday(&start_time, NULL);
         // reset bufferPosition to end of query
         g_DRAM->bufferPosition = g_DRAM->querySize;
 
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        fprintf(stderr, "Loading reference %s ...\n", description.c_str());
+    	if(cfg.debug){
+        	gettimeofday(&start_time, NULL);
+        	fprintf(stderr, "Loading reference %s ...\n", description.c_str());
+	}
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
@@ -375,9 +386,12 @@ int main(int argc, char** argv){
         g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
-        gettimeofday(&end_time, NULL);
-        seconds = end_time.tv_sec - start_time.tv_sec;
-        fprintf(stderr, "Time elapsed (loading reference and creating seed pos table): %ld sec \n\n", seconds);
+
+    	if(cfg.debug){
+        	gettimeofday(&end_time, NULL);
+        	seconds = end_time.tv_sec - start_time.tv_sec;
+        	fprintf(stderr, "Time elapsed (loading reference and creating seed pos table): %ld sec \n\n", seconds);
+	}
 
         // start alignment
         tbb::flow::graph align_graph;
@@ -402,11 +416,13 @@ int main(int argc, char** argv){
 
         tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
+	uint32_t prev_chr_intervals[2] = {0, 0};  
+	seeder_body::num_seeded_regions0 = 0;
+	seeder_body::num_seeded_regions1 = 0;
         uint32_t intervals_invoked = 0;
         uint32_t chr_intervals = 0;
         uint32_t num_intervals = 0;  
         uint32_t total_intervals = 0;  
-        uint32_t prev_chr_intervals[2] = {0, 0};  
         uint32_t buffer = 0;
         bool new_chr = true;
         bond::blob chrom_seq;
@@ -426,7 +442,9 @@ int main(int argc, char** argv){
             send_q_len = q_chr_len[num_chr_sent];
             send_q_start = q_chr_coord[num_chr_sent];
             send_buffer = num_chr_sent%2;
-            fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+	    if(cfg.debug){
+		    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+	    }
             g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
             num_chr_sent++;
 
@@ -454,7 +472,9 @@ int main(int argc, char** argv){
                     total_intervals += chr_intervals;
                     chr_intervals = chr_num_intervals[num_chr_invoked];
 
-                    fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+		    if(cfg.debug){
+		    	fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+		    }
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
                     chrom_rc_seq = bond::blob(rev_read_char, q_len);
@@ -473,7 +493,9 @@ int main(int argc, char** argv){
                     prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
                     send_buffer = num_chr_sent%2;
 
-                    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+		    if(cfg.debug){
+                    	fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+		    }
 
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
                     send_chr = false;
@@ -488,6 +510,7 @@ int main(int argc, char** argv){
                     else{
                         curr_intervals_done = seeder_body::num_seeded_regions1.load();
                     }
+		    printf("%d %d %d\n", prev_buffer, curr_intervals_done, prev_chr_intervals[prev_buffer]);
 
                     if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
                         send_chr = true;
@@ -527,17 +550,21 @@ int main(int argc, char** argv){
         
         align_graph.wait_for_all();
 
-        gettimeofday(&end_time, NULL);
-        seconds = end_time.tv_sec - start_time.tv_sec;
-        fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
+    	if(cfg.debug){
+        	gettimeofday(&end_time, NULL);
+        	seconds = end_time.tv_sec - start_time.tv_sec;
+        	fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
+	}
         delete[] rev_read_char;
     }
 
     gzclose(f_rd);
     
-    fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
-    fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
-    fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
+    if(cfg.debug){
+    	fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
+    	fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
+    	fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
+    }
 
 //    --------------------------------------------------------------------------
 //     Shutdown and cleanup
