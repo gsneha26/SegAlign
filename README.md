@@ -9,7 +9,7 @@ The system has been tested on all the AWS GPU instances with AMI Ubuntu Server 1
 
 * Run LASTZ_GPU
 ```
-    $ run_lastz_gpu.sh target query data_folder [options]
+    $ run_lastz_gpu.sh target query data_folder "[options]"
 ```
 
 * For a list of options 
