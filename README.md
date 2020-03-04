@@ -19,13 +19,13 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 * Run LASTZ_GPU
 
 ```
-    $ run_lastz_gpu.sh target query "[options]"
+    $ ./run_lastz_gpu target query "[options]"
 ```
 
 * For a list of options 
 
 ```
-    $ run_lastz_gpu.sh --help
+    $ run_wga_gpu --help
 ```
 
 * For running an example
@@ -33,5 +33,5 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 ```
     $ gunzip $PROJECT_DIR/data/ce11.fa.gz
     $ gunzip $PROJECT_DIR/data/cb4.fa.gz
-    $ run_lastz_gpu.sh $PROJECT_DIR/data/ce11.fa $PROJECT_DIR/data/cb4.fa > ce11.cb4.maf
+    $ run_wga_gpu $PROJECT_DIR/data/ce11.fa $PROJECT_DIR/data/cb4.fa > ce11.cb4.maf
 ```
