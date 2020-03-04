@@ -128,7 +128,7 @@ int main(int argc, char** argv){
             }
         }
 
-	fprintf(stderr, "Usage: run_lastz_gpu.sh target query \"[options]\"\n"); 
+	fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
         std::cout << desc << std::endl;
         return false;
     }

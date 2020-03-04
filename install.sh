@@ -52,7 +52,6 @@ wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faSplit
 chmod +x faSplit
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
 chmod +x twoBitToFa
-sudo cp $CURR/bin/* /usr/local/bin/
 
 # WGA_GPU
 cd $CURR
