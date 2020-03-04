@@ -1,6 +1,6 @@
 # WGA_GPU 
 
-The system has been tested on all the AWS GPU instances with AMI Ubuntu Server 18.04 LTS (HVM), SSD Volume Type (ami-0fc20dd1da406780b (64-bit x86))
+The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubuntu Server 18.04 LTS (HVM), SSD Volume Type (ami-0fc20dd1da406780b (64-bit x86))
 
 
 * Clone WGA_GPU repository (https://github.com/gsneha26/WGA_GPU)
