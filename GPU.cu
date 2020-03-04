@@ -160,7 +160,6 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
         }
 
         seed_hit_num[id] = num_seed_hit;
-//        printf("%d\n", num_seed_hit);
     }
 }
 
@@ -751,8 +750,6 @@ uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
         gpu_filter_output.push_back(h_hsp[i]);
     }
     
-//    printf("%d %d %d %d\n", num_seeds, num_hits, num_anchors, hspthresh);
-
     free(h_hsp);
     free(tmp_offset);
 
@@ -772,7 +769,7 @@ size_t InitializeProcessor (int* sub_mat){
     }
 
     NUM_DEVICES = nDevices; 
-    printf("Using %d GPU(s)\n", NUM_DEVICES);
+    fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));

@@ -5,12 +5,12 @@ CURR=$PWD
 # linux essentials
 sudo apt update 
 sudo apt-get install \
-    build-essential \
-    clang \
-    zlib1g-dev \
-    libboost-all-dev \
-    cmake \
-    parallel
+	build-essential \
+	clang \
+	zlib1g-dev \
+	libboost-all-dev \
+	cmake \
+	parallel
 
 # bond library
 git clone --recursive https://github.com/microsoft/bond.git
@@ -35,6 +35,7 @@ sudo apt-get -y install cuda
 rm cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
 
 # LASTZ
+cd $CURR
 wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
 gunzip lastz-1.04.03.tar.gz
 tar -xvf lastz-1.04.03.tar 
@@ -51,6 +52,7 @@ wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faSplit
 chmod +x faSplit
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
 chmod +x twoBitToFa
+sudo cp $CURR/bin/* /usr/local/bin/
 
 # WGA_GPU
 cd $CURR
