@@ -2,7 +2,6 @@ tbb/
 build/CMakeCache.txt
 build/CMakeFiles/
 build/Makefile
-build/*.maf
 build/cmake_install.cmake
 build/tbb_cmake_build/
 build/wga
