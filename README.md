@@ -20,7 +20,7 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 * Run LASTZ_GPU
 
 ```
-    $ ./run_lastz_gpu target query "[options]"
+    $ run_wga_gpu target query "[options]"
 ```
 
 * For a list of options 
