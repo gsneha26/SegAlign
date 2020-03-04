@@ -33,5 +33,5 @@ The system has been tested on all the AWS GPU instances with AMI Ubuntu Server 1
 ```
     $ gunzip $PROJECT_DIR/data/ce11.fa.gz
     $ gunzip $PROJECT_DIR/data/cb4.fa.gz
-    $ run_lastz_gpu.sh $PROJECT_DIR/data/ce11.fa $PROJECT_DIR/data/cb4.fa
+    $ run_lastz_gpu.sh $PROJECT_DIR/data/ce11.fa $PROJECT_DIR/data/cb4.fa > ce11.cb4.maf
 ```
