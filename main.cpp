@@ -351,7 +351,7 @@ int main(int argc, char** argv){
         	gettimeofday(&start_time, NULL);
 	}
 
-	fprintf(stderr, "Loading reference %s ...\n", description.c_str());
+	fprintf(stderr, "\nLoading reference %s ...\n", description.c_str());
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
@@ -422,7 +422,7 @@ int main(int argc, char** argv){
             send_q_start = q_chr_coord[num_chr_sent];
             send_buffer = num_chr_sent%2;
 	    if(cfg.debug){
-		    fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+		    fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
 	    }
             g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
             num_chr_sent++;
@@ -451,7 +451,7 @@ int main(int argc, char** argv){
                     total_intervals += chr_intervals;
                     chr_intervals = chr_num_intervals[num_chr_invoked];
 
-		    fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
+		    fprintf(stderr, "\nStarting query %s ...\n", q_chr.c_str());
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
                     chrom_rc_seq = bond::blob(rev_read_char, q_len);
@@ -471,7 +471,7 @@ int main(int argc, char** argv){
                     send_buffer = num_chr_sent%2;
 
 		    if(cfg.debug){
-                    	fprintf(stderr, "Sending query %s ...\n", send_q_chr.c_str());
+                    	fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
 		    }
 
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
