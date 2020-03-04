@@ -18,7 +18,7 @@ namespace po = boost::program_options;
 ////////////////////////////////////////////////////////////////////////////////
 KSEQ_INIT2(, gzFile, gzread)
 
-struct timeval start_time, end_time, start_time1;
+struct timeval start_time, end_time, start_time_complete, end_time_complete;
 long useconds, seconds, mseconds;
 
 Configuration cfg;
@@ -84,6 +84,8 @@ char* RevComp(bond::blob read) {
 }
 
 int main(int argc, char** argv){
+
+    gettimeofday(&start_time_complete, NULL);
 
     po::options_description desc{"Options"};
     desc.add_options()
@@ -268,7 +270,7 @@ int main(int argc, char** argv){
     g_DRAM = new DRAM;
     
     if(cfg.debug){
-	gettimeofday(&start_time, NULL);
+	    gettimeofday(&start_time, NULL);
     }
 
     fprintf(stderr, "\nReading query file ...\n");
@@ -546,4 +548,8 @@ int main(int argc, char** argv){
 //     Shutdown and cleanup
 //    -------------------------------------------------------------------------- 
     g_ShutdownProcessor();
+
+    gettimeofday(&end_time_complete, NULL);
+    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
+    fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
 }
