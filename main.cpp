@@ -1,26 +1,3 @@
-/*
-MIT License
-
-Copyright (c) 2019 Sneha D. Goenka, Yatish Turakhia, Gill Bejerano and William J. Dally
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
 
 #include <stdio.h>
 #include <string.h>
@@ -121,7 +98,6 @@ int main(int argc, char** argv){
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
-        ("output_filename", po::value<std::string>(&cfg.output_filename)->default_value("wga_output"), "output filename")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -147,12 +123,12 @@ int main(int argc, char** argv){
     }
     catch(std::exception &e){
         if(!vm.count("help")){
-            if(!vm.count("target") || !vm.count("query") || !vm.count("data_folder")){
-                std::cout << "You must specify a target file, a query file and a data folder"<< '\n';
+            if(!vm.count("target") || !vm.count("query")){
+		fprintf(stderr, "You must specify a target file and a query file\n"); 
             }
         }
 
-        std::cout << "Usage: run_lastz_gpu.sh target query \"[options]\"" << std::endl;
+	fprintf(stderr, "Usage: run_lastz_gpu.sh target query \"[options]\"\n"); 
         std::cout << desc << std::endl;
         return false;
     }
@@ -264,26 +240,27 @@ int main(int argc, char** argv){
     tbb::task_scheduler_init init(cfg.num_threads);
 
     if(cfg.debug){
-	std::cout << "Target " << cfg.reference_filename << std::endl;
-	std::cout << "Query " << cfg.query_filename << std::endl;
-	std::cout << "Seed " << cfg.seed << std::endl;
-	std::cout << "Seed size " << cfg.seed_size << std::endl;
-	std::cout << "Transition " << cfg.transition << std::endl;
-	std::cout << "Gapped " << cfg.gapped << std::endl;
-	std::cout << "xdrop " << cfg.xdrop << std::endl;
-	std::cout << "ydrop " << cfg.ydrop << std::endl;
-	std::cout << "HSP threshold " << cfg.hspthresh << std::endl;
-	std::cout << "gapped threshold " << cfg.gappedthresh << std::endl;
-	std::cout << "ambiguous " << cfg.ambiguous << std::endl;
+	fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
+	fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
+	fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
+	fprintf(stderr, "Seed size %d\n", cfg.seed_size);
+	fprintf(stderr, "Transition %d\n", cfg.transition);
+	fprintf(stderr, "Gapped %d\n",cfg.gapped);
+	fprintf(stderr, "xdrop %d\n", cfg.xdrop);
+	fprintf(stderr, "ydrop %d\n", cfg.ydrop);
+	fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
+	fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
+	fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
 	
 	for(int i = 0; i < NUC; i++){
 	    for(int j = 0; j < NUC; j++){
-	        std::cout << cfg.sub_mat[i*NUC+j] << " ";
+	        fprintf(stderr, "%d ", cfg.sub_mat[i*NUC+j]);
 	    }
-	    std::cout << std::endl;
+	    fprintf(stderr, "\n");
 	}
-	fprintf(stderr, "Using %d threads\n", cfg.num_threads);
     }
+
+    fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
     g_InitializeProcessor (cfg.sub_mat);
 
@@ -291,9 +268,10 @@ int main(int argc, char** argv){
     g_DRAM = new DRAM;
     
     if(cfg.debug){
-	fprintf(stderr, "\nReading query file ...\n");
 	gettimeofday(&start_time, NULL);
     }
+
+    fprintf(stderr, "\nReading query file ...\n");
 
     gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
@@ -371,8 +349,9 @@ int main(int argc, char** argv){
 
     	if(cfg.debug){
         	gettimeofday(&start_time, NULL);
-        	fprintf(stderr, "Loading reference %s ...\n", description.c_str());
 	}
+
+	fprintf(stderr, "Loading reference %s ...\n", description.c_str());
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
@@ -472,9 +451,7 @@ int main(int argc, char** argv){
                     total_intervals += chr_intervals;
                     chr_intervals = chr_num_intervals[num_chr_invoked];
 
-		    if(cfg.debug){
-		    	fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
-		    }
+		    fprintf(stderr, "Starting query %s ...\n", q_chr.c_str());
                     chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
                     rev_read_char = RevComp(chrom_seq);
                     chrom_rc_seq = bond::blob(rev_read_char, q_len);
@@ -510,7 +487,6 @@ int main(int argc, char** argv){
                     else{
                         curr_intervals_done = seeder_body::num_seeded_regions1.load();
                     }
-		    printf("%d %d %d\n", prev_buffer, curr_intervals_done, prev_chr_intervals[prev_buffer]);
 
                     if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
                         send_chr = true;
