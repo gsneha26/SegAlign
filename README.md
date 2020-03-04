@@ -10,9 +10,10 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
     $ export PROJECT_DIR=$PWD/WGA_GPU
 ```
 
-* Install dependencies
+* Install dependencies (this might take a while)
 
 ```
+    $ cd $PROJECT_DIR
     $ ./install.sh
 ```
 
