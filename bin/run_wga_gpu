@@ -9,7 +9,7 @@ else
 	ref=$(basename -s .fa $1)
 	query=$(basename -s .fa $2)
 	
-	FOLDER1=$PWD/output_$RANDOM/
+	FOLDER1=$PWD/output_$RANDOM
 	FOLDER=$FOLDER1/data_${ref}_${query}_$RANDOM/
 	mkdir $FOLDER1
 	mkdir $FOLDER
