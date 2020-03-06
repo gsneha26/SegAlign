@@ -14,14 +14,6 @@
 
 using namespace tbb::flow;
 
-//reference
-extern std::vector<std::string> r_chr_id;
-extern std::vector<uint32_t>  r_chr_len;
-extern std::vector<uint32_t>  r_chr_len_unpadded;
-extern std::vector<uint32_t>  r_chr_coord;
-
-extern FILE *mafFile;
-
 struct Configuration {
     //FASTA files
     std::string reference_name;
