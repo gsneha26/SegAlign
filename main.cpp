@@ -354,7 +354,6 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
         
-        printf("%s, \n", description.c_str());
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
