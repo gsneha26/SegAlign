@@ -5,7 +5,7 @@
 #include "tbb/tbb.h"
 
 DRAM::DRAM()
-	: size(8ull * 1024ull * 1024ull * 1024ull), // 4GB FPGA memory
+	: size(10ull * 1024ull * 1024ull * 1024ull), // 10GB CPU memory
 	querySize(0),
 	bufferPosition(0)
 {
