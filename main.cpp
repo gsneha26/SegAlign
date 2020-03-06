@@ -354,7 +354,6 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
         
-        printf("%s, \n", description.c_str());
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
@@ -379,7 +378,7 @@ int main(int argc, char** argv){
     	fprintf(stderr, "Time elapsed (loading complete target from file): %ld msec \n\n", mseconds);
     }
 
-    fprintf(stderr, "\nStart alignment Reading target file ...\n");
+    fprintf(stderr, "\nStart alignment ...\n");
     // start alignment
     tbb::flow::graph align_graph;
 
@@ -426,7 +425,7 @@ int main(int argc, char** argv){
     uint32_t send_r_len;
     uint32_t send_r_start;
     uint32_t prev_buffer;
-    uint32_t num_chr_sent;
+    uint32_t q_chr_sent;
     uint32_t r_chr_sent = 0;
     bool send_chr;
     bool invoke_chr; 
@@ -459,29 +458,28 @@ int main(int argc, char** argv){
                 chr_intervals = 0;
                 total_intervals = 0;  
                 buffer = 0;
-                num_chr_sent = 0;
+                prev_buffer = 0;
+                q_chr_sent = 0;
                 send_chr = false;
                 invoke_chr = true; 
                 num_chr_invoked = 0;
 
-                while(num_chr_sent < 2 && num_chr_sent < q_chr_count){
+                while(q_chr_sent < 2 && q_chr_sent < q_chr_count){
 
-                    send_q_chr = q_chr_id[num_chr_sent];
-                    send_q_len = q_chr_len[num_chr_sent];
-                    send_q_start = q_chr_coord[num_chr_sent];
-                    send_buffer = num_chr_sent%2;
-                    if(cfg.debug){
-                        fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
-                    }
+                    send_q_chr = q_chr_id[q_chr_sent];
+                    send_q_len = q_chr_len[q_chr_sent];
+                    send_q_start = q_chr_coord[q_chr_sent];
+                    send_buffer = q_chr_sent%2;
+                    fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
-                    num_chr_sent++;
+                    q_chr_sent++;
                 }
 
-                prev_buffer = 0;
                 prev_chr_intervals[0] = chr_num_intervals[0]; 
+                prev_chr_intervals[1] = 0;
             }
 
-            if(num_chr_invoked < num_chr_sent ) {
+            if(num_chr_invoked < q_chr_sent ) {
                 if(invoke_chr){
 
                     q_chr = q_chr_id[num_chr_invoked];
@@ -501,22 +499,20 @@ int main(int argc, char** argv){
                 }
             }
             else{
-                if(num_chr_sent < q_chr_count && send_chr && prev_buffer == (num_chr_sent%2)){
+                if(q_chr_sent < q_chr_count && send_chr && prev_buffer == (q_chr_sent%2)){
 
-                    send_q_chr = q_chr_id[num_chr_sent];
-                    send_q_len = q_chr_len[num_chr_sent];
-                    send_q_start = q_chr_coord[num_chr_sent];
+                    send_q_chr = q_chr_id[q_chr_sent];
+                    send_q_len = q_chr_len[q_chr_sent];
+                    send_q_start = q_chr_coord[q_chr_sent];
                     prev_buffer = send_buffer;
-                    prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
-                    send_buffer = num_chr_sent%2;
+                    prev_chr_intervals[prev_buffer] += chr_num_intervals[q_chr_sent-1];
+                    send_buffer = q_chr_sent%2;
 
-                    if(cfg.debug){
-                        fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
-                    }
+                    fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
 
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
                     send_chr = false;
-                    num_chr_sent++;
+                    q_chr_sent++;
                 }
                 else{
                     uint32_t curr_intervals_done;
