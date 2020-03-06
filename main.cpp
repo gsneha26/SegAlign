@@ -130,7 +130,7 @@ int main(int argc, char** argv){
             }
         }
 
-	fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
+        fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
         std::cout << desc << std::endl;
         return false;
     }
@@ -242,24 +242,24 @@ int main(int argc, char** argv){
     tbb::task_scheduler_init init(cfg.num_threads);
 
     if(cfg.debug){
-	fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
-	fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
-	fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
-	fprintf(stderr, "Seed size %d\n", cfg.seed_size);
-	fprintf(stderr, "Transition %d\n", cfg.transition);
-	fprintf(stderr, "Gapped %d\n",cfg.gapped);
-	fprintf(stderr, "xdrop %d\n", cfg.xdrop);
-	fprintf(stderr, "ydrop %d\n", cfg.ydrop);
-	fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
-	fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
-	fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
-	
-	for(int i = 0; i < NUC; i++){
-	    for(int j = 0; j < NUC; j++){
-	        fprintf(stderr, "%d ", cfg.sub_mat[i*NUC+j]);
-	    }
-	    fprintf(stderr, "\n");
-	}
+        fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
+        fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
+        fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
+        fprintf(stderr, "Seed size %d\n", cfg.seed_size);
+        fprintf(stderr, "Transition %d\n", cfg.transition);
+        fprintf(stderr, "Gapped %d\n",cfg.gapped);
+        fprintf(stderr, "xdrop %d\n", cfg.xdrop);
+        fprintf(stderr, "ydrop %d\n", cfg.ydrop);
+        fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
+        fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
+        fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
+
+        for(int i = 0; i < NUC; i++){
+            for(int j = 0; j < NUC; j++){
+                fprintf(stderr, "%d ", cfg.sub_mat[i*NUC+j]);
+            }
+            fprintf(stderr, "\n");
+        }
     }
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
@@ -331,6 +331,29 @@ int main(int argc, char** argv){
     	fprintf(stderr, "Time elapsed (loading complete query from file): %ld msec \n\n", mseconds);
     }
 
+    // start alignment
+    tbb::flow::graph align_graph;
+
+    printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
+
+    tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
+
+    tbb::flow::make_edge(seeder, printer);
+
+    tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
+
+    tbb::flow::make_edge(gatekeeper, seeder);
+
+    tbb::flow::buffer_node<size_t> ticketer(align_graph);
+
+    // Allocate tickets
+    for (size_t t = 0ull; t < cfg.num_threads; t++)
+        ticketer.try_put(t);
+
+    tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
+
+    tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
+
     f_rd = gzopen(cfg.reference_filename.c_str(), "r");
     if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
         
@@ -349,11 +372,11 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-    	if(cfg.debug){
-        	gettimeofday(&start_time, NULL);
-	}
+        if(cfg.debug){
+            gettimeofday(&start_time, NULL);
+        }
 
-	fprintf(stderr, "\nLoading reference %s ...\n", description.c_str());
+        fprintf(stderr, "\nLoading reference %s ...\n", description.c_str());
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             fprintf(stderr, "%ld exceeds DRAM size %ld \n", g_DRAM->bufferPosition + seq_len, g_DRAM->size);
@@ -367,39 +390,9 @@ int main(int argc, char** argv){
         g_SendRefWriteRequest (g_DRAM->bufferPosition, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
-
-    	if(cfg.debug){
-        	gettimeofday(&end_time, NULL);
-        	seconds = end_time.tv_sec - start_time.tv_sec;
-        	fprintf(stderr, "Time elapsed (loading reference and creating seed pos table): %ld sec \n\n", seconds);
-	}
-
-        // start alignment
-        tbb::flow::graph align_graph;
-
-        printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
-
-        tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
-
-        tbb::flow::make_edge(seeder, printer);
-
-        tbb::flow::join_node<seeder_input> gatekeeper(align_graph);
-
-        tbb::flow::make_edge(gatekeeper, seeder);
-
-        tbb::flow::buffer_node<size_t> ticketer(align_graph);
-
-        // Allocate tickets
-        for (size_t t = 0ull; t < cfg.num_threads; t++)
-            ticketer.try_put(t);
-
-        tbb::flow::make_edge(tbb::flow::output_port<0>(printer), ticketer);
-
-        tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
-
-	uint32_t prev_chr_intervals[2] = {0, 0};  
-	seeder_body::num_seeded_regions0 = 0;
-	seeder_body::num_seeded_regions1 = 0;
+        uint32_t prev_chr_intervals[2] = {0, 0};  
+        seeder_body::num_seeded_regions0 = 0;
+        seeder_body::num_seeded_regions1 = 0;
         uint32_t intervals_invoked = 0;
         uint32_t chr_intervals = 0;
         uint32_t num_intervals = 0;  
@@ -423,12 +416,11 @@ int main(int argc, char** argv){
             send_q_len = q_chr_len[num_chr_sent];
             send_q_start = q_chr_coord[num_chr_sent];
             send_buffer = num_chr_sent%2;
-	    if(cfg.debug){
-		    fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
-	    }
+            if(cfg.debug){
+                fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
+            }
             g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
             num_chr_sent++;
-
         }
 
         prev_buffer = 0;
@@ -443,84 +435,84 @@ int main(int argc, char** argv){
             [&](seeder_payload &op) -> bool {
 
             while(true){
-            if(num_chr_invoked < num_chr_sent ) {
-                if(invoke_chr){
+                if(num_chr_invoked < num_chr_sent ) {
+                    if(invoke_chr){
 
-                    q_chr = q_chr_id[num_chr_invoked];
-                    q_len = q_chr_len[num_chr_invoked];
-                    q_start = q_chr_coord[num_chr_invoked];
-                    buffer = num_chr_invoked%2;
-                    total_intervals += chr_intervals;
-                    chr_intervals = chr_num_intervals[num_chr_invoked];
+                        q_chr = q_chr_id[num_chr_invoked];
+                        q_len = q_chr_len[num_chr_invoked];
+                        q_start = q_chr_coord[num_chr_invoked];
+                        buffer = num_chr_invoked%2;
+                        total_intervals += chr_intervals;
+                        chr_intervals = chr_num_intervals[num_chr_invoked];
 
-		    fprintf(stderr, "\nStarting query %s ...\n", q_chr.c_str());
-                    chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
-                    rev_read_char = RevComp(chrom_seq);
-                    chrom_rc_seq = bond::blob(rev_read_char, q_len);
+                        fprintf(stderr, "\nStarting query %s ...\n", q_chr.c_str());
+                        chrom_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
+                        rev_read_char = RevComp(chrom_seq);
+                        chrom_rc_seq = bond::blob(rev_read_char, q_len);
 
-                    intervals_invoked = 0;
-                    invoke_chr = false;
-                }
-            }
-            else{
-                if(num_chr_sent < q_chr_count && send_chr && prev_buffer == (num_chr_sent%2)){
-
-                    send_q_chr = q_chr_id[num_chr_sent];
-                    send_q_len = q_chr_len[num_chr_sent];
-                    send_q_start = q_chr_coord[num_chr_sent];
-                    prev_buffer = send_buffer;
-                    prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
-                    send_buffer = num_chr_sent%2;
-
-		    if(cfg.debug){
-                    	fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
-		    }
-
-                    g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
-                    send_chr = false;
-                    num_chr_sent++;
+                        intervals_invoked = 0;
+                        invoke_chr = false;
+                    }
                 }
                 else{
-                    uint32_t curr_intervals_done;
+                    if(num_chr_sent < q_chr_count && send_chr && prev_buffer == (num_chr_sent%2)){
 
-                    if(prev_buffer == 0){
-                        curr_intervals_done = seeder_body::num_seeded_regions0.load();
+                        send_q_chr = q_chr_id[num_chr_sent];
+                        send_q_len = q_chr_len[num_chr_sent];
+                        send_q_start = q_chr_coord[num_chr_sent];
+                        prev_buffer = send_buffer;
+                        prev_chr_intervals[prev_buffer] += chr_num_intervals[num_chr_sent-1];
+                        send_buffer = num_chr_sent%2;
+
+                        if(cfg.debug){
+                            fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
+                        }
+
+                        g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
+                        send_chr = false;
+                        num_chr_sent++;
                     }
                     else{
-                        curr_intervals_done = seeder_body::num_seeded_regions1.load();
-                    }
+                        uint32_t curr_intervals_done;
 
-                    if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
-                        send_chr = true;
+                        if(prev_buffer == 0){
+                            curr_intervals_done = seeder_body::num_seeded_regions0.load();
+                        }
+                        else{
+                            curr_intervals_done = seeder_body::num_seeded_regions1.load();
+                        }
+
+                        if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
+                            send_chr = true;
+                        }
                     }
                 }
-            }
 
-            if(num_chr_invoked < q_chr_count) {
-                if (intervals_invoked < chr_intervals) {
-                    seed_interval& inter = get<1>(op);
-                    seed_interval curr_inter = interval_list[total_intervals + intervals_invoked++];
-                    inter.start = curr_inter.start;
-                    inter.end = curr_inter.end;
-                    inter.num_invoked = intervals_invoked;
-                    inter.num_intervals = chr_intervals;
-                    inter.buffer = buffer;
-                    reader_output& chrom = get<0>(op);
-                    chrom.query_chr = q_chr;
-                    chrom.ref_chr = description;
-                    chrom.q_seq = chrom_seq;
-                    chrom.q_rc_seq = chrom_rc_seq;
-                    if(intervals_invoked == chr_intervals) {
-                        invoke_chr = true;
-                        num_chr_invoked++;
+                if(num_chr_invoked < q_chr_count) {
+                    if (intervals_invoked < chr_intervals) {
+                        seed_interval& inter = get<1>(op);
+                        seed_interval curr_inter = interval_list[total_intervals + intervals_invoked++];
+                        inter.start = curr_inter.start;
+                        inter.end = curr_inter.end;
+                        inter.num_invoked = intervals_invoked;
+                        inter.num_intervals = chr_intervals;
+                        inter.buffer = buffer;
+                        reader_output& chrom = get<0>(op);
+                        chrom.query_chr = q_chr;
+                        chrom.ref_chr = description;
+                        chrom.q_seq = chrom_seq;
+                        chrom.q_rc_seq = chrom_rc_seq;
+                        if(intervals_invoked == chr_intervals) {
+                            invoke_chr = true;
+                            num_chr_invoked++;
+                        }
+                        return true;
                     }
-                    return true;
                 }
-            }
-            else{
-                return false;
-            }
-            }
+                else{
+                    return false;
+                }
+                }
 
             }, true);
 
@@ -528,11 +520,11 @@ int main(int argc, char** argv){
         
         align_graph.wait_for_all();
 
-    	if(cfg.debug){
-        	gettimeofday(&end_time, NULL);
-        	seconds = end_time.tv_sec - start_time.tv_sec;
-        	fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
-	}
+        if(cfg.debug){
+            gettimeofday(&end_time, NULL);
+            seconds = end_time.tv_sec - start_time.tv_sec;
+            fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
+        }
         delete[] rev_read_char;
     }
 
