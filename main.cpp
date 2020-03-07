@@ -447,6 +447,8 @@ int main(int argc, char** argv){
 
                 sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
 
+                if(r_chr_sent > 0)
+                    g_clearRef();
                 g_SendRefWriteRequest (send_r_start, send_r_len);
 
                 r_chr_sent++;
@@ -509,6 +511,7 @@ int main(int argc, char** argv){
                     send_buffer = q_chr_sent%2;
 
                     fprintf(stderr, "\nSending query %s ...\n", send_q_chr.c_str());
+                    g_clearQuery(send_buffer);
 
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
                     send_chr = false;

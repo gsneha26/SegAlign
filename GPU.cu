@@ -936,6 +936,29 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     }
 }
 
+void clearRef(){
+
+    for(int g = 0; g < NUM_DEVICES; g++){
+
+        cudaSetDevice(g);
+        cudaFree(d_ref_seq[g]);
+        cudaFree(d_index_table[g]);
+        cudaFree(d_pos_table[g]);
+
+    }
+}
+
+void clearQuery(uint32_t buffer){
+
+    for(int g = 0; g < NUM_DEVICES; g++){
+
+        cudaSetDevice(g);
+        cudaFree(d_query_seq[buffer*NUM_DEVICES+g]);
+        cudaFree(d_query_rc_seq[buffer*NUM_DEVICES+g]);
+
+    }
+}
+
 void ShutdownProcessor(){
 
     d_done_vec.clear();
@@ -952,3 +975,5 @@ SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;       
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
+clearRef_ptr g_clearRef = clearRef;//ShutdownProcessor;
+clearQuery_ptr g_clearQuery = clearQuery;//ShutdownProcessor;
