@@ -83,8 +83,8 @@ struct seeder_body{
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
-	static std::atomic<uint32_t> num_seeded_regions0;
-	static std::atomic<uint32_t> num_seeded_regions1;
+    static std::atomic<uint32_t> total_xdrop;
+	static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
 	printer_input operator()(seeder_input input);
 };
 

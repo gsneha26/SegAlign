@@ -40,8 +40,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 cmd = cmd+" --scoring=" + cfg.scoring_file + " --segments="+segment_filename+" > "+output_filename;
             cmd = cmd+" --segments="+segment_filename+" > "+output_filename;
             status = system(cmd.c_str());
-            cmd = "rm "+segment_filename;
-            status = system(cmd.c_str());
     }
 
     get<0>(op).try_put(token);

@@ -15,7 +15,7 @@ std::mutex mu;
 std::condition_variable cv;
 
 uint32_t ref_len;
-uint32_t query_length[2];
+uint32_t query_length[BUFFER_DEPTH];
 
 char** d_ref_seq;
 char** d_query_seq;
@@ -823,8 +823,8 @@ size_t InitializeProcessor (int* sub_mat){
         available_gpus.push_back(g);
     }
     
-    d_query_seq    = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
+    d_query_seq    = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
     d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
