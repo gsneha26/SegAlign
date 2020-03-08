@@ -16,6 +16,8 @@ int SeedPosTable::GetShapeSize() {
 }
 
 SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape, uint32_t step) {
+    fprintf(stderr, "Completed seed_pos creation\n");
+
     shape_size_ = shape.length(); 
     int kmer_size = 0;
     for (int i = 0; i < shape_size_; i++) {
@@ -48,6 +50,8 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_leng
         }
     }
 
+    fprintf(stderr, "Completed seed_pos creation\n");
+
     tbb::parallel_sort(pos_table_, pos_table_+num_index);
 
     tmp_pos_table_ = (uint32_t*) calloc(num_index, sizeof(uint32_t));
@@ -71,7 +75,10 @@ SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_leng
         index_table_[i] = num_index;
     }
 
+    fprintf(stderr, "Completed seed_pos creation %u %u\n", num_index, index_table_size_);
+
     g_SendSeedPosTable(index_table_, index_table_size_, tmp_pos_table_, num_index);
+    fprintf(stderr, "Completed seed_pos creation\n");
 }
 
 SeedPosTable::~SeedPosTable() {
