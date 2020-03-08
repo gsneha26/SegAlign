@@ -4,8 +4,8 @@
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
 std::atomic<uint64_t> seeder_body::num_hsps(0);
-std::atomic<uint32_t> seeder_body::num_seeded_regions0(0);
-std::atomic<uint32_t> seeder_body::num_seeded_regions1(0);
+std::atomic<uint32_t> seeder_body::total_xdrop(0);
+std::atomic<uint32_t> seeder_body::num_seeded_regions[BUFFER_DEPTH]={};
 
 printer_input seeder_body::operator()(seeder_input input) {
 
@@ -31,7 +31,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_intervals = data.num_intervals;
     uint32_t buffer = data.buffer;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u)\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos);
+    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with buffer %u\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, buffer);
 
     char* query = (char*) chrom.q_seq.data();
 
@@ -99,13 +99,10 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    if(buffer == 0){
-        seeder_body::num_seeded_regions0 += 1;
-    }
-    else{
-        seeder_body::num_seeded_regions1 += 1;
-    }
+    seeder_body::num_seeded_regions[buffer] += 1;
+    seeder_body::total_xdrop += 1;
 
+    fprintf (stderr, "Complete Chromosome %s interval %u/%u (%u:%u)\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos);
     return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr), token);
 }
 
