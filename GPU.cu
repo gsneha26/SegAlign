@@ -825,6 +825,9 @@ size_t InitializeProcessor (int* sub_mat){
     
     d_query_seq    = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
     d_query_rc_seq = (char**) malloc(2*NUM_DEVICES*sizeof(char*));
+    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
 
     return ret;
 }
@@ -832,7 +835,6 @@ size_t InitializeProcessor (int* sub_mat){
 void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     
     for(int g = 0; g < NUM_DEVICES; g++){
 
@@ -903,9 +905,6 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index){
     cudaError_t err;
 
-    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
@@ -944,7 +943,6 @@ void clearRef(){
         cudaFree(d_ref_seq[g]);
         cudaFree(d_index_table[g]);
         cudaFree(d_pos_table[g]);
-
     }
 }
 
@@ -973,7 +971,7 @@ InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
-SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;       
+SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
-clearRef_ptr g_clearRef = clearRef;//ShutdownProcessor;
-clearQuery_ptr g_clearQuery = clearQuery;//ShutdownProcessor;
+clearRef_ptr g_clearRef = clearRef;
+clearQuery_ptr g_clearQuery = clearQuery;
