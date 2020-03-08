@@ -407,7 +407,7 @@ int main(int argc, char** argv){
     std::string send_r_chr;
     uint32_t send_r_len;
     uint32_t send_r_start;
-    bool send_r_chr = true;
+    bool send_ref_chr = true;
     uint32_t r_chr_sent = 0;
 
     uint32_t prev_chr_intervals[2] = {0, 0};  
@@ -419,7 +419,7 @@ int main(int argc, char** argv){
     uint32_t send_q_len;
     uint32_t send_q_start;
     uint32_t send_buffer;
-    bool send_q_chr = false;
+    bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
     uint32_t prev_buffer;
@@ -440,7 +440,7 @@ int main(int argc, char** argv){
         [&](seeder_payload &op) -> bool {
 
         while(true){
-            if (send_r_chr) {
+            if (send_ref_chr) {
 
                 send_r_chr   = r_chr_id[r_chr_sent];
                 send_r_len   = r_chr_len[r_chr_sent];
@@ -463,7 +463,7 @@ int main(int argc, char** argv){
                 prev_buffer = 0;
 
                 q_chr_sent = 0;
-                send_q_chr = false;
+                send_query_chr = false;
                 invoke_q_chr = true; 
 
                 while(q_chr_sent < 2 && q_chr_sent < total_q_chr){
@@ -483,10 +483,10 @@ int main(int argc, char** argv){
                 prev_chr_intervals[1] = 0;
 
                 r_chr_sent++;
-                send_r_chr = false;
+                send_ref_chr = false;
 
             }
-            else if(send_q_chr && prev_buffer == (q_chr_sent%2)){
+            else if(send_query_chr && prev_buffer == (q_chr_sent%2)){
 
                 send_q_chr = q_chr_id[q_chr_sent];
                 send_q_len = q_chr_len[q_chr_sent];
@@ -499,7 +499,7 @@ int main(int argc, char** argv){
                 g_clearQuery(send_buffer);
                 g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer);
 
-                send_q_chr = false;
+                send_query_chr = false;
                 q_chr_sent++;
             }
             else{
@@ -514,9 +514,9 @@ int main(int argc, char** argv){
 
                 if(q_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
                     if(q_chr_sent < total_q_chr)
-                        send_q_chr = true;
+                        send_query_chr = true;
                     else if(r_chr_sent < total_r_chr && total_query_intervals == (seeder_body::num_seeded_regions0.load()+seeder_body::num_seeded_regions1.load())){
-                        send_r_chr = true; 
+                        send_ref_chr = true; 
                     }
                 }
             }
@@ -555,9 +555,7 @@ int main(int argc, char** argv){
                     chrom.q_rc_seq = q_rc_seq;
                     if(chr_intervals_invoked == chr_intervals_num) {
                         q_chr_invoked++;
-                        if(q_chr_invoked < total_q_chr) {
-                            invoke_q_chr = true;
-                        }
+                        invoke_q_chr = true;
                     }
                     return true;
                 }
