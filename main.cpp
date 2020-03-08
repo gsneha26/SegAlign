@@ -289,6 +289,7 @@ int main(int argc, char** argv){
     std::vector<uint32_t> chr_num_intervals;
     uint32_t q_chr_count = 0;
     uint32_t prev_num_intervals = 0;
+    uint32_t total_query_intervals = 0;
     
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
@@ -325,6 +326,8 @@ int main(int argc, char** argv){
 
         q_chr_count++;
     }
+
+    total_query_intervals= interval_list.size();
 
     g_DRAM->querySize = g_DRAM->bufferPosition;
     gzclose(f_rd);
@@ -446,13 +449,8 @@ int main(int argc, char** argv){
                 fprintf(stderr, "\nSending reference %s ...\n", send_r_chr.c_str());
                 if(r_chr_sent > 0)
                     g_clearRef();
-                fprintf(stderr, "\nSending reference %s ...\n", send_r_chr.c_str());
                 g_SendRefWriteRequest (send_r_start, send_r_len);
-                fprintf(stderr, "\nSending reference %s ...\n", send_r_chr.c_str());
                 sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
-
-                fprintf(stderr, "\nSending reference %s ...\n", send_r_chr.c_str());
-
 
                 seeder_body::num_seeded_regions0 = 0;
                 seeder_body::num_seeded_regions1 = 0;
@@ -515,8 +513,7 @@ int main(int argc, char** argv){
                 if(num_chr_invoked > 0 && curr_intervals_done == prev_chr_intervals[prev_buffer]){
                     if(q_chr_sent < q_chr_count)
                         send_chr = true;
-                    else if(r_chr_sent < r_chr_count){
-                        fprintf(stderr, "%d\n", prev_buffer);
+                    else if(r_chr_sent < r_chr_count && total_query_intervals == (seeder_body::num_seeded_regions0.load()+seeder_body::num_seeded_regions1.load())){
                         invoke_ref_chr = true; 
                     }
                 }
