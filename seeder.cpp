@@ -102,7 +102,6 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    fprintf (stderr, "Complete Chromosome %s interval %u/%u (%u:%u)\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos);
     return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr), token);
 }
 
