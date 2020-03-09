@@ -19,4 +19,4 @@
 #define BLOCK_SIZE 128 
 #define NUM_WARPS 4
 #define TILE_SIZE 32
-#define BUFFER_DEPTH 4
+#define BUFFER_DEPTH 2
