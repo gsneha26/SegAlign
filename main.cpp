@@ -104,6 +104,7 @@ int main(int argc, char** argv){
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
+        ("max-hits", po::value<uint32_t>(&cfg.max_hits)->default_value(100000000), "max hits")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -134,7 +135,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
+        fprintf(stderr, "Usage: run_wga_gpu target query data_folder \"[options]\"\n"); 
         std::cout << desc << std::endl;
         return false;
     }
@@ -268,7 +269,7 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    g_InitializeProcessor (cfg.sub_mat);
+    g_InitializeProcessor (cfg.sub_mat, cfg.max_hits);
 
     g_DRAM = new DRAM;
     

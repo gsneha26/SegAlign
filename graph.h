@@ -39,6 +39,7 @@ struct Configuration {
     bool transition;
     bool debug;
     uint32_t step;
+    uint32_t max_hits;
     
     //Filter parameters
     int xdrop; 

@@ -36,6 +36,15 @@ std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done_array;
 uint32_t** d_hit_num_array;
 
+// wrap of cudaMalloc error checking in one place.  
+static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
+    cudaError_t err = cudaMalloc(buf, bytes);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMalloc of %lu bytes failed%s\n", bytes, tag);
+        exit(1);
+    }
+}
+	 
 __global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
     int thread_id = threadIdx.x;
@@ -503,7 +512,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-size_t InitializeProcessor (int* sub_mat){
+size_t InitializeProcessor (int* sub_mat, uint32_t max_hits){
 
     size_t ret = 0;
     cudaError_t err;
@@ -531,35 +540,16 @@ size_t InitializeProcessor (int* sub_mat){
 
         cudaSetDevice(g);
 
-        d_done_vec.emplace_back(MAX_HITS, 0);
+        d_done_vec.emplace_back(max_hits, 0);
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
 
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
-        err = cudaMalloc(&d_seed_offsets[g], 13*WGA_CHUNK*sizeof(uint64_t)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed1!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_hsp[g], MAX_HITS*sizeof(hsp));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed2!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_hsp_reduced[g], MAX_HITS*sizeof(hsp));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed3!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_sub_mat[g], NUC2*sizeof(int)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed4!\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_seed_offsets[g], 13*WGA_CHUNK*sizeof(uint64_t), "1!");
+        check_cuda_malloc((void**)&d_hsp[g], max_hits*sizeof(hsp), "2!");
+        check_cuda_malloc((void**)&d_hsp_reduced[g], max_hits*sizeof(hsp), "3!");
+        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "4!"); 
 
         err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -587,11 +577,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
         cudaSetDevice(g);
         char* d_ref_seq_tmp;
-        err = cudaMalloc(&d_ref_seq_tmp, len*sizeof(char)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed6!\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "6!"); 
 
         err = cudaMemcpy(d_ref_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -599,11 +585,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
             exit(1);
         }
 
-        err = cudaMalloc(&d_ref_seq[g], len*sizeof(char)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed8!\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "8!"); 
 
         compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
 
@@ -619,11 +601,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
         cudaSetDevice(g);
         char* d_query_seq_tmp;
-        err = cudaMalloc(&d_query_seq_tmp, len*sizeof(char)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed9!\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "9!"); 
 
         err = cudaMemcpy(d_query_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -631,17 +609,8 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
             exit(1);
         }
 
-        err = cudaMalloc(&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed10!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed11!\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "10!"); 
+        check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "11!"); 
 
         compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
@@ -656,11 +625,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
         cudaSetDevice(g);
 
-        err = cudaMalloc(&d_index_table[g], index_table_size*sizeof(uint32_t)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!s1\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "!s1"); 
 
         err = cudaMemcpy(d_index_table[g], index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -668,11 +633,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
             exit(1);
         }
 
-        err = cudaMalloc(&d_pos_table[g], num_index*sizeof(uint32_t)); 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed!s2\n");
-            exit(1);
-        }
+        check_cuda_malloc((void**)&d_pos_table[g], num_index*sizeof(uint32_t), "!s2"); 
 
         err = cudaMemcpy(d_pos_table[g], pos_table, num_index*sizeof(uint32_t), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
