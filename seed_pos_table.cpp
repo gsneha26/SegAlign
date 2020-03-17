@@ -15,7 +15,7 @@ int SeedPosTable::GetShapeSize() {
     return shape_size_;
 }
 
-SeedPosTable::SeedPosTable(char* ref_str, uint32_t start_addr, uint32_t ref_length, std::string shape, uint32_t step) {
+SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length, std::string shape, uint32_t step) {
 
     shape_size_ = shape.length(); 
     int kmer_size = 0;
