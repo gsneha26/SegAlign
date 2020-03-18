@@ -32,14 +32,17 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     fclose(segmentFile);
 
     std::string cmd;
-    int status;
+    int status = -1;
 
     if(cfg.gapped){
             cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
             if(cfg.scoring_file != "")
-                cmd = cmd+" --scoring=" + cfg.scoring_file + " --segments="+segment_filename+" > "+output_filename;
+                cmd = cmd+" --scoring=" + cfg.scoring_file;
             cmd = cmd+" --segments="+segment_filename+" > "+output_filename;
-            status = system(cmd.c_str());
+	    while(status < 0){
+            	status = system(cmd.c_str());
+	    	printf("tmp%d %d\n", index, status);
+	    }
     }
 
     get<0>(op).try_put(token);
