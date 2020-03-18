@@ -408,7 +408,7 @@ int main(int argc, char** argv){
 
     std::string send_r_chr;
     uint32_t send_r_len;
-    uint32_t send_r_start;
+    size_t send_r_start;
     bool send_ref_chr = true;
     uint32_t r_chr_sent = 0;
 
@@ -419,7 +419,7 @@ int main(int argc, char** argv){
 
     std::string send_q_chr;
     uint32_t send_q_len;
-    uint32_t send_q_start;
+    size_t send_q_start;
     uint32_t send_buffer_id;
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
