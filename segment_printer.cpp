@@ -1,10 +1,9 @@
 #include "graph.h"
 
 std::mutex io_lock;
-int batch = 0;
-int batch_old = 0;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
+
     auto &payload = get<0>(input); 
     size_t token = get<1>(input);
 
@@ -14,8 +13,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &query_chr = get<3>(payload);
     auto &ref_chr = get<4>(payload);
 
-    std::string segment_filename       = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".segments";
-    std::string output_filename   = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+"."+cfg.output_format;
+    std::string segment_filename = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".segments";
+    std::string output_filename  = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+"."+cfg.output_format;
 
     FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
@@ -32,17 +31,24 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     fclose(segmentFile);
 
     std::string cmd;
-    int status = -1;
 
     if(cfg.gapped){
-            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
+
+            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --action:query="+std::to_string(start_pos)+","+std::to_string(end_pos);
             if(cfg.scoring_file != "")
                 cmd = cmd+" --scoring=" + cfg.scoring_file;
-            cmd = cmd+" --segments="+segment_filename+" > "+output_filename;
-	    while(status < 0){
-            	status = system(cmd.c_str());
-	    	printf("tmp%d %d\n", index, status);
-	    }
+            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+            
+	    io_lock.lock();
+	    printf("%s\n", cmd.c_str());
+	    io_lock.unlock();
+
+//	    int status = -1;
+
+//	    while(status < 0){
+//	            status = system(cmd.c_str());
+//	    }
+	    
     }
 
     get<0>(op).try_put(token);
