@@ -73,6 +73,10 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
     }
 
     g_SendSeedPosTable(index_table_, index_table_size_, tmp_pos_table_, num_index);
+
+    free(index_table_);
+    free(pos_table_);
+    free(tmp_pos_table_);
 }
 
 SeedPosTable::~SeedPosTable() {
