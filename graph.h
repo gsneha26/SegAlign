@@ -7,6 +7,11 @@
 #include <atomic>
 #include <vector>
 #include <string>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <bond/core/blob.h>
 #include <bond/core/reflection.h>
 #include "seed_pos_table.h"
@@ -60,6 +65,7 @@ struct reader_output {
 	std::string query_chr;
 	bond::blob q_seq;
 	bond::blob q_rc_seq;
+	uint32_t q_len;
 };
 
 struct seed_interval {
@@ -83,8 +89,8 @@ struct seeder_body{
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
-    static std::atomic<uint32_t> total_xdrop;
-	static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
+    	static std::atomic<uint32_t> total_xdrop;
+    	static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
 	printer_input operator()(seeder_input input);
 };
 

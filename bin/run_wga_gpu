@@ -44,16 +44,20 @@ else
 	parallel --jobs=$queryChr < cmd.sh
 	rm cmd.sh *.fa
 	
+  time {
+  pids=""
   cd $FOLDER1
   if [ $# -eq 3 ]
   then
-      wga $refPath $queryPath $FOLDER $3 
+      while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $3 )
   else
-      wga $refPath $queryPath $FOLDER  
+      while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER )
   fi
+  wait $pids
+  }
 
   rm *.segments
   rm -rf $FOLDER
-  cat *
+  cat tmp*
   rm -rf $FOLDER1
 fi
