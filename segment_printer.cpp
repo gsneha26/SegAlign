@@ -13,8 +13,12 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &query_chr = get<3>(payload);
     auto &ref_chr = get<4>(payload);
 
-    std::string segment_filename = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".segments";
-    std::string output_filename  = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+"."+cfg.output_format;
+    std::string segment_filename;
+    std::string output_filename;
+    std::string cmd;
+
+    segment_filename = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+".segments";
+    output_filename  = "tmp"+std::to_string(index)+"."+ref_chr+"."+query_chr+"."+cfg.output_format;
 
     FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
@@ -30,11 +34,9 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     fclose(segmentFile);
 
-    std::string cmd;
-
     if(cfg.gapped){
 
-            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --action:query="+std::to_string(start_pos)+","+std::to_string(end_pos);
+            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
             if(cfg.scoring_file != "")
                 cmd = cmd+" --scoring=" + cfg.scoring_file;
             cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
@@ -42,13 +44,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 	    io_lock.lock();
 	    printf("%s\n", cmd.c_str());
 	    io_lock.unlock();
-
-//	    int status = -1;
-
-//	    while(status < 0){
-//	            status = system(cmd.c_str());
-//	    }
-	    
     }
 
     get<0>(op).try_put(token);
