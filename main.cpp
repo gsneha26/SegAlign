@@ -1,9 +1,5 @@
 
-#include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 #include <boost/program_options.hpp> 
 #include <boost/algorithm/string.hpp>
 #include <tbb/task_scheduler_init.h>
@@ -90,7 +86,7 @@ char* RevComp(bond::blob read) {
 
 int main(int argc, char** argv){
 
-    gettimeofday(&start_time_complete, NULL);
+//    gettimeofday(&start_time_complete, NULL);
 
     po::options_description desc{"Options"};
     desc.add_options()
@@ -543,6 +539,7 @@ int main(int argc, char** argv){
                     chrom.ref_chr = send_r_chr;
                     chrom.q_seq = q_seq;
                     chrom.q_rc_seq = q_rc_seq;
+		    chrom.q_len = q_len-cfg.seed_size;
                     if(chr_intervals_invoked == chr_intervals_num) {
                         q_chr_invoked++;
                         invoke_q_chr = true;
@@ -582,7 +579,7 @@ int main(int argc, char** argv){
 //    -------------------------------------------------------------------------- 
     g_ShutdownProcessor();
 
-    gettimeofday(&end_time_complete, NULL);
-    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
-    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
+//    gettimeofday(&end_time_complete, NULL);
+//    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
+//    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
 }
