@@ -30,25 +30,19 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     fclose(segmentFile);
 
-    std::string cmd;
-
     if(cfg.gapped){
 
-            cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --action:query="+std::to_string(start_pos)+","+std::to_string(end_pos);
-            if(cfg.scoring_file != "")
-                cmd = cmd+" --scoring=" + cfg.scoring_file;
-            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+        std::string cmd;
+
+        cmd = "lastz "+cfg.data_folder+"ref/"+ref_chr+".2bit "+cfg.data_folder+"query/"+query_chr+".2bit --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
+        if(cfg.scoring_file != "")
+            cmd = cmd+" --scoring=" + cfg.scoring_file;
+        cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
             
 	    io_lock.lock();
 	    printf("%s\n", cmd.c_str());
 	    io_lock.unlock();
 
-//	    int status = -1;
-
-//	    while(status < 0){
-//	            status = system(cmd.c_str());
-//	    }
-	    
     }
 
     get<0>(op).try_put(token);
