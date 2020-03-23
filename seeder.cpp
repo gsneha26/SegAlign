@@ -31,6 +31,8 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_intervals = data.num_intervals;
     uint32_t buffer = data.buffer;
     uint32_t q_len = chrom.q_len;
+    uint32_t q_index = chrom.q_index;
+    uint32_t r_index = chrom.r_index;
 
     fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with buffer %u\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, buffer);
 
@@ -111,5 +113,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr, r_index, q_index), token);
 }
