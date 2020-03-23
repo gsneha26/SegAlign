@@ -12,8 +12,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &rc_segments = get<2>(payload);
     auto &query_chr = get<3>(payload);
     auto &ref_chr = get<4>(payload);
-    auto &q_index = get<5>(payload);
-    auto &r_index = get<6>(payload);
+    auto &r_index = get<5>(payload);
+    auto &q_index = get<6>(payload);
 
     std::string segment_filename;
     std::string output_filename;
