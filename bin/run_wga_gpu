@@ -58,8 +58,8 @@ else
   wait $pids
   }
 
-#  rm *.segments
-#  rm -rf $FOLDER
-#  cat tmp*
-#  rm -rf $FOLDER1
+  rm *.segments
+  rm -rf $FOLDER
+  cat tmp*
+  rm -rf $FOLDER1
 fi
