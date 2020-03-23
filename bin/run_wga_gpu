@@ -14,8 +14,6 @@ then
 else
 	refPath=$(readlink -f $1)
 	queryPath=$(readlink -f $2)
-	ref=$(basename -s .fa $1)
-	query=$(basename -s .fa $2)
 	refChr=$(grep ">" $refPath | wc -l)
 	queryChr=$(grep ">" $queryPath | wc -l)
 	
