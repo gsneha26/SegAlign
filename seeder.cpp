@@ -67,11 +67,11 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             seeder_body::num_seeds += seed_offset_vector.size();
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
-	    if(anchors.size() > 1){
-		    fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
-		    seeder_body::num_hsps += anchors.size()-1;
-
-	    }
+            if(anchors.size() > 1){
+                fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
+                seeder_body::num_hsps += anchors.size()-1;
+            }
+            
         }
     }
 
@@ -103,10 +103,10 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             seeder_body::num_seeds += seed_offset_vector.size();
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
-	    if(anchors.size() > 1){
-		    rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
-		    seeder_body::num_hsps += anchors.size()-1;
-	    }
+            if(anchors.size() > 1){
+                rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
+                seeder_body::num_hsps += anchors.size()-1;
+            }
         }
     }
 

@@ -410,8 +410,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     cudaError_t err;
 
-    uint32_t num_hits;
-    uint32_t num_anchors;
+    uint32_t num_hits = 0;
+    uint32_t num_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
     assert(num_seeds <= 13*WGA_CHUNK);
@@ -465,17 +465,17 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     	    exit(1);
     	}
 
-	if(num_anchors > 0){
-    		fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
-    		
-    		h_hsp = (hsp*) calloc(num_anchors, sizeof(hsp));
+        if(num_anchors > 0){
+            fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
 
-    		err = cudaMemcpy(h_hsp, d_hsp_reduced[g], num_anchors*sizeof(hsp), cudaMemcpyDeviceToHost);
-    		if (err != cudaSuccess) {
-    		    fprintf(stderr, "Error: cudaMemcpy failed! hsp\n");
-    		    exit(1);
-    		}
-	}
+            h_hsp = (hsp*) calloc(num_anchors, sizeof(hsp));
+
+            err = cudaMemcpy(h_hsp, d_hsp_reduced[g], num_anchors*sizeof(hsp), cudaMemcpyDeviceToHost);
+            if (err != cudaSuccess) {
+                fprintf(stderr, "Error: cudaMemcpy failed! hsp\n");
+                exit(1);
+            }
+        }
     }
 
     {
