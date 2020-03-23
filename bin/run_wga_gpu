@@ -1,5 +1,13 @@
 #!/bin/bash
 
+optionalArguments=""
+
+args=("$@")
+for ((i=2; i < $#; i++))
+    {
+        optionalArguments="$optionalArguments ${args[$i]}"
+    }
+
 if [ $# -eq 1 ] || [ $# -eq 0 ] 
 then
 	wga $1
@@ -8,56 +16,52 @@ else
 	queryPath=$(readlink -f $2)
 	ref=$(basename -s .fa $1)
 	query=$(basename -s .fa $2)
+	refChr=$(grep ">" $refPath | wc -l)
+	queryChr=$(grep ">" $queryPath | wc -l)
 	
 	FOLDER1=$PWD/output_$RANDOM
-	FOLDER=$FOLDER1/data_${ref}_${query}_$RANDOM/
+	FOLDER=$FOLDER1/data_$RANDOM/
 	mkdir $FOLDER1
 	mkdir $FOLDER
 	
 	1>&2 echo "Splitting reference chromosome"
 	cd $FOLDER
 	mkdir "ref"
-	faSplit byname $refPath "ref"/
 	cd "ref"
+	faSplit sequence $refPath $refChr ref
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	refChr=$(wc -l cmd.sh | cut -d " " -f 1)
 	parallel --jobs=$refChr < cmd.sh
 	rm cmd.sh *.fa
 	
 	1>&2 echo "Splitting query chromosome"
 	cd $FOLDER
 	mkdir "query"
-	faSplit byname $queryPath "query"/
 	cd "query"
+	faSplit sequence $queryPath $queryChr query
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	queryChr=$(wc -l cmd.sh | cut -d " " -f 1)
 	parallel --jobs=$queryChr < cmd.sh
 	rm cmd.sh *.fa
 	
+  echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
   time {
   pids=""
   cd $FOLDER1
-  if [ $# -eq 3 ]
-  then
-      while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $3 )
-  else
-      while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER )
-  fi
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $optionalArguments )
   wait $pids
   }
 
-  rm *.segments
-  rm -rf $FOLDER
-  cat tmp*
-  rm -rf $FOLDER1
+#  rm *.segments
+#  rm -rf $FOLDER
+#  cat tmp*
+#  rm -rf $FOLDER1
 fi

@@ -24,11 +24,13 @@ SeedPosTable *sa;
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t> q_buffer;
 std::vector<uint32_t>  q_chr_len;
+std::vector<uint32_t>  q_chr_index;
 std::vector<size_t>  q_chr_coord;
 
 // ref 
 std::vector<std::string> r_chr_id;
 std::vector<uint32_t>  r_chr_len;
+std::vector<uint32_t>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,6 +102,7 @@ int main(int argc, char** argv){
         ("gappedthresh", po::value<int>(&cfg.gappedthresh), "threshold for gapped alignments")
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
+        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
@@ -295,6 +298,7 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
+        q_chr_index.push_back(total_q_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -357,6 +361,7 @@ int main(int argc, char** argv){
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
+        r_chr_index.push_back(total_r_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -420,6 +425,7 @@ int main(int argc, char** argv){
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
+    uint32_t r_index;
 
     std::string r_chr;
     std::string q_chr;
@@ -427,6 +433,7 @@ int main(int argc, char** argv){
     uint32_t q_start;
     uint32_t q_buffer_id;
     uint32_t q_chr_invoked;
+    uint32_t q_index;
 
     bond::blob q_seq;
     bond::blob q_rc_seq;
@@ -442,6 +449,7 @@ int main(int argc, char** argv){
                 send_r_chr   = r_chr_id[r_chr_sent];
                 send_r_len   = r_chr_len[r_chr_sent];
                 send_r_start = r_chr_coord[r_chr_sent];
+                r_index = r_chr_index[r_chr_sent];
 
                 fprintf(stderr, "\nSending reference %s ...\n", send_r_chr.c_str());
                 if(r_chr_sent > 0)
@@ -513,6 +521,7 @@ int main(int argc, char** argv){
                 q_len = q_chr_len[q_chr_invoked];
                 q_start = q_chr_coord[q_chr_invoked];
                 q_buffer_id = q_buffer[q_chr_invoked];
+                q_index = q_chr_index[q_chr_invoked];
                 completed_intervals += chr_intervals_num;
                 chr_intervals_num = chr_num_intervals[q_chr_invoked];
 
@@ -539,7 +548,9 @@ int main(int argc, char** argv){
                     chrom.ref_chr = send_r_chr;
                     chrom.q_seq = q_seq;
                     chrom.q_rc_seq = q_rc_seq;
-		    chrom.q_len = q_len-cfg.seed_size;
+                    chrom.q_len = q_len-cfg.seed_size;
+                    chrom.q_index = q_index;
+                    chrom.r_index = r_index;
                     if(chr_intervals_invoked == chr_intervals_num) {
                         q_chr_invoked++;
                         invoke_q_chr = true;
