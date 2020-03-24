@@ -41,6 +41,7 @@ struct Configuration {
     uint32_t step;
     
     //Filter parameters
+    uint32_t wga_chunk_size;
     int xdrop; 
     int hspthresh;
 

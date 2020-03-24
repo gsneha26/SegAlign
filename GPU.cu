@@ -10,6 +10,8 @@ std::mutex gpu_lock;
 int err;                            
 int check_status = 0;
 int NUM_DEVICES;
+int MAX_SEEDS;
+int MAX_HITS;
 std::vector<int> available_gpus;
 std::mutex mu;
 std::condition_variable cv;
@@ -414,7 +416,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     uint32_t num_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
-    assert(num_seeds <= 13*WGA_CHUNK);
+    assert(num_seeds <= MAX_SEEDS);
 
     uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
     for (uint32_t i = 0; i < num_seeds; i++) {
@@ -479,10 +481,10 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     }
 
     {
-    std::unique_lock<std::mutex> locker(mu);
-    available_gpus.push_back(g);
-    locker.unlock();
-    cv.notify_one();
+        std::unique_lock<std::mutex> locker(mu);
+        available_gpus.push_back(g);
+        locker.unlock();
+        cv.notify_one();
     }
 
     std::vector<hsp> gpu_filter_output;
@@ -495,7 +497,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     	for(int i = 0; i < num_anchors; i++){
     	    gpu_filter_output.push_back(h_hsp[i]);
     	}
-	free(h_hsp);
+        free(h_hsp);
     }
     
     free(tmp_offset);
@@ -503,11 +505,16 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-size_t InitializeProcessor (int* sub_mat){
+size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
 
     size_t ret = 0;
     cudaError_t err;
     int nDevices;
+
+    if(transition)
+        MAX_SEEDS = 13*WGA_CHUNK;
+    else
+        MAX_SEEDS = WGA_CHUNK;
 
     err = cudaGetDeviceCount(&nDevices);
     if (err != cudaSuccess) {
@@ -531,27 +538,12 @@ size_t InitializeProcessor (int* sub_mat){
 
         cudaSetDevice(g);
 
-        d_done_vec.emplace_back(MAX_HITS, 0);
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
-
-        d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
-        err = cudaMalloc(&d_seed_offsets[g], 13*WGA_CHUNK*sizeof(uint64_t)); 
+        err = cudaMalloc(&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t)); 
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMalloc failed1!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_hsp[g], MAX_HITS*sizeof(hsp));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed2!\n");
-            exit(1);
-        }
-
-        err = cudaMalloc(&d_hsp_reduced[g], MAX_HITS*sizeof(hsp));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMalloc failed3!\n");
             exit(1);
         }
 
@@ -649,12 +641,29 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
     }
 }
 
-void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index){
+void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index, uint32_t max_pos_index){
     cudaError_t err;
+
+    MAX_HITS = MAX_SEEDS * max_pos_index;
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
+
+        d_done_vec.clear();
+        d_done_vec.emplace_back(MAX_HITS, 0);
+        d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
+        err = cudaMalloc(&d_hsp[g], MAX_HITS*sizeof(hsp));
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaMalloc failed2!\n");
+            exit(1);
+        }
+
+        err = cudaMalloc(&d_hsp_reduced[g], MAX_HITS*sizeof(hsp));
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaMalloc failed3!\n");
+            exit(1);
+        }
 
         err = cudaMalloc(&d_index_table[g], index_table_size*sizeof(uint32_t)); 
         if (err != cudaSuccess) {
@@ -684,6 +693,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
 void clearRef(){
 
+    d_done_vec.clear();
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
