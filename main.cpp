@@ -34,7 +34,7 @@ std::vector<uint32_t>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
-char* RevComp(bond::blob read) {
+char* RevComp(std::string read) {
 
     size_t read_len = read.size();
 
@@ -436,8 +436,8 @@ int main(int argc, char** argv){
     uint32_t q_chr_invoked;
     uint32_t q_index;
 
-    bond::blob q_seq;
-    bond::blob q_rc_seq;
+    std::string q_seq;
+    std::string q_rc_seq;
     char *rev_read_char = RevComp(q_seq);
 
     gettimeofday(&start_time, NULL);
@@ -527,9 +527,9 @@ int main(int argc, char** argv){
                 chr_intervals_num = chr_num_intervals[q_chr_invoked];
 
                 fprintf(stderr, "\nStarting query %s with buffer %d ...\n", q_chr.c_str(), q_buffer_id);
-                q_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
+                q_seq = std::string(g_DRAM->buffer + q_start, q_len);
                 rev_read_char = RevComp(q_seq);
-                q_rc_seq = bond::blob(rev_read_char, q_len);
+                q_rc_seq = std::string(rev_read_char, q_len);
 
                 chr_intervals_invoked = 0;
                 invoke_q_chr = false;
