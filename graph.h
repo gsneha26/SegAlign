@@ -12,8 +12,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <bond/core/blob.h>
-#include <bond/core/reflection.h>
 #include "seed_pos_table.h"
 #include "parameters.h"
 
@@ -65,8 +63,8 @@ extern SeedPosTable *sa;
 struct reader_output {
 	std::string ref_chr;
 	std::string query_chr;
-	bond::blob q_seq;
-	bond::blob q_rc_seq;
+	std::string q_seq;
+	std::string q_rc_seq;
 	uint32_t q_len;
     uint32_t q_index;
     uint32_t r_index;
