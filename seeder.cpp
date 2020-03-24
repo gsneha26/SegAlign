@@ -38,10 +38,10 @@ printer_input seeder_body::operator()(seeder_input input) {
 
     char* query = (char*) chrom.q_seq.data();
 
-    for (uint32_t i = start_pos; i < end_pos; i += WGA_CHUNK) {
+    for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
         //end position
-        uint32_t e = std::min(i + WGA_CHUNK, end_pos);
+        uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();
 
@@ -76,10 +76,10 @@ printer_input seeder_body::operator()(seeder_input input) {
     }
 
     char* rc_query = (char*) chrom.q_rc_seq.data();
-    for (uint32_t i = q_len - end_pos; i < q_len - start_pos; i += WGA_CHUNK) {
-        uint32_t e = std::min(i + WGA_CHUNK, q_len - start_pos);
-//    for (uint32_t i = start_pos; i < end_pos; i += WGA_CHUNK) {
-//        uint32_t e = std::min(i + WGA_CHUNK, end_pos);
+    for (uint32_t i = q_len - end_pos; i < q_len - start_pos; i += cfg.wga_chunk_size) {
+        uint32_t e = std::min(i + cfg.wga_chunk_size, q_len - start_pos);
+//    for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
+//        uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
 
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();

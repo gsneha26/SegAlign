@@ -104,6 +104,7 @@ int main(int argc, char** argv){
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
+        ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -268,7 +269,7 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    g_InitializeProcessor (cfg.sub_mat);
+    g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size);
 
     g_DRAM = new DRAM;
     
