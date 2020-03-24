@@ -12,17 +12,6 @@ sudo apt-get install \
 	cmake \
 	parallel
 
-# bond library
-git clone --recursive https://github.com/microsoft/bond.git
-curl -sSL https://get.haskellstack.org/ | sh
-cd bond
-mkdir build
-cd build
-cmake -DBOND_ENABLE_GRPC=FALSE ..
-make -j
-sudo make install
-sudo rm -rf $CURR/bond
-
 # NVIDIA CUDA 
 cd $CURR
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
