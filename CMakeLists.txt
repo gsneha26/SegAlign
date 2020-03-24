@@ -1,14 +1,14 @@
 cmake_minimum_required (VERSION 3.8)
 
-set(CMAKE_CUDA_COMPILER /usr/local/cuda-10.2/bin/nvcc)
+set(CMAKE_CUDA_COMPILER nvcc)
 project(wga LANGUAGES C CXX CUDA)
 find_package(CUDA 8.0 REQUIRED)
 #find_package(Threads REQUIRED)
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c -lboost_program_options")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++11 -arch=sm_52")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -l c -lboost_program_options")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_52")
 
 include(${TBB_ROOT}/cmake/TBBBuild.cmake)
 tbb_build(TBB_ROOT ${TBB_ROOT} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
