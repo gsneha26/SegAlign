@@ -6,7 +6,6 @@ CURR=$PWD
 sudo apt update 
 sudo apt-get install \
 	build-essential \
-	clang \
 	zlib1g-dev \
 	libboost-all-dev \
 	cmake \
