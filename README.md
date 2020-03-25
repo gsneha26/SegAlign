@@ -2,13 +2,14 @@
 
 The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubuntu Server 18.04 LTS (HVM), SSD Volume Type (ami-0fc20dd1da406780b (64-bit x86))
 
-
 * Clone WGA_GPU repository (https://github.com/gsneha26/WGA_GPU)
 
 ```
     $ git clone https://github.com/gsneha26/WGA_GPU.git
     $ export PROJECT_DIR=$PWD/WGA_GPU
 ```
+
+*Alternative instructions for installing on a desktop with a Ubuntu 18.04 and a 4G GeForce GTX 1050 Ti can be found [here](INSTALL-DESKTOP.md)*
 
 * Install dependencies (this might take a while)
 

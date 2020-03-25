@@ -50,7 +50,7 @@ else
 	parallel --jobs=$queryChr < cmd.sh
 	rm cmd.sh *.fa
 	
-  echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
+  1>&2 echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
   time {
   pids=""
   cd $FOLDER1
