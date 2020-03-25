@@ -135,9 +135,9 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
+        fprintf(stderr, "Usage: run_wga_gpu target query data_folder \"[options]\"\n"); 
         std::cout << desc << std::endl;
-        return false;
+        return 1;
     }
 
     cfg.transition = !cfg.transition;
@@ -594,4 +594,5 @@ int main(int argc, char** argv){
 //    gettimeofday(&end_time_complete, NULL);
 //    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
 //    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
+    return 0;
 }

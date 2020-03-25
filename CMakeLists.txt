@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.8)
 
-set(CMAKE_CUDA_COMPILER /usr/local/cuda-10.2/bin/nvcc)
+set(CMAKE_CUDA_COMPILER nvcc)
 project(wga LANGUAGES C CXX CUDA)
 find_package(CUDA 8.0 REQUIRED)
 #find_package(Threads REQUIRED)
