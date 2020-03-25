@@ -30,22 +30,11 @@ set -x
 sudo apt update 
 sudo apt-get install \
 	build-essential \
-	clang \
 	zlib1g-dev \
 	libboost-all-dev \
 	cmake \
 	parallel
 
-# bond library
-git clone --recursive https://github.com/microsoft/bond.git
-curl -sSL https://get.haskellstack.org/ | sh
-cd bond
-mkdir build
-cd build
-cmake -DBOND_ENABLE_GRPC=FALSE ..
-make -j $(nproc)
-sudo make install
-sudo rm -rf $CURR/bond
 
 # NVIDIA CUDA
 if [ -z ${DONT_INSTALL_CUDA} ]; then
