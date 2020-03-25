@@ -68,6 +68,32 @@ Using the `-c` option skips CUDA installation, as it was already done above.  No
 ./install.sh -c
 ```
 
+Whe using CUDA 9 as installed manually above, I got the following error when building wga in the `install.sh` script:
+```
+/WGA_GPU/build$ make
+[ 11%] Building CXX object CMakeFiles/wga.dir/DRAM.cpp.o
+In file included from /home/hickey/dev/WGA_GPU/DRAM.cpp:5:0:
+/home/hickey/dev/WGA_GPU/tbb/include/tbb/tbb.h:21:154: note: #pragma message: TBB Warning: tbb.h contains deprecated functionality. For details, please see Deprecated Features appendix in the TBB reference manual.
+ .h contains deprecated functionality. For details, please see Deprecated Features appendix in the TBB reference manual.")
+                                                                                                                         ^
+[ 22%] Building CUDA object CMakeFiles/wga.dir/GPU.cu.o
+nvcc fatal   : redefinition of argument 'std'
+CMakeFiles/wga.dir/build.make:86: recipe for target 'CMakeFiles/wga.dir/GPU.cu.o' failed
+make[2]: *** [CMakeFiles/wga.dir/GPU.cu.o] Error 1
+CMakeFiles/Makefile2:67: recipe for target 'CMakeFiles/wga.dir/all' failed
+make[1]: *** [CMakeFiles/wga.dir/all] Error 2
+Makefile:83: recipe for target 'all' failed
+make: *** [all] Error 2
+
+```
+Removing the occurrences of `-std=c++11` from CMakeLists.txt resolved it:
+```
+sed -i 's/-std=c++11//g' CMakeLists.txt
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
+make -j $(nproc)
+```
+
 As a developer, I find it easier to work with the local `wga` binary and scripts:
 
 ```
