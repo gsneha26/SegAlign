@@ -1,6 +1,3 @@
-
-git clone https://github.com/gsneha26/WGA_GPU.git
-cd WGA_GPU
 CURR=$PWD
 
 sudo yum -y groupinstall 'Development Tools'
