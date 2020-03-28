@@ -15,7 +15,7 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 
 ```
     $ cd $PROJECT_DIR
-    $ ./install.sh
+    $ ./installUbuntu.sh
 ```
 
 * Run LASTZ_GPU

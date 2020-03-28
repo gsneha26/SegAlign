@@ -1,5 +1,11 @@
 #!/bin/bash
 
+#custom error code
+#4 - file not found
+#5 - no permissions to create directory
+
+set -e
+
 optionalArguments=""
 
 args=("$@")
@@ -14,17 +20,39 @@ then
 else
 	refPath=$(readlink -f $1)
 	queryPath=$(readlink -f $2)
+
+  if [ ! -f "$refPath" ]; then
+      echo "target file $refPath does not exist"
+      (exit 4)
+  fi
+
+  if [ ! -f "$queryPath" ]; then
+      echo "query file $queryPath does not exist"
+      (exit 4)
+  fi
+
 	refChr=$(grep ">" $refPath | wc -l)
 	queryChr=$(grep ">" $queryPath | wc -l)
 	
-	FOLDER1=$PWD/output_$RANDOM
+  if [ ! -w $PWD ]; then
+      echo "Cannot create output directory in $PWD because of permissions"
+      (exit 5)
+  fi
+
+  FOLDER1=$PWD/output_$RANDOM
+  mkdir -p $FOLDER1
+
+  if [ ! -w $FOLDER1 ]; then
+      echo "Cannot create data directory in $FOLDER1 because of permissions"
+      (exit 5)
+  fi
+
 	FOLDER=$FOLDER1/data_$RANDOM/
-	mkdir $FOLDER1
-	mkdir $FOLDER
+	mkdir -p $FOLDER
 	
 	1>&2 echo "Splitting reference chromosome"
 	cd $FOLDER
-	mkdir "ref"
+	mkdir -p "ref"
 	cd "ref"
 	faSplit sequence $refPath $refChr ref
 
@@ -33,12 +61,12 @@ else
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	parallel --jobs=$refChr < cmd.sh
+  parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
 	
 	1>&2 echo "Splitting query chromosome"
 	cd $FOLDER
-	mkdir "query"
+	mkdir -p "query"
 	cd "query"
 	faSplit sequence $queryPath $queryChr query
 
@@ -47,7 +75,7 @@ else
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	parallel --jobs=$queryChr < cmd.sh
+  parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
 	
   1>&2 echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
@@ -55,7 +83,7 @@ else
   pids=""
   cd $FOLDER1
   while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $optionalArguments )
-  wait $pids
+      wait $pids
   }
 
   rm *.segments
