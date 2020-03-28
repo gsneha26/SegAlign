@@ -41,11 +41,11 @@ target_compile_options(wga PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 
 if(ZLIB_FOUND)
     include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries (wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
+    target_link_libraries (wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
 endif()
 
 if(TARGET zlib::zlib)
-    target_link_libraries(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread zlib::zlib ${CUDA_LIBRARIES})
+    target_link_libraries(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
 endif()
 
-TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} pthread ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
