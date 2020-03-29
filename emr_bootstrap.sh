@@ -20,7 +20,7 @@ echo $CURR
 cd $CURR
 aws s3 cp s3://wga-gpu/cmake-3.8.0-Linux-x86_64.tar.gz .
 tar -xvf cmake-3.8.0-Linux-x86_64.tar.gz
-echo "PATH=\$CURR/cmake-3.8.0-Linux-x86_64/bin/:\$PATH" >> ~/.bashrc
+echo "PATH=$CURR/cmake-3.8.0-Linux-x86_64/bin/:\$PATH" >> ~/.bashrc
 sudo cp -r $CURR/cmake-3.8.0-Linux-x86_64/share/cmake-3.8 /usr/local/share/
 rm cmake-3.8.0-Linux-x86_64.tar.gz
 
