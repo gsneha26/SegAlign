@@ -1,39 +1,55 @@
-CURR=$PWD
+#!/bin/bash
+set -x
 
-sudo yum -y groupinstall 'Development Tools'
-sudo yum -y install boost-devel \
-       parallel
+cd $HOME
+sudo yum update -y
+sudo yum -y groupinstall "Development Tools"
+sudo yum -y install boost-devel
+sudo yum -y install parallel
+sudo yum -y install kernel-devel-4.14.154-99.181.amzn1.x86_64
+
+aws s3 cp s3://wga-gpu/WGA_GPU.tar.gz .
+tar -xvf WGA_GPU.tar.gz
+rm WGA_GPU.tar.gz
+cd WGA_GPU
+
+CURR=$PWD
+echo $CURR
 
 #CMake
-wget https://github.com/Kitware/CMake/releases/download/v3.8.0/cmake-3.8.0-Linux-x86_64.tar.gz
+cd $CURR
+aws s3 cp s3://wga-gpu/cmake-3.8.0-Linux-x86_64.tar.gz .
 tar -xvf cmake-3.8.0-Linux-x86_64.tar.gz
-sudo cp $CURR/cmake-3.8.0-Linux-x86_64/bin/* /usr/local/bin/
+echo "PATH=\$CURR/cmake-3.8.0-Linux-x86_64/bin/:\$PATH" >> ~/.bashrc
 sudo cp -r $CURR/cmake-3.8.0-Linux-x86_64/share/cmake-3.8 /usr/local/share/
+rm cmake-3.8.0-Linux-x86_64.tar.gz
 
 #NVIDIA driver and CUDA toolkit
 cd $CURR
-wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
-sudo ./cuda_10.2.89_440.33.01_linux.run --silent --driver --toolkit
-export PATH=/usr/local/cuda-10.2/bin/:$PATH
-rm cuda_10.2.89_440.33.01_linux.run
+aws s3 cp s3://wga-gpu/cuda_9.2.148_396.37_linux.run .
+chmod +x cuda_9.2.148_396.37_linux.run
+sudo ./cuda_9.2.148_396.37_linux.run --silent --driver --toolkit --no-opengl-libs --kernel-source-path='/usr/src/kernels/4.14.154-99.181.amzn1.x86_64'
+echo "PATH=/usr/local/cuda/bin/:\$PATH" >> ~/.bashrc
+rm cuda_9.2.148_396.37_linux.run
+source ~/.bashrc
 
 #LASTZ
 cd $CURR
-wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
-gunzip lastz-1.04.03.tar.gz
-tar -xvf lastz-1.04.03.tar
+aws s3 cp s3://wga-gpu/lastz-1.04.03.tar.gz .
+tar -xvf lastz-1.04.03.tar.gz
 cd $CURR/lastz-distrib-1.04.03/src
 make -j $(nproc)
 cp $CURR/lastz-distrib-1.04.03/src/lastz $CURR/bin/
 rm -rf $CURR/lastz-distrib-1.04.03 $CURR/lastz-1.04.03.tar
+rm $CURR/lastz-1.04.03.tar.gz
 
 # kentUtils
 cd $CURR/bin/
-wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faToTwoBit
+aws s3 cp s3://wga-gpu/faToTwoBit .
 chmod +x faToTwoBit
-wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faSplit
+aws s3 cp s3://wga-gpu/faSplit .
 chmod +x faSplit
-wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
+aws s3 cp s3://wga-gpu/twoBitToFa .
 chmod +x twoBitToFa
 
 cd $CURR
