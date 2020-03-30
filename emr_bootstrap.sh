@@ -60,3 +60,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j $(nproc)
 cp $CURR/build/wga $CURR/bin/
 sudo cp $CURR/bin/* /usr/local/bin/
+
+cd $CURR
+mkdir data
+aws s3 cp --recursive s3://wga-gpu/data data/
