@@ -42,7 +42,7 @@ uint32_t** d_hit_num_array;
 static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
     cudaError_t err = cudaMalloc(buf, bytes);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc of %lu bytes failed%s\n", bytes, tag);
+        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed\n", bytes, tag);
         exit(1);
     }
 }
@@ -461,6 +461,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
 
+
     if(num_hits > 0){
 
     	if(rev)
@@ -550,8 +551,8 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
-        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "1!");
-        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "4!"); 
+        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
+        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
 
         err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -579,7 +580,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
         cudaSetDevice(g);
         char* d_ref_seq_tmp;
-        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "6!"); 
+        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
 
         err = cudaMemcpy(d_ref_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -587,7 +588,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
             exit(1);
         }
 
-        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "8!"); 
+        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
 
         compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
 
@@ -603,7 +604,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
         cudaSetDevice(g);
         char* d_query_seq_tmp;
-        check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "9!"); 
+        check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
 
         err = cudaMemcpy(d_query_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -611,8 +612,8 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
             exit(1);
         }
 
-        check_cuda_malloc((void**)&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "10!"); 
-        check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "11!"); 
+        check_cuda_malloc((void**)&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_seq"); 
+        check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_rc_seq"); 
 
         compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
@@ -624,18 +625,18 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     cudaError_t err;
 
     MAX_HITS = MAX_SEEDS * max_pos_index;
+    d_done_vec.clear();
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
 
-        d_done_vec.clear();
         d_done_vec.emplace_back(MAX_HITS, 0);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
 
-        check_cuda_malloc((void**)&d_hsp[g], MAX_HITS*sizeof(hsp), "2!");
-        check_cuda_malloc((void**)&d_hsp_reduced[g], MAX_HITS*sizeof(hsp), "3!");
-        check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "!s1"); 
+        check_cuda_malloc((void**)&d_hsp[g], MAX_HITS*sizeof(hsp), "hsp");
+        check_cuda_malloc((void**)&d_hsp_reduced[g], MAX_HITS*sizeof(hsp), "hsp_reduced");
+        check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
 
         err = cudaMemcpy(d_index_table[g], index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -643,7 +644,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
             exit(1);
         }
 
-        check_cuda_malloc((void**)&d_pos_table[g], num_index*sizeof(uint32_t), "!s2"); 
+        check_cuda_malloc((void**)&d_pos_table[g], num_index*sizeof(uint32_t), "pos_table"); 
 
         err = cudaMemcpy(d_pos_table[g], pos_table, num_index*sizeof(uint32_t), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
@@ -662,6 +663,8 @@ void clearRef(){
         cudaFree(d_ref_seq[g]);
         cudaFree(d_index_table[g]);
         cudaFree(d_pos_table[g]);
+        cudaFree(d_hsp[g]);
+        cudaFree(d_hsp_reduced[g]);
     }
 }
 
