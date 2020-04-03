@@ -20,7 +20,7 @@ echo $CURR
 cd $CURR
 aws s3 cp s3://wga-gpu/cmake-3.8.0-Linux-x86_64.tar.gz .
 tar -xvf cmake-3.8.0-Linux-x86_64.tar.gz
-echo "PATH=$CURR/cmake-3.8.0-Linux-x86_64/bin/:\$PATH" >> ~/.bashrc
+echo "PATH=\"$CURR/cmake-3.8.0-Linux-x86_64/bin/:\$PATH\"" >> ~/.bashrc
 sudo cp -r $CURR/cmake-3.8.0-Linux-x86_64/share/cmake-3.8 /usr/local/share/
 rm cmake-3.8.0-Linux-x86_64.tar.gz
 
@@ -29,7 +29,7 @@ cd $CURR
 aws s3 cp s3://wga-gpu/cuda_9.2.148_396.37_linux.run .
 chmod +x cuda_9.2.148_396.37_linux.run
 sudo ./cuda_9.2.148_396.37_linux.run --silent --driver --toolkit --no-opengl-libs --kernel-source-path='/usr/src/kernels/4.14.154-99.181.amzn1.x86_64'
-echo "PATH=/usr/local/cuda/bin/:\$PATH" >> ~/.bashrc
+echo "PATH=\"/usr/local/cuda/bin/:\$PATH\"" >> ~/.bashrc
 rm cuda_9.2.148_396.37_linux.run
 source ~/.bashrc
 
