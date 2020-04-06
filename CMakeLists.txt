@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.8)
 set(CMAKE_CUDA_COMPILER nvcc)
 project(wga LANGUAGES C CXX CUDA)
 find_package(CUDA 9.0 REQUIRED)
+
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
@@ -49,3 +50,5 @@ if(TARGET zlib::zlib)
 endif()
 
 TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
+
+install(TARGETS wga DESTINATION /usr/local/bin)

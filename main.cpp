@@ -135,7 +135,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_wga_gpu target query data_folder \"[options]\"\n"); 
+        fprintf(stderr, "Usage: run_wga_gpu target query data_folder [options]\n"); 
         std::cout << desc << std::endl;
         return 1;
     }
@@ -456,7 +456,16 @@ int main(int argc, char** argv){
                 if(r_chr_sent > 0)
                     g_clearRef();
                 g_SendRefWriteRequest (send_r_start, send_r_len);
+
+                if(cfg.debug){
+                    gettimeofday(&start_time_complete, NULL);
+                }
                 sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+                if(cfg.debug){
+                    gettimeofday(&end_time_complete, NULL);
+                    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
+                    fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld sec \n", seconds);
+                }
 
                 for(int i = 0; i < BUFFER_DEPTH; i++){
                     seeder_body::num_seeded_regions[i] = 0;
