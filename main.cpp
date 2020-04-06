@@ -1,4 +1,3 @@
-
 #include <string.h>
 #include <boost/program_options.hpp> 
 #include <boost/algorithm/string.hpp>
@@ -7,7 +6,7 @@
 #include <iostream>
 #include "graph.h"
 #include "kseq.h"
-#include "DRAM.h"
+#include "store.h"
 
 namespace po = boost::program_options;
 
@@ -20,12 +19,15 @@ long useconds, seconds, mseconds;
 Configuration cfg;
 SeedPosTable *sa;
 
+DRAM *g_DRAM = nullptr;
+
 // query
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t> q_buffer;
 std::vector<uint32_t>  q_chr_len;
 std::vector<uint32_t>  q_chr_index;
 std::vector<size_t>  q_chr_coord;
+std::vector<size_t>  rc_q_chr_coord;
 
 // ref 
 std::vector<std::string> r_chr_id;
@@ -34,14 +36,12 @@ std::vector<uint32_t>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
-char* RevComp(std::string read) {
 
-    size_t read_len = read.size();
+char* RevComp(char* seq, uint32_t len) {
 
-    char* rc = (char*) malloc(read_len*sizeof(char));
+    char* rc = (char*) malloc(len*sizeof(char));
 
-    char* seq = (char*)read.data();
-    for (size_t r = 0, i = read_len; i-- > 0;) {
+    for (size_t r = 0, i = len; i-- > 0;) {
         if (seq[i] != 'a' && seq[i] != 'A' &&
                 seq[i] != 'c' && seq[i] != 'C' &&
                 seq[i] != 'g' && seq[i] != 'G' &&
@@ -85,7 +85,6 @@ char* RevComp(std::string read) {
 
     return rc;
 }
-
 int main(int argc, char** argv){
 
 //    gettimeofday(&start_time_complete, NULL);
@@ -308,6 +307,15 @@ int main(int argc, char** argv){
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
+        rc_q_chr_coord.push_back(g_DRAM->bufferPosition);
+        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+            exit(EXIT_FAILURE); 
+        }
+        char *query_rc = RevComp(kseq_rd->seq.s, seq_len);
+        
+        memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, query_rc, seq_len);
+        g_DRAM->bufferPosition += seq_len;
+
         uint32_t curr_pos = 0;
         uint32_t end_pos = seq_len - cfg.seed_size;
 
@@ -436,9 +444,9 @@ int main(int argc, char** argv){
     uint32_t q_chr_invoked;
     uint32_t q_index;
 
-    std::string q_seq;
-    std::string q_rc_seq;
-    char *rev_read_char = RevComp(q_seq);
+//    std::string q_seq;
+//    std::string q_rc_seq;
+//    char *rev_read_char = RevComp(q_seq);
 
     gettimeofday(&start_time, NULL);
     tbb::flow::source_node<seeder_payload> reader(align_graph,
@@ -536,9 +544,9 @@ int main(int argc, char** argv){
                 chr_intervals_num = chr_num_intervals[q_chr_invoked];
 
                 fprintf(stderr, "\nStarting query %s with buffer %d ...\n", q_chr.c_str(), q_buffer_id);
-                q_seq = std::string(g_DRAM->buffer + q_start, q_len);
-                rev_read_char = RevComp(q_seq);
-                q_rc_seq = std::string(rev_read_char, q_len);
+//                q_seq = std::string(g_DRAM->buffer + q_start, q_len);
+//                rev_read_char = RevComp(q_seq);
+//                q_rc_seq = std::string(rev_read_char, q_len);
 
                 chr_intervals_invoked = 0;
                 invoke_q_chr = false;
@@ -556,8 +564,10 @@ int main(int argc, char** argv){
                     reader_output& chrom = get<0>(op);
                     chrom.query_chr = q_chr;
                     chrom.ref_chr = send_r_chr;
-                    chrom.q_seq = q_seq;
-                    chrom.q_rc_seq = q_rc_seq;
+                    chrom.q_start = q_chr_coord[q_index];
+                    chrom.rc_q_start = rc_q_chr_coord[q_index];
+//                    chrom.q_seq = q_seq;
+//                    chrom.q_rc_seq = q_rc_seq;
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.q_index = q_index;
                     chrom.r_index = r_index;
@@ -584,8 +594,6 @@ int main(int argc, char** argv){
         seconds = end_time.tv_sec - start_time.tv_sec;
         fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
     }
-
-    delete[] rev_read_char;
 
     gzclose(f_rd);
     

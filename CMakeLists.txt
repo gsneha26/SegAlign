@@ -30,6 +30,8 @@ add_executable(wga
     segment_printer.cpp
     main.cpp
     )
+
+#install(TARGETS wga DESTINATION /usr/local/bin)
 set_property(TARGET wga PROPERTY CUDA_STANDARD 11)
 
 # We need to explicitly state that we need all CUDA files in the particle
@@ -50,5 +52,3 @@ if(TARGET zlib::zlib)
 endif()
 
 TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
-
-install(TARGETS wga DESTINATION /usr/local/bin)
