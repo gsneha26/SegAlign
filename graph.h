@@ -54,6 +54,9 @@ struct Configuration {
 
     // Output parameters
     std::string output_format;
+
+    char **q_sequence;
+    char **rc_q_sequence;
     std::string output_filename;
 };
 
@@ -63,8 +66,10 @@ extern SeedPosTable *sa;
 struct reader_output {
 	std::string ref_chr;
 	std::string query_chr;
-	std::string q_seq;
-	std::string q_rc_seq;
+//	std::string q_seq;
+//	std::string q_rc_seq;
+    size_t q_start;
+    size_t rc_q_start;
 	uint32_t q_len;
     uint32_t q_index;
     uint32_t r_index;

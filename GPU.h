@@ -1,5 +1,5 @@
-#include "DRAM.h"
 #include "parameters.h"
+#include "store.h"
 #include <condition_variable>
 #include <vector>
 
@@ -19,8 +19,6 @@ typedef void(*clearRef_ptr)();
 typedef void(*SendRefWriteRequest_ptr)(size_t addr, size_t len);
 typedef void(*SendQueryWriteRequest_ptr)(size_t addr, size_t len, uint32_t buffer);
 
-extern DRAM *g_DRAM;
-    
 extern InitializeProcessor_ptr g_InitializeProcessor;
 extern SendSeedPosTable_ptr g_SendSeedPosTable;
 extern SeedAndFilter_ptr g_SeedAndFilter;
