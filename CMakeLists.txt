@@ -3,6 +3,7 @@ cmake_minimum_required (VERSION 3.8)
 set(CMAKE_CUDA_COMPILER nvcc)
 project(wga LANGUAGES C CXX CUDA)
 find_package(CUDA 9.0 REQUIRED)
+
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
@@ -29,6 +30,8 @@ add_executable(wga
     segment_printer.cpp
     main.cpp
     )
+
+#install(TARGETS wga DESTINATION /usr/local/bin)
 set_property(TARGET wga PROPERTY CUDA_STANDARD 11)
 
 # We need to explicitly state that we need all CUDA files in the particle

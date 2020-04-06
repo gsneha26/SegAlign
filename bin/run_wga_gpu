@@ -7,11 +7,16 @@
 set -e
 
 optionalArguments=""
+ng=0
 
 args=("$@")
 for ((i=2; i < $#; i++))
     {
         optionalArguments="$optionalArguments ${args[$i]}"
+
+        if [[ "$optionalArguments" == *"--nogapped"* ]]; then
+            ng=1
+        fi
     }
 
 if [ $# -eq 1 ] || [ $# -eq 0 ] 
@@ -22,12 +27,12 @@ else
 	queryPath=$(readlink -f $2)
 
   if [ ! -f "$refPath" ]; then
-      echo "target file $refPath does not exist"
+      1>&2 echo "target file $refPath does not exist"
       (exit 4)
   fi
 
   if [ ! -f "$queryPath" ]; then
-      echo "query file $queryPath does not exist"
+      1>&2 echo "query file $queryPath does not exist"
       (exit 4)
   fi
 
@@ -35,23 +40,23 @@ else
 	queryChr=$(grep ">" $queryPath | wc -l)
 	
   if [ ! -w $PWD ]; then
-      echo "Cannot create output directory in $PWD because of permissions"
+      1>&2 echo "Cannot create output directory in $PWD because of permissions"
       (exit 5)
   fi
 
-  FOLDER1=$PWD/output_$RANDOM
-  mkdir -p $FOLDER1
+  OUTPUT_FOLDER=$PWD/output_$RANDOM
+  mkdir -p $OUTPUT_FOLDER
 
-  if [ ! -w $FOLDER1 ]; then
-      echo "Cannot create data directory in $FOLDER1 because of permissions"
+  if [ ! -w $OUTPUT_FOLDER ]; then
+      1>&2 echo "Cannot create data directory in $OUTPUT_FOLDER because of permissions"
       (exit 5)
   fi
 
-	FOLDER=$FOLDER1/data_$RANDOM/
-	mkdir -p $FOLDER
+	DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
+	mkdir -p $DATA_FOLDER
 	
 	1>&2 echo "Splitting reference chromosome"
-	cd $FOLDER
+	cd $DATA_FOLDER
 	mkdir -p "ref"
 	cd "ref"
 	faSplit sequence $refPath $refChr ref
@@ -65,7 +70,7 @@ else
 	rm cmd.sh *.fa
 	
 	1>&2 echo "Splitting query chromosome"
-	cd $FOLDER
+	cd $DATA_FOLDER
 	mkdir -p "query"
 	cd "query"
 	faSplit sequence $queryPath $queryChr query
@@ -78,16 +83,20 @@ else
   parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
 	
-  1>&2 echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
+  1>&2 echo "Executing: \"wga $refPath $queryPath $DATA_FOLDER $optionalArguments\""
   time {
   pids=""
-  cd $FOLDER1
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $optionalArguments )
+  cd $OUTPUT_FOLDER
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
       wait $pids
   }
 
-  rm *.segments
-  rm -rf $FOLDER
-  cat tmp*
-  rm -rf $FOLDER1
+  rm -rf $DATA_FOLDER
+  if [ $# -eq 1 ]; then
+      cat tmp*
+  else
+      rm *.segments
+      cat tmp*
+  fi
+  rm -rf $OUTPUT_FOLDER
 fi
