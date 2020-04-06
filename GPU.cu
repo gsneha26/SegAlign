@@ -672,7 +672,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index, uint32_t max_pos_index){
     cudaError_t err;
 
-    MAX_HITS = MAX_SEEDS * 100;
+    MAX_HITS = MAX_SEEDS * 50;
     MAX_HITS_SIZE = 2*MAX_HITS;
     d_done_vec.clear();
 
