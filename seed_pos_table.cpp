@@ -1,5 +1,6 @@
 #include "tbb/parallel_sort.h"
 #include "seed_pos_table.h"
+//#include "GPU.h"
 
 SeedPosTable::SeedPosTable() {
     ref_size_ = 0;

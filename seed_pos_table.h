@@ -21,4 +21,3 @@ class SeedPosTable {
         int GetShapeSize();
         int TouchKmerPos(std::string kmer); 
 };
-

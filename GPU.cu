@@ -547,6 +547,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     hsp first_el;
     first_el.len = total_anchors;
+    first_el.score = num_hits;
     gpu_filter_output.push_back(first_el);
 
     if(total_anchors > 0){
@@ -735,8 +736,6 @@ void ShutdownProcessor(){
 
     cudaDeviceReset();
 }
-
-DRAM *g_DRAM = nullptr;
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
