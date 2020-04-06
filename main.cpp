@@ -102,6 +102,7 @@ int main(int argc, char** argv){
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
+        ("output", po::value<std::string>(&cfg.output), "output filename")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
