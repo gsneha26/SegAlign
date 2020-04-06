@@ -25,14 +25,14 @@ DRAM *g_DRAM = nullptr;
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t> q_buffer;
 std::vector<uint32_t>  q_chr_len;
-std::vector<uint32_t>  q_chr_index;
+std::vector<std::string>  q_chr_index;
 std::vector<size_t>  q_chr_coord;
 std::vector<size_t>  rc_q_chr_coord;
 
 // ref 
 std::vector<std::string> r_chr_id;
 std::vector<uint32_t>  r_chr_len;
-std::vector<uint32_t>  r_chr_index;
+std::vector<std::string>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +298,7 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
-        q_chr_index.push_back(total_q_chr);
+//        q_chr_index.push_back(total_q_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -337,6 +337,12 @@ int main(int argc, char** argv){
         total_q_chr++;
     }
 
+    int q_digits = std::to_string(total_q_chr).length();
+
+    for(int i = 0; i < total_q_chr; i++){
+        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
+    }
+
     total_query_intervals= interval_list.size();
 
     g_DRAM->querySize = g_DRAM->bufferPosition;
@@ -370,7 +376,7 @@ int main(int argc, char** argv){
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
-        r_chr_index.push_back(total_r_chr);
+//        r_chr_index.push_back(total_r_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -380,6 +386,11 @@ int main(int argc, char** argv){
         g_DRAM->bufferPosition += seq_len;
 
         total_r_chr++;
+    }
+    int r_digits = std::to_string(total_r_chr).length();
+
+    for(int i = 0; i < total_r_chr; i++){
+        r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
     }
 
     gzclose(f_rd);
@@ -434,19 +445,18 @@ int main(int argc, char** argv){
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
-    uint32_t r_index;
+    std::string r_index;
 
     std::string r_chr;
     std::string q_chr;
     uint32_t q_len;
-    uint32_t q_start;
+    size_t q_start;
+    size_t rc_q_start;
     uint32_t q_buffer_id;
     uint32_t q_chr_invoked;
-    uint32_t q_index;
-
-//    std::string q_seq;
-//    std::string q_rc_seq;
-//    char *rev_read_char = RevComp(q_seq);
+    std::string q_index;
+    uint32_t q_num;
+    uint32_t r_num;
 
     gettimeofday(&start_time, NULL);
     tbb::flow::source_node<seeder_payload> reader(align_graph,
@@ -538,15 +548,13 @@ int main(int argc, char** argv){
                 q_chr = q_chr_id[q_chr_invoked];
                 q_len = q_chr_len[q_chr_invoked];
                 q_start = q_chr_coord[q_chr_invoked];
+                rc_q_start = rc_q_chr_coord[q_chr_invoked];
                 q_buffer_id = q_buffer[q_chr_invoked];
                 q_index = q_chr_index[q_chr_invoked];
                 completed_intervals += chr_intervals_num;
                 chr_intervals_num = chr_num_intervals[q_chr_invoked];
 
                 fprintf(stderr, "\nStarting query %s with buffer %d ...\n", q_chr.c_str(), q_buffer_id);
-//                q_seq = std::string(g_DRAM->buffer + q_start, q_len);
-//                rev_read_char = RevComp(q_seq);
-//                q_rc_seq = std::string(rev_read_char, q_len);
 
                 chr_intervals_invoked = 0;
                 invoke_q_chr = false;
@@ -564,10 +572,8 @@ int main(int argc, char** argv){
                     reader_output& chrom = get<0>(op);
                     chrom.query_chr = q_chr;
                     chrom.ref_chr = send_r_chr;
-                    chrom.q_start = q_chr_coord[q_index];
-                    chrom.rc_q_start = rc_q_chr_coord[q_index];
-//                    chrom.q_seq = q_seq;
-//                    chrom.q_rc_seq = q_rc_seq;
+                    chrom.q_start = q_start;//chr_coord[q_index];
+                    chrom.rc_q_start = rc_q_start;//chr_coord[q_index];
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.q_index = q_index;
                     chrom.r_index = r_index;
