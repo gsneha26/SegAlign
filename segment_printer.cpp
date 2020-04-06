@@ -19,8 +19,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string output_filename;
     std::string cmd;
 
-    segment_filename = "tmp"+std::to_string(index)+".ref"+std::to_string(r_index)+".query"+std::to_string(q_index)+".segments";
-    output_filename  = "tmp"+std::to_string(index)+".ref"+std::to_string(r_index)+".query"+std::to_string(q_index)+"."+cfg.output_format;
+    segment_filename = "tmp"+std::to_string(index)+"."+r_index+"."+q_index+".segments";
+    output_filename  = "tmp"+std::to_string(index)+"."+r_index+"."+q_index+"."+cfg.output_format;
 
     FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
@@ -40,7 +40,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         std::string cmd;
 
-        cmd = "lastz "+cfg.data_folder+"ref/ref"+std::to_string(r_index)+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/query"+std::to_string(q_index)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
+        cmd = "lastz "+cfg.data_folder+"ref/"+r_index+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+q_index+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
         if(cfg.notrivial)
             cmd = cmd+" --notrivial";
         if(cfg.scoring_file != "")
