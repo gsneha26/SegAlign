@@ -704,6 +704,10 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     }
 }
 
+void InclusivePrefixScan (uint32_t* data, uint32_t len) {
+    thrust::inclusive_scan(thrust::host, data, data + len, data); 
+}
+
 void clearRef(){
 
     d_done_vec.clear();
@@ -742,6 +746,7 @@ SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;
+InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
 clearRef_ptr g_clearRef = clearRef;
 clearQuery_ptr g_clearQuery = clearQuery;

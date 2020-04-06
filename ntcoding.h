@@ -1,6 +1,9 @@
 #include <iostream>
 #include "parameters.h"
 
+#define INVALID_KMER (1 << 31)
+#define GRAIN_SIZE (1 << 18)
+
 uint32_t NtChar2Int (char nt);
 uint32_t NtChar2IntCaseInsensitive (char nt);
 uint32_t TransitionNt (uint32_t nt);

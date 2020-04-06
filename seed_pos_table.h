@@ -9,7 +9,7 @@ class SeedPosTable {
         int kmer_size_;
         int shape_size_;
         uint32_t *index_table_;
-        uint64_t *pos_table_;
+        uint32_t *pos_table_;
         uint32_t *tmp_pos_table_;
 
     public:
