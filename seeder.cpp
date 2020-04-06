@@ -1,4 +1,5 @@
 #include "graph.h"
+#include "store.h"
 #include <atomic>
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
@@ -31,12 +32,12 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_intervals = data.num_intervals;
     uint32_t buffer = data.buffer;
     uint32_t q_len = chrom.q_len;
-    uint32_t q_index = chrom.q_index;
-    uint32_t r_index = chrom.r_index;
+    size_t q_start = chrom.q_start;
+    size_t rc_q_start = chrom.rc_q_start;
+    std::string q_index = chrom.q_index;
+    std::string r_index = chrom.r_index;
 
     fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with buffer %u\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, buffer);
-
-    char* query = (char*) chrom.q_seq.data();
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
@@ -47,7 +48,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
         //start to end position in the chunk
         for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(query, j, cfg.seed_size);
+            index = GetKmerIndexAtPos(g_DRAM->buffer, q_start+j, cfg.seed_size);
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
@@ -67,6 +68,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             seeder_body::num_seeds += seed_offset_vector.size();
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
+            seeder_body::num_seed_hits += anchors[0].score;
             if(anchors.size() > 1){
                 fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
                 seeder_body::num_hsps += anchors.size()-1;
@@ -75,16 +77,13 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    char* rc_query = (char*) chrom.q_rc_seq.data();
     for (uint32_t i = q_len - end_pos; i < q_len - start_pos; i += cfg.wga_chunk_size) {
         uint32_t e = std::min(i + cfg.wga_chunk_size, q_len - start_pos);
-//    for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
-//        uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
 
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();
         for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(rc_query, j, cfg.seed_size);
+            index = GetKmerIndexAtPos(g_DRAM->buffer, rc_q_start+j, cfg.seed_size);
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
@@ -103,6 +102,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         if(seed_offset_vector.size() > 0){
             seeder_body::num_seeds += seed_offset_vector.size();
             std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh); 
+            seeder_body::num_seed_hits += anchors[0].score;
             if(anchors.size() > 1){
                 rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
                 seeder_body::num_hsps += anchors.size()-1;

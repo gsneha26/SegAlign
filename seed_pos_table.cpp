@@ -1,5 +1,6 @@
 #include "tbb/parallel_sort.h"
 #include "seed_pos_table.h"
+//#include "GPU.h"
 
 SeedPosTable::SeedPosTable() {
     ref_size_ = 0;
@@ -31,60 +32,57 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
     ref_size_ = ref_length;
 
     GenerateShapePos(shape);
-
-    uint32_t pos_table_size = ref_size_ - kmer_size_;
-    assert(pos_table_size < ((uint64_t)1 << 32));
-
+    
     index_table_size_ = ((uint32_t)1 << 2*kmer_size) + 1;
     index_table_ = (uint32_t*) calloc(index_table_size_, sizeof(uint32_t));
-    pos_table_ = (uint64_t*) calloc(pos_table_size, sizeof(uint64_t));
 
-    uint32_t num_index = 0;
+    uint32_t num_steps = (ref_length + step - shape_size_ - 1) / step;
 
-    for (uint32_t i = 0; i < pos_table_size; i+=step) {
-        uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+i, shape_size_); 
+    uint32_t* tmp_index_arr = (uint32_t*) malloc(num_steps * sizeof(uint32_t));
+    uint32_t* tmp_off_arr = (uint32_t*) malloc(num_steps * sizeof(uint32_t));
 
-        // valid index
-        if (index != (1 << 31)) {
-            pos_table_[num_index++] = ((uint64_t)index << 32) + i;
-        }
-    }
+    tbb::parallel_for( tbb::blocked_range<uint32_t>(0, num_steps, GRAIN_SIZE),
+            [&](tbb::blocked_range<uint32_t> r)
+            {
+            for (uint32_t i=r.begin(); i<r.end(); ++i)
+            {
+            uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+(i*step), shape_size_); 
+            tmp_index_arr[i] = index;
 
-    tbb::parallel_sort(pos_table_, pos_table_+num_index);
-
-    tmp_pos_table_ = (uint32_t*) calloc(num_index, sizeof(uint32_t));
-    uint32_t curr_index = 0;
-    uint32_t seed, pos; 
-    uint32_t prev_i = 0;
-    uint32_t num_i = 0;
-
-    for (uint32_t i = 0; i < num_index; i++) {
-        pos  = ((pos_table_[i] << 32) >> 32);
-        seed = (pos_table_[i] >> 32);
-        pos_table_[i] = pos;
-        tmp_pos_table_[i] = pos;
-        if (seed > curr_index) {
-            for (uint32_t s = curr_index; s < seed; s++) {
-                index_table_[s] = i;
-                num_i = i - prev_i;
-                if(num_i > max_pos)
-                    max_pos = num_i;
-                
-                prev_i = i;
+            // valid index
+            if (index != INVALID_KMER) {
+                tmp_off_arr[i] = __sync_fetch_and_add( &index_table_[index+1], 1);
             }
-            curr_index = seed;
-        }
-    }
+            }
+            });
+
+    g_InclusivePrefixScan(index_table_, index_table_size_);
+
+    uint32_t num_index = index_table_[index_table_size_-1];
     
-    for (uint32_t i = curr_index; i < index_table_size_; i++) {
-        index_table_[i] = num_index;
-    }
+    pos_table_ = (uint32_t*) malloc(num_index * sizeof(uint32_t));
 
-    g_SendSeedPosTable(index_table_, index_table_size_, tmp_pos_table_, num_index, max_pos);
+    tbb::parallel_for( tbb::blocked_range<uint32_t>(0, num_steps, GRAIN_SIZE),
+            [&](tbb::blocked_range<uint32_t> r)
+            {
+            for (uint32_t i=r.begin(); i<r.end(); ++i)
+            {
+            uint32_t index = tmp_index_arr[i];
+            // valid index
+            if (index != INVALID_KMER) {
+                uint32_t curr_idx = index_table_[index] + tmp_off_arr[i]; 
+                pos_table_[curr_idx] = (i*step);
+            }       
 
+            }
+            });
+
+    g_SendSeedPosTable(index_table_+1, index_table_size_-1, pos_table_, num_index, max_pos);
+
+    free(tmp_index_arr);
+    free(tmp_off_arr);
     free(index_table_);
     free(pos_table_);
-    free(tmp_pos_table_);
 }
 
 SeedPosTable::~SeedPosTable() {
