@@ -1,11 +1,12 @@
 #include "ntcoding.h"
+#include "tbb/parallel_sort.h"
 
 int shape_pos[32];
 int shape_size;
 
 int transition_pos[32];
 
-uint32_t NtChar2Int (char nt) {
+inline uint32_t NtChar2Int (char nt) {
     switch(nt) {
         case 'A': return A_NT;
         case 'C': return C_NT;
@@ -16,7 +17,7 @@ uint32_t NtChar2Int (char nt) {
     }
 }
 
-uint32_t NtChar2IntCaseInsensitive (char nt) {
+inline uint32_t NtChar2IntCaseInsensitive (char nt) {
     switch(nt) {
         case 'a':
         case 'A': return A_NT;
@@ -59,25 +60,20 @@ void GenerateShapePos (std::string shape) {
 }
 
 uint32_t GetKmerIndexAtPos (char* sequence, size_t pos, uint32_t seed_size) {
-    uint32_t kmer = 0;
 
-    bool N_char = false;
-    uint32_t nt = 0;
+    uint32_t nt[64];
 
     for(int i = 0; i < seed_size; i++){
-        nt = NtChar2Int(sequence[pos+i]);
-        if (nt == N_NT) {
-            kmer = (1 << 31);
-            N_char = true;
-            break;
+        nt[i] = NtChar2Int(sequence[pos+i]);
+        if (nt[i] == N_NT) {
+            return INVALID_KMER;
         }
     }
 
-    if(!N_char){
-        for (int i = 0; i < shape_size; i++) {
-            nt = NtChar2Int(sequence[pos+shape_pos[i]]);
-            kmer = (kmer << 2) + nt;
-        }
+    uint32_t kmer = 0;
+
+    for (int i = 0; i < shape_size; i++) {
+        kmer = (kmer << 2) + nt[shape_pos[i]];
     }
 
     return kmer;

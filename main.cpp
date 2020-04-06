@@ -463,8 +463,10 @@ int main(int argc, char** argv){
                 sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
+                    useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
                     seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
-                    fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld sec \n", seconds);
+                    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
+                    fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld msec \n", mseconds);
                 }
 
                 for(int i = 0; i < BUFFER_DEPTH; i++){
