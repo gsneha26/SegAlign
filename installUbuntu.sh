@@ -76,4 +76,6 @@ git clone https://github.com/01org/tbb
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
-sudo make -j $(nproc) install
+make -j $(nproc)
+cp $CURR/build/wga $CURR/bin/		
+sudo cp $CURR/bin/* /usr/local/bin/
