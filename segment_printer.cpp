@@ -28,7 +28,9 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
-    fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+    if(cfg.gapped){
+        fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+    }
 
     for (auto e: fw_segments) {
         fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
