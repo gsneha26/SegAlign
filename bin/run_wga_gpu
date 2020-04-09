@@ -94,20 +94,22 @@ else
 
   rm -rf $DATA_FOLDER
 
-  err_lines=$(cat *.err | wc -l)
+  if [ $ng -eq 0 ]; then
+      err_lines=$(cat *.err | wc -l)
 
-  if [ $err_lines -gt 0 ]; then
-      1>&2 echo ""
-      1>&2 echo "Error in LASTZ process!"
-      1>&2 cat *.err
-      (exit 6)
+      if [ $err_lines -gt 0 ]; then
+          1>&2 echo ""
+          1>&2 echo "Error in LASTZ process!"
+          1>&2 cat *.err
+          (exit 6)
+      fi
   fi
 
-  if [ $# -eq 1 ]; then
-      cat tmp*
+  if [ $ng -eq 0 ]; then
+      rm *.segments *.err
   else
-      rm *.segments
-      cat tmp*
+      echo -e '#'name1'\t'start1'\t'end1'\t'name2'\t'start2'\t'end2'\t'strand2'\t'score
   fi
+  cat tmp*
   rm -rf $OUTPUT_FOLDER
 fi
