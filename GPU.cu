@@ -300,12 +300,18 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         right_xdrop_found[warp_id] = true;
-                        right_extent[warp_id] = (tile[warp_id]+1)*warp_size;//max_pos;
+                        right_extent[warp_id] = (tile[warp_id]+1)*warp_size;
+
+                        if(ref_pos >= query_pos && ref_pos >= ref_len)
+                            right_extent[warp_id] = ref_len -1 - ref_loc[warp_id];
+
+                        if(query_pos > ref_pos && query_pos >= query_len)
+                            right_extent[warp_id] = query_len - 1 - query_loc;
+
                     }
                     else if(ref_pos >= ref_len || query_pos >= query_len){
-                        total_score[warp_id]+=max_thread_score;
+                        total_score[warp_id] += max_thread_score;
                         right_edge[warp_id] = true;
-//                        right_extent[warp_id] = max_pos;
                     }
                     else{
                         prev_score[warp_id] = thread_score;
@@ -377,12 +383,17 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                     if(xdrop_done){
                         total_score[warp_id]+=max_thread_score;
                         left_xdrop_found[warp_id] = true;
-                        left_extent[warp_id] = (tile[warp_id]+1)*warp_size; //max_pos+1;
+                        left_extent[warp_id] = (tile[warp_id]+1)*warp_size;
+
+                        if(ref_loc[warp_id] <= query_loc && pos_offset > ref_loc[warp_id])
+                            left_extent[warp_id] = ref_loc[warp_id];
+
+                        else if(ref_loc[warp_id] > query_loc && pos_offset > query_loc)
+                            left_extent[warp_id] = query_loc;
                     }
                     else if(ref_loc[warp_id] < pos_offset && query_loc < pos_offset){
                         total_score[warp_id]+=max_thread_score;
                         left_edge[warp_id] = true;
-//                        left_extent[warp_id] = max_pos+1;
                     }
                     else{
                         prev_score[warp_id] = thread_score;
