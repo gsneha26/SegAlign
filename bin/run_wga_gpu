@@ -3,6 +3,7 @@
 #custom error code
 #4 - file not found
 #5 - no permissions to create directory
+#6 - error with LASTZ gapped extension
 
 set -e
 
@@ -92,6 +93,16 @@ else
   }
 
   rm -rf $DATA_FOLDER
+
+  err_lines=$(cat *.err | wc -l)
+
+  if [ $err_lines -gt 0 ]; then
+      1>&2 echo ""
+      1>&2 echo "Error in LASTZ process!"
+      1>&2 cat *.err
+      (exit 6)
+  fi
+
   if [ $# -eq 1 ]; then
       cat tmp*
   else
