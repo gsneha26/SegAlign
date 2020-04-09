@@ -716,7 +716,33 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 }
 
 void InclusivePrefixScan (uint32_t* data, uint32_t len) {
+    int g;
+    
+    {
+        std::unique_lock<std::mutex> locker(mu);
+        if (available_gpus.empty()) {
+            cv.wait(locker, [](){return !available_gpus.empty();});
+        }
+        g = available_gpus.back();
+        available_gpus.pop_back();
+        locker.unlock();
+
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed!\n");
+            exit(1);
+        }
+    }
+
+
     thrust::inclusive_scan(thrust::host, data, data + len, data); 
+
+    {
+        std::unique_lock<std::mutex> locker(mu);
+        available_gpus.push_back(g);
+        locker.unlock();
+        cv.notify_one();
+    }
 }
 
 void clearRef(){
