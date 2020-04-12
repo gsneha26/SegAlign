@@ -40,6 +40,7 @@ struct Configuration {
     
     //Filter parameters
     uint32_t wga_chunk_size;
+    uint32_t lastz_interval_size;
     int xdrop; 
     int hspthresh;
 

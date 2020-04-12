@@ -73,7 +73,6 @@ printer_input seeder_body::operator()(seeder_input input) {
                 fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
                 seeder_body::num_hsps += anchors.size()-1;
             }
-            
         }
     }
 

@@ -1,4 +1,7 @@
 #include "GPU.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <iostream>
 #include <thrust/scan.h>
 #include <thrust/find.h>
@@ -391,7 +394,7 @@ void find_anchors (int num_seeds, const char* __restrict__  d_ref_seq, const cha
                         else if(ref_loc[warp_id] > query_loc && pos_offset > query_loc)
                             left_extent[warp_id] = query_loc;
                     }
-                    else if(ref_loc[warp_id] < pos_offset && query_loc < pos_offset){
+                    else if(ref_loc[warp_id] < pos_offset || query_loc < pos_offset){
                         total_score[warp_id]+=max_thread_score;
                         left_edge[warp_id] = true;
                     }
@@ -543,6 +546,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
             }
         }
     }
+
 
     limit_value.clear();
     limit_pos.clear();
