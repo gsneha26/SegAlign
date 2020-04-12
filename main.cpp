@@ -105,6 +105,7 @@ int main(int argc, char** argv){
         ("output", po::value<std::string>(&cfg.output), "output filename")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
+        ("lastz_interval", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -322,14 +323,14 @@ int main(int argc, char** argv){
 
         while (curr_pos < end_pos) {
             uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + LASTZ_INTERVAL);
+            uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
             seed_interval inter;
             inter.start = start;
             inter.end = end;
             inter.num_invoked = 0;
             inter.num_intervals = 0;
             interval_list.push_back(inter);
-            curr_pos += LASTZ_INTERVAL;
+            curr_pos += cfg.lastz_interval_size;
         }
         
         chr_num_intervals.push_back(interval_list.size()-prev_num_intervals);
