@@ -89,7 +89,7 @@ else
   pids=""
   count=0
   cd $OUTPUT_FOLDER
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt 3 ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt ${nproc} ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
       wait $pids
   }
 
