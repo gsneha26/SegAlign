@@ -300,6 +300,7 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
+        q_chr_index.push_back(description);
 //        q_chr_index.push_back(total_q_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
@@ -339,11 +340,11 @@ int main(int argc, char** argv){
         total_q_chr++;
     }
 
-    int q_digits = std::to_string(total_q_chr).length();
-
-    for(int i = 0; i < total_q_chr; i++){
-        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
-    }
+//    int q_digits = std::to_string(total_q_chr).length();
+//
+//    for(int i = 0; i < total_q_chr; i++){
+//        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
+//    }
 
     total_query_intervals= interval_list.size();
 
@@ -378,6 +379,7 @@ int main(int argc, char** argv){
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
+        r_chr_index.push_back(description);
 //        r_chr_index.push_back(total_r_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
@@ -389,11 +391,11 @@ int main(int argc, char** argv){
 
         total_r_chr++;
     }
-    int r_digits = std::to_string(total_r_chr).length();
+    //int r_digits = std::to_string(total_r_chr).length();
 
-    for(int i = 0; i < total_r_chr; i++){
-        r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
-    }
+    //for(int i = 0; i < total_r_chr; i++){
+    //    r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
+    //}
 
     gzclose(f_rd);
 
