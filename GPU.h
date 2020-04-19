@@ -7,7 +7,7 @@ struct hsp {
     uint32_t ref_start;
     uint32_t query_start;
     uint32_t len;
-    uint32_t score;
+    int score;
 };
 
 typedef size_t(*InitializeProcessor_ptr)(int* sub_mat, bool transition, uint32_t WGA_CHUNK);
