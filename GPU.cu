@@ -242,10 +242,8 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     __shared__ int total_score[NUM_WARPS];
     __shared__ int prev_score[NUM_WARPS];
     __shared__ int prev_max_score[NUM_WARPS];
-    __shared__ bool right_edge[NUM_WARPS]; 
-    __shared__ bool left_edge[NUM_WARPS]; 
-    __shared__ bool right_xdrop_found[NUM_WARPS]; 
-    __shared__ bool left_xdrop_found[NUM_WARPS]; 
+    __shared__ bool edge_found[NUM_WARPS]; 
+    __shared__ bool xdrop_found[NUM_WARPS]; 
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ uint32_t right_extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
@@ -289,15 +287,15 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
 
         if(lane_id ==0){
             tile[warp_id] = 0;
-            right_xdrop_found[warp_id] = false;
-            right_edge[warp_id] = false;
+            xdrop_found[warp_id] = false;
+            edge_found[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
             right_extent[warp_id] = 0;
         }
         __syncwarp();
 
-        while(!right_xdrop_found[warp_id] && !right_edge[warp_id]){
+        while(!xdrop_found[warp_id] && !edge_found[warp_id]){
             pos_offset = lane_id + tile[warp_id]*warp_size;
             ref_pos   = ref_loc[warp_id] + pos_offset;
             query_pos = query_loc[warp_id] + pos_offset;
@@ -348,7 +346,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             if(lane_id == warp_size-1){
                 if(xdrop_done){
                     total_score[warp_id]+=max_thread_score;
-                    right_xdrop_found[warp_id] = true;
+                    xdrop_found[warp_id] = true;
                     right_extent[warp_id] = (tile[warp_id]+1)*warp_size;
 
                     if(ref_pos >= query_pos && ref_pos >= ref_len)
@@ -360,7 +358,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                 }
                 else if(ref_pos >= ref_len || query_pos >= query_len){
                     total_score[warp_id] += max_thread_score;
-                    right_edge[warp_id] = true;
+                    edge_found[warp_id] = true;
                 }
                 else{
                     prev_score[warp_id] = thread_score;
@@ -378,15 +376,15 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
 
         if(lane_id ==0){
             tile[warp_id] = 0;
-            left_xdrop_found[warp_id] = false;
-            left_edge[warp_id] = false;
+            xdrop_found[warp_id] = false;
+            edge_found[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = 0;
             left_extent[warp_id] = 0;
         }
         __syncwarp();
 
-        while(!left_xdrop_found[warp_id] && !left_edge[warp_id]){
+        while(!xdrop_found[warp_id] && !edge_found[warp_id]){
             pos_offset = lane_id+1+tile[warp_id]*warp_size;
             thread_score = 0;
 
@@ -436,7 +434,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             if(lane_id == warp_size-1){
                 if(xdrop_done){
                     total_score[warp_id]+=max_thread_score;
-                    left_xdrop_found[warp_id] = true;
+                    xdrop_found[warp_id] = true;
                     left_extent[warp_id] = (tile[warp_id]+1)*warp_size;
 
                     if(ref_loc[warp_id] <= query_loc[warp_id] && pos_offset > ref_loc[warp_id])
@@ -447,7 +445,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                 }
                 else if(ref_loc[warp_id] < pos_offset || query_loc[warp_id] < pos_offset){
                     total_score[warp_id]+=max_thread_score;
-                    left_edge[warp_id] = true;
+                    edge_found[warp_id] = true;
                 }
                 else{
                     prev_score[warp_id] = thread_score;
