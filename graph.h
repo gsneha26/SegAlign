@@ -35,6 +35,7 @@ struct Configuration {
     uint32_t seed_size;
     std::string seed_shape;
     bool transition;
+    bool noentropy;
     bool debug;
     uint32_t step;
     
