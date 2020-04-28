@@ -1,4 +1,3 @@
-
 #include <string.h>
 #include <boost/program_options.hpp> 
 #include <boost/algorithm/string.hpp>
@@ -7,7 +6,7 @@
 #include <iostream>
 #include "graph.h"
 #include "kseq.h"
-#include "DRAM.h"
+#include "store.h"
 
 namespace po = boost::program_options;
 
@@ -20,28 +19,29 @@ long useconds, seconds, mseconds;
 Configuration cfg;
 SeedPosTable *sa;
 
+DRAM *g_DRAM = nullptr;
+
 // query
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t> q_buffer;
 std::vector<uint32_t>  q_chr_len;
-std::vector<uint32_t>  q_chr_index;
+std::vector<std::string>  q_chr_index;
 std::vector<size_t>  q_chr_coord;
+std::vector<size_t>  rc_q_chr_coord;
 
 // ref 
 std::vector<std::string> r_chr_id;
 std::vector<uint32_t>  r_chr_len;
-std::vector<uint32_t>  r_chr_index;
+std::vector<std::string>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
-char* RevComp(bond::blob read) {
 
-    size_t read_len = read.size();
+char* RevComp(char* seq, uint32_t len) {
 
-    char* rc = (char*) malloc(read_len*sizeof(char));
+    char* rc = (char*) malloc(len*sizeof(char));
 
-    char* seq = (char*)read.data();
-    for (size_t r = 0, i = read_len; i-- > 0;) {
+    for (size_t r = 0, i = len; i-- > 0;) {
         if (seq[i] != 'a' && seq[i] != 'A' &&
                 seq[i] != 'c' && seq[i] != 'C' &&
                 seq[i] != 'g' && seq[i] != 'G' &&
@@ -85,7 +85,6 @@ char* RevComp(bond::blob read) {
 
     return rc;
 }
-
 int main(int argc, char** argv){
 
 //    gettimeofday(&start_time_complete, NULL);
@@ -103,8 +102,10 @@ int main(int argc, char** argv){
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
+        ("output", po::value<std::string>(&cfg.output), "output filename")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
+        ("lastz_interval", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -135,9 +136,9 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_wga_gpu target query \"[options]\"\n"); 
+        fprintf(stderr, "Usage: run_wga_gpu target query data_folder [options]\n"); 
         std::cout << desc << std::endl;
-        return false;
+        return 1;
     }
 
     cfg.transition = !cfg.transition;
@@ -299,7 +300,8 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
-        q_chr_index.push_back(total_q_chr);
+        q_chr_index.push_back(description);
+//        q_chr_index.push_back(total_q_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -308,19 +310,28 @@ int main(int argc, char** argv){
         memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
         g_DRAM->bufferPosition += seq_len;
 
+        rc_q_chr_coord.push_back(g_DRAM->bufferPosition);
+        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+            exit(EXIT_FAILURE); 
+        }
+        char *query_rc = RevComp(kseq_rd->seq.s, seq_len);
+        
+        memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, query_rc, seq_len);
+        g_DRAM->bufferPosition += seq_len;
+
         uint32_t curr_pos = 0;
         uint32_t end_pos = seq_len - cfg.seed_size;
 
         while (curr_pos < end_pos) {
             uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + LASTZ_INTERVAL);
+            uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
             seed_interval inter;
             inter.start = start;
             inter.end = end;
             inter.num_invoked = 0;
             inter.num_intervals = 0;
             interval_list.push_back(inter);
-            curr_pos += LASTZ_INTERVAL;
+            curr_pos += cfg.lastz_interval_size;
         }
         
         chr_num_intervals.push_back(interval_list.size()-prev_num_intervals);
@@ -328,6 +339,12 @@ int main(int argc, char** argv){
 
         total_q_chr++;
     }
+
+//    int q_digits = std::to_string(total_q_chr).length();
+//
+//    for(int i = 0; i < total_q_chr; i++){
+//        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
+//    }
 
     total_query_intervals= interval_list.size();
 
@@ -362,7 +379,8 @@ int main(int argc, char** argv){
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
-        r_chr_index.push_back(total_r_chr);
+        r_chr_index.push_back(description);
+//        r_chr_index.push_back(total_r_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -373,6 +391,11 @@ int main(int argc, char** argv){
 
         total_r_chr++;
     }
+    //int r_digits = std::to_string(total_r_chr).length();
+
+    //for(int i = 0; i < total_r_chr; i++){
+    //    r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
+    //}
 
     gzclose(f_rd);
 
@@ -426,19 +449,18 @@ int main(int argc, char** argv){
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
-    uint32_t r_index;
+    std::string r_index;
 
     std::string r_chr;
     std::string q_chr;
     uint32_t q_len;
-    uint32_t q_start;
+    size_t q_start;
+    size_t rc_q_start;
     uint32_t q_buffer_id;
     uint32_t q_chr_invoked;
-    uint32_t q_index;
-
-    bond::blob q_seq;
-    bond::blob q_rc_seq;
-    char *rev_read_char = RevComp(q_seq);
+    std::string q_index;
+    uint32_t q_num;
+    uint32_t r_num;
 
     gettimeofday(&start_time, NULL);
     tbb::flow::source_node<seeder_payload> reader(align_graph,
@@ -456,7 +478,18 @@ int main(int argc, char** argv){
                 if(r_chr_sent > 0)
                     g_clearRef();
                 g_SendRefWriteRequest (send_r_start, send_r_len);
+
+                if(cfg.debug){
+                    gettimeofday(&start_time_complete, NULL);
+                }
                 sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+                if(cfg.debug){
+                    gettimeofday(&end_time_complete, NULL);
+                    useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
+                    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
+                    mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
+                    fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld msec \n", mseconds);
+                }
 
                 for(int i = 0; i < BUFFER_DEPTH; i++){
                     seeder_body::num_seeded_regions[i] = 0;
@@ -521,15 +554,13 @@ int main(int argc, char** argv){
                 q_chr = q_chr_id[q_chr_invoked];
                 q_len = q_chr_len[q_chr_invoked];
                 q_start = q_chr_coord[q_chr_invoked];
+                rc_q_start = rc_q_chr_coord[q_chr_invoked];
                 q_buffer_id = q_buffer[q_chr_invoked];
                 q_index = q_chr_index[q_chr_invoked];
                 completed_intervals += chr_intervals_num;
                 chr_intervals_num = chr_num_intervals[q_chr_invoked];
 
                 fprintf(stderr, "\nStarting query %s with buffer %d ...\n", q_chr.c_str(), q_buffer_id);
-                q_seq = bond::blob(g_DRAM->buffer + q_start, q_len);
-                rev_read_char = RevComp(q_seq);
-                q_rc_seq = bond::blob(rev_read_char, q_len);
 
                 chr_intervals_invoked = 0;
                 invoke_q_chr = false;
@@ -547,8 +578,8 @@ int main(int argc, char** argv){
                     reader_output& chrom = get<0>(op);
                     chrom.query_chr = q_chr;
                     chrom.ref_chr = send_r_chr;
-                    chrom.q_seq = q_seq;
-                    chrom.q_rc_seq = q_rc_seq;
+                    chrom.q_start = q_start;//chr_coord[q_index];
+                    chrom.rc_q_start = rc_q_start;//chr_coord[q_index];
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.q_index = q_index;
                     chrom.r_index = r_index;
@@ -576,8 +607,6 @@ int main(int argc, char** argv){
         fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
     }
 
-    delete[] rev_read_char;
-
     gzclose(f_rd);
     
     if(cfg.debug){
@@ -594,4 +623,5 @@ int main(int argc, char** argv){
 //    gettimeofday(&end_time_complete, NULL);
 //    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
 //    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
+    return 0;
 }

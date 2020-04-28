@@ -1,11 +1,23 @@
 #!/bin/bash
 
+#custom error code
+#4 - file not found
+#5 - no permissions to create directory
+#6 - error with LASTZ gapped extension
+
+set -e
+
 optionalArguments=""
+ng=0
 
 args=("$@")
 for ((i=2; i < $#; i++))
     {
         optionalArguments="$optionalArguments ${args[$i]}"
+
+        if [[ "$optionalArguments" == *"--nogapped"* ]]; then
+            ng=1
+        fi
     }
 
 if [ $# -eq 1 ] || [ $# -eq 0 ] 
@@ -14,52 +26,91 @@ then
 else
 	refPath=$(readlink -f $1)
 	queryPath=$(readlink -f $2)
+
+  if [ ! -f "$refPath" ]; then
+      1>&2 echo "target file $refPath does not exist"
+      (exit 4)
+  fi
+
+  if [ ! -f "$queryPath" ]; then
+      1>&2 echo "query file $queryPath does not exist"
+      (exit 4)
+  fi
+
 	refChr=$(grep ">" $refPath | wc -l)
 	queryChr=$(grep ">" $queryPath | wc -l)
 	
-	FOLDER1=$PWD/output_$RANDOM
-	FOLDER=$FOLDER1/data_$RANDOM/
-	mkdir $FOLDER1
-	mkdir $FOLDER
+  if [ ! -w $PWD ]; then
+      1>&2 echo "Cannot create output directory in $PWD because of permissions"
+      (exit 5)
+  fi
+
+  OUTPUT_FOLDER=$PWD/output_$RANDOM
+  mkdir -p $OUTPUT_FOLDER
+
+  if [ ! -w $OUTPUT_FOLDER ]; then
+      1>&2 echo "Cannot create data directory in $OUTPUT_FOLDER because of permissions"
+      (exit 5)
+  fi
+
+	DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
+	mkdir -p $DATA_FOLDER
 	
 	1>&2 echo "Splitting reference chromosome"
-	cd $FOLDER
-	mkdir "ref"
+	cd $DATA_FOLDER
+	mkdir -p "ref"
+	faSplit byname $refPath ref/
 	cd "ref"
-	faSplit sequence $refPath $refChr ref
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	parallel --jobs=$refChr < cmd.sh
+  parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
 	
 	1>&2 echo "Splitting query chromosome"
-	cd $FOLDER
-	mkdir "query"
+	cd $DATA_FOLDER
+	mkdir -p "query"
+	faSplit byname $queryPath query/
 	cd "query"
-	faSplit sequence $queryPath $queryChr query
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
 	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
 	done
-	parallel --jobs=$queryChr < cmd.sh
+  parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
 	
-  echo "Executing: \"wga $refPath $queryPath $FOLDER $optionalArguments\""
+  1>&2 echo "Executing: \"wga $refPath $queryPath $DATA_FOLDER $optionalArguments\""
   time {
   pids=""
-  cd $FOLDER1
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; done < <(stdbuf -oL wga $refPath $queryPath $FOLDER $optionalArguments )
-  wait $pids
+  count=0
+  cd $OUTPUT_FOLDER
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt ${nproc} ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
+      wait $pids
   }
 
-  rm *.segments
-  rm -rf $FOLDER
+  rm -rf $DATA_FOLDER
+
+  if [ $ng -eq 0 ]; then
+      err_lines=$(cat *.err | wc -l)
+
+      if [ $err_lines -gt 0 ]; then
+          1>&2 echo ""
+          1>&2 echo "Error in LASTZ process!"
+          1>&2 cat *.err
+          (exit 6)
+      fi
+  fi
+
+  if [ $ng -eq 0 ]; then
+      rm *.segments *.err
+  else
+      echo -e '#'name1'\t'start1'\t'end1'\t'name2'\t'start2'\t'end2'\t'strand2'\t'score
+  fi
   cat tmp*
-  rm -rf $FOLDER1
+  rm -rf $OUTPUT_FOLDER
 fi
