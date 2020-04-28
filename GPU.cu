@@ -505,13 +505,12 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             }
             __syncwarp();
 
-            if(lane_id == warp_size-1){
+            if(lane_id == warp_size-1 && ((count[0]+count[1]+count[2]+count[3]) >= 20)){
                 entropy[warp_id] = 0.f;
                 for(int i = 0; i < 4; i++){
-                    entropy[warp_id] += ((float) count[i])/((float) extent[warp_id]) * ((count[i] != 0) ? log(((double) count[i]+1) / ((double) extent[warp_id])): 0.f); 
+                    entropy[warp_id] += ((float) count[i])/((float) extent[warp_id]) * ((count[i] != 0) ? log(((double) count[i]) / ((double) extent[warp_id])): 0.f); 
                 }
                 entropy[warp_id] = -entropy[warp_id]/log(4.0f);
-            
             }
         }
         __syncwarp();
