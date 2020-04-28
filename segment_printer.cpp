@@ -15,16 +15,22 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &r_index = get<5>(payload);
     auto &q_index = get<6>(payload);
 
+    std::string base_filename;
     std::string segment_filename;
     std::string output_filename;
+    std::string err_filename;
     std::string cmd;
 
-    segment_filename = "tmp"+std::to_string(index)+".ref"+std::to_string(r_index)+".query"+std::to_string(q_index)+".segments";
-    output_filename  = "tmp"+std::to_string(index)+".ref"+std::to_string(r_index)+".query"+std::to_string(q_index)+"."+cfg.output_format;
+    base_filename = "tmp"+std::to_string(index)+"."+r_index+"."+q_index;
+    segment_filename = base_filename+".segments";
+    err_filename = base_filename+".err";
+    output_filename  = base_filename+"."+cfg.output_format;
 
     FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
-    fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+    if(cfg.gapped){
+        fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
+    }
 
     for (auto e: fw_segments) {
         fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
@@ -40,7 +46,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         std::string cmd;
 
-        cmd = "lastz "+cfg.data_folder+"ref/ref"+std::to_string(r_index)+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/query"+std::to_string(q_index)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh);
+        cmd = "lastz "+cfg.data_folder+"ref/"+r_index+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+q_index+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
         if(cfg.notrivial)
             cmd = cmd+" --notrivial";
         if(cfg.scoring_file != "")
