@@ -228,7 +228,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 }
 
 __global__
-void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, int *d_sub_mat, int xdrop, int hspthresh, uint32_t* d_done, uint32_t ref_len, uint32_t query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp){
+void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, int *d_sub_mat, int xdrop, int hspthresh, uint32_t* d_done, uint32_t ref_len, uint32_t query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp, bool noentropy){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -500,7 +500,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
 
         //////////////////////////////////////////////////////////////////
 
-        if(total_score[warp_id] >= hspthresh && total_score[warp_id] <= 3*hspthresh){
+        if(total_score[warp_id] >= hspthresh && total_score[warp_id] <= 3*hspthresh && !noentropy){
             for(int i = 0; i < 4; i++){
 #pragma unroll
                 for (int offset = 1; offset < warp_size; offset = offset << 1){
@@ -545,7 +545,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy){
 
     cudaError_t err;
 
@@ -620,10 +620,10 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
             find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], iter_start_index, iter_start_val);
             if(rev){
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], noentropy);
             }
             else{
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g]);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], noentropy);
             }
 
             thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
