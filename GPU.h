@@ -6,7 +6,7 @@
 struct hsp {
     uint32_t ref_start;
     uint32_t query_start;
-    uint32_t len;
+    int len;
     int score;
 };
 
