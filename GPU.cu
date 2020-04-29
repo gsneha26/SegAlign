@@ -5,6 +5,7 @@
 #include <iostream>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include <thrust/sort.h>
 #include <thrust/find.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -48,8 +49,20 @@ std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done_array;
 uint32_t** d_hit_num_array;
 
-struct hspEqual
-{
+struct hspCompare{
+    __host__ __device__
+        bool operator()(hsp x, hsp y)
+    {
+        if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start) && (x.len <= y.len)) return true;
+        else if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start) && (x.len < y.len)) return true;
+        else if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start)) return true;
+        else if ((x.ref_start <= y.ref_start) && (x.query_start < y.query_start)) return true;
+        else if (x.ref_start <= y.ref_start)  return true;
+        else return false;
+    }
+};
+
+struct hspEqual{
     __host__ __device__
         bool operator()(hsp x, hsp y)
     {
@@ -213,7 +226,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     if(thread_id == 0){
         seed_offset = d_seed_offsets[block_id+start_seed_index];
         seed = (seed_offset >> 32);
-        query_loc = ((seed_offset << 32) >> 32) + seed_size;
+        query_loc = ((seed_offset << 32) >> 32) + seed_size - 1;
 
         // start and end from the seed block_id table
         end = d_index_table[seed];
@@ -228,7 +241,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
         if(id1+warp_id < end){ 
             if(lane_id == 0){ 
-                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size;
+                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size - 1;
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
 
                 d_hsp[dram_address].ref_start = ref_loc[warp_id];
@@ -370,6 +383,10 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                 }
             }
 
+            if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323))
+            //if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323) || (ref_loc[warp_id] == 324 && query_loc[warp_id] == 324))
+                printf("r %d %d %d %d %d\n", pos_offset, r_chr, q_chr, thread_score, max_thread_score);
+
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncwarp();
 
@@ -469,6 +486,10 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                     }
                 }
             }
+
+            if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323))
+            //if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323) || (ref_loc[warp_id] == 324 && query_loc[warp_id] == 324))
+                printf("l %d %d %d %d %d\n", pos_offset, r_chr, q_chr, thread_score, max_thread_score);
 
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncwarp();
@@ -651,7 +672,9 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
             if(num_anchors[i] > 0){
                 fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
-                thrust::device_vector<hsp>::iterator result_end= thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+
+                //thrust::sort(d_hsp_reduced_vec[g].begin(),  d_hsp_reduced_vec[g].begin()+num_anchors[i], hspCompare());
+                thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
                 h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
