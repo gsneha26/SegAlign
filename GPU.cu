@@ -53,9 +53,7 @@ struct hspCompare{
     __host__ __device__
         bool operator()(hsp x, hsp y)
     {
-        if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start) && (x.len <= y.len)) return true;
-        else if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start) && (x.len < y.len)) return true;
-        else if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start)) return true;
+        if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start)) return true;
         else if ((x.ref_start <= y.ref_start) && (x.query_start < y.query_start)) return true;
         else if (x.ref_start <= y.ref_start)  return true;
         else return false;
