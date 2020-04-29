@@ -4,11 +4,13 @@
 #include <sys/time.h>
 #include <iostream>
 #include <thrust/scan.h>
+#include <thrust/unique.h>
 #include <thrust/find.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/constant_iterator.h>
 
 std::mutex gpu_lock;
 
@@ -38,11 +40,22 @@ uint64_t** d_seed_offsets;
 
 hsp** d_hsp;
 hsp** d_hsp_reduced;
+std::vector<thrust::device_vector<hsp> > d_hsp_vec;
+std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
 
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done_array;
 uint32_t** d_hit_num_array;
+
+struct hspEqual
+{
+    __host__ __device__
+        bool operator()(hsp x, hsp y)
+    {
+        return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
+    }
+};
 
 // wrap of cudaMalloc error checking in one place.  
 static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
@@ -638,10 +651,13 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
             if(num_anchors[i] > 0){
                 fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
+                thrust::device_vector<hsp>::iterator result_end= thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
                 h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
 
-                err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                //err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
                 if (err != cudaSuccess) {
                     fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
                     exit(1);
@@ -679,6 +695,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     if(total_anchors > 0){
         for(int it = 0; it < iters; it++){
+
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
             }
@@ -700,6 +717,8 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
         MAX_SEEDS = 13*WGA_CHUNK;
     else
         MAX_SEEDS = WGA_CHUNK;
+    MAX_HITS = MAX_SEEDS * 10;
+    MAX_HITS_SIZE = 2*MAX_HITS;
 
     err = cudaGetDeviceCount(&nDevices);
     if (err != cudaSuccess) {
@@ -718,10 +737,29 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
     d_done_vec.reserve(NUM_DEVICES);
     d_hit_num_vec.reserve(NUM_DEVICES);
+    d_hsp_vec.reserve(NUM_DEVICES);
+    d_hsp_reduced_vec.reserve(NUM_DEVICES);
+    hsp zeroHsp;
+    zeroHsp.ref_start = 0;
+    zeroHsp.query_start = 0;
+    zeroHsp.len = 0;
+    zeroHsp.score = 0;
+
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
+
+        d_done_vec.emplace_back(MAX_HITS_SIZE, 0);
+        d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
+
+        d_hsp_vec.emplace_back(MAX_HITS_SIZE, zeroHsp);
+        d_hsp[g] = thrust::raw_pointer_cast(d_hsp_vec.at(g).data());
+
+        d_hsp_reduced_vec.emplace_back(MAX_HITS_SIZE, zeroHsp);
+        d_hsp_reduced[g] = thrust::raw_pointer_cast(d_hsp_reduced_vec.at(g).data());
+        //check_cuda_malloc((void**)&d_hsp[g], MAX_HITS_SIZE*sizeof(hsp), "hsp");
+        //check_cuda_malloc((void**)&d_hsp_reduced[g], MAX_HITS_SIZE*sizeof(hsp), "hsp_reduced");
 
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
@@ -799,19 +837,10 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index, uint32_t max_pos_index){
     cudaError_t err;
 
-    MAX_HITS = MAX_SEEDS * 10;
-    MAX_HITS_SIZE = 2*MAX_HITS;
-    d_done_vec.clear();
-
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
 
-        d_done_vec.emplace_back(MAX_HITS_SIZE, 0);
-        d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
-
-        check_cuda_malloc((void**)&d_hsp[g], MAX_HITS_SIZE*sizeof(hsp), "hsp");
-        check_cuda_malloc((void**)&d_hsp_reduced[g], MAX_HITS_SIZE*sizeof(hsp), "hsp_reduced");
         check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
 
         err = cudaMemcpy(d_index_table[g], index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice);
@@ -862,15 +891,12 @@ void InclusivePrefixScan (uint32_t* data, uint32_t len) {
 
 void clearRef(){
 
-    d_done_vec.clear();
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
         cudaFree(d_ref_seq[g]);
         cudaFree(d_index_table[g]);
         cudaFree(d_pos_table[g]);
-        cudaFree(d_hsp[g]);
-        cudaFree(d_hsp_reduced[g]);
     }
 }
 
@@ -889,6 +915,8 @@ void ShutdownProcessor(){
 
     d_done_vec.clear();
     d_hit_num_vec.clear();
+    d_hsp_vec.clear();
+    d_hsp_reduced_vec.clear();
 
     cudaDeviceReset();
 }
