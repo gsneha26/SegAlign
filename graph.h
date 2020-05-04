@@ -37,7 +37,6 @@ struct Configuration {
     bool transition;
     bool noentropy;
     bool nounique;
-    bool nosort;
     bool debug;
     uint32_t step;
     
