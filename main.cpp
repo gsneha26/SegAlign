@@ -103,7 +103,6 @@ int main(int argc, char** argv){
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't use entropy factor for filtering stage")
         ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive elements")
-        ("nosort", po::bool_switch(&cfg.nosort)->default_value(false), "don't sort before removing repetitions in segment")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
         ("output", po::value<std::string>(&cfg.output), "output filename")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")

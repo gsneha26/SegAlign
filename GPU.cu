@@ -5,7 +5,6 @@
 #include <iostream>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
-#include <thrust/sort.h>
 #include <thrust/find.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -48,16 +47,6 @@ std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done_array;
 uint32_t** d_hit_num_array;
-
-struct hspCompare{
-    __host__ __device__
-        bool operator()(hsp x, hsp y){
-        if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start)) return true;
-        else if ((x.ref_start <= y.ref_start) && (x.query_start < y.query_start)) return true;
-        else if (x.ref_start <= y.ref_start)  return true;
-        else return false;
-    }
-};
 
 struct hspEqual{
     __host__ __device__
@@ -567,7 +556,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy, bool nounique, bool nosort){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy, bool nounique){
 
     cudaError_t err;
 
@@ -671,23 +660,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
                     }
                 }
 
-                else if(nosort) {
-
-                    thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
-                    num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
-
-                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
-
-                    err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
-                    if (err != cudaSuccess) {
-                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
-                        exit(1);
-                    }
-                }
-
                 else {
 
-                    thrust::sort(d_hsp_reduced_vec[g].begin(),  d_hsp_reduced_vec[g].begin()+num_anchors[i], hspCompare());
                     thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
                     num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
