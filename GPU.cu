@@ -51,8 +51,7 @@ uint32_t** d_hit_num_array;
 
 struct hspCompare{
     __host__ __device__
-        bool operator()(hsp x, hsp y)
-    {
+        bool operator()(hsp x, hsp y){
         if ((x.ref_start <= y.ref_start) && (x.query_start <= y.query_start)) return true;
         else if ((x.ref_start <= y.ref_start) && (x.query_start < y.query_start)) return true;
         else if (x.ref_start <= y.ref_start)  return true;
@@ -62,8 +61,7 @@ struct hspCompare{
 
 struct hspEqual{
     __host__ __device__
-        bool operator()(hsp x, hsp y)
-    {
+        bool operator()(hsp x, hsp y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
     }
 };
@@ -381,10 +379,6 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                 }
             }
 
-            if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323))
-            //if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323) || (ref_loc[warp_id] == 324 && query_loc[warp_id] == 324))
-                printf("r %d %d %d %d %d\n", pos_offset, r_chr, q_chr, thread_score, max_thread_score);
-
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncwarp();
 
@@ -485,10 +479,6 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                 }
             }
 
-            if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323))
-            //if( (ref_loc[warp_id] == 323 && query_loc[warp_id] == 323) || (ref_loc[warp_id] == 324 && query_loc[warp_id] == 324))
-                printf("l %d %d %d %d %d\n", pos_offset, r_chr, q_chr, thread_score, max_thread_score);
-
             xdrop_done = ((max_thread_score-thread_score) > xdrop);
             __syncwarp();
 
@@ -577,7 +567,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy, bool nounique, bool nosort){
 
     cudaError_t err;
 
@@ -670,18 +660,44 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
             if(num_anchors[i] > 0){
                 fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], num_hits);
+                if(nounique) {
 
-                //thrust::sort(d_hsp_reduced_vec[g].begin(),  d_hsp_reduced_vec[g].begin()+num_anchors[i], hspCompare());
-                thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
-                num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
+                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
 
-                h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+                    err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                    if (err != cudaSuccess) {
+                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
+                        exit(1);
+                    }
+                }
 
-                //err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
-                err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
-                if (err != cudaSuccess) {
-                    fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
-                    exit(1);
+                else if(nosort) {
+
+                    thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                    num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
+
+                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+
+                    err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                    if (err != cudaSuccess) {
+                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
+                        exit(1);
+                    }
+                }
+
+                else {
+
+                    thrust::sort(d_hsp_reduced_vec[g].begin(),  d_hsp_reduced_vec[g].begin()+num_anchors[i], hspCompare());
+                    thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                    num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
+
+                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+
+                    err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                    if (err != cudaSuccess) {
+                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
+                        exit(1);
+                    }
                 }
             }
 
@@ -707,7 +723,6 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         cv.notify_one();
     }
     std::vector<hsp> gpu_filter_output;
-
 
     hsp first_el;
     first_el.len = total_anchors;
@@ -779,8 +794,6 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
 
         d_hsp_reduced_vec.emplace_back(MAX_HITS_SIZE, zeroHsp);
         d_hsp_reduced[g] = thrust::raw_pointer_cast(d_hsp_reduced_vec.at(g).data());
-        //check_cuda_malloc((void**)&d_hsp[g], MAX_HITS_SIZE*sizeof(hsp), "hsp");
-        //check_cuda_malloc((void**)&d_hsp_reduced[g], MAX_HITS_SIZE*sizeof(hsp), "hsp_reduced");
 
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
