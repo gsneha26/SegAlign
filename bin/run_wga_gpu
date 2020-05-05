@@ -59,8 +59,9 @@ else
 	1>&2 echo "Splitting reference chromosome"
 	cd $DATA_FOLDER
 	mkdir -p "ref"
-	faSplit byname $refPath ref/
 	cd "ref"
+  ndigits=${#refChr}
+  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $refPath /">"/ {*}
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
@@ -73,8 +74,9 @@ else
 	1>&2 echo "Splitting query chromosome"
 	cd $DATA_FOLDER
 	mkdir -p "query"
-	faSplit byname $queryPath query/
 	cd "query"
+  ndigits=${#queryChr}
+  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $queryPath /">"/ {*}
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
@@ -89,7 +91,7 @@ else
   pids=""
   count=0
   cd $OUTPUT_FOLDER
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt ${nproc} ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
       wait $pids
   }
 

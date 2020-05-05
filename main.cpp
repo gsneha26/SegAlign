@@ -558,7 +558,7 @@ int main(int argc, char** argv){
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
-    std::string r_index;
+    uint32_t r_index;
 
     std::string r_chr;
     std::string q_chr;
@@ -567,7 +567,7 @@ int main(int argc, char** argv){
     size_t rc_q_start;
     uint32_t q_buffer_id;
     uint32_t q_chr_invoked;
-    std::string q_index;
+    uint32_t q_index;
     uint32_t q_num;
     uint32_t r_num;
 
