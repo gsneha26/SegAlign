@@ -21,7 +21,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string err_filename;
     std::string cmd;
 
-    base_filename = "tmp"+std::to_string(index)+"."+r_index+"."+q_index;
+    base_filename = "tmp"+std::to_string(index)+".chr"+std::to_string(r_index)+".chr"+std::to_string(q_index);
     segment_filename = base_filename+".segments";
     err_filename = base_filename+".err";
     output_filename  = base_filename+"."+cfg.output_format;
@@ -46,7 +46,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         std::string cmd;
 
-        cmd = "lastz "+cfg.data_folder+"ref/"+r_index+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+q_index+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+        cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_index)+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(q_index)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
         if(cfg.notrivial)
             cmd = cmd+" --notrivial";
         if(cfg.scoring_file != "")

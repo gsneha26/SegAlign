@@ -70,11 +70,11 @@ extern SeedPosTable *sa;
 struct reader_output {
 	std::string ref_chr;
 	std::string query_chr;
-    size_t q_start;
-    size_t rc_q_start;
-	uint32_t q_len;
-    std::string q_index;
-    std::string r_index;
+  size_t q_start;
+  size_t rc_q_start;
+  uint32_t q_len;
+  uint32_t q_index;
+  uint32_t r_index;
 };
 
 struct seed_interval {
@@ -88,7 +88,7 @@ struct seed_interval {
 typedef std::vector<hsp> hsp_output; 
 
 typedef tbb::flow::tuple <reader_output, seed_interval> seeder_payload;
-typedef tbb::flow::tuple<int, hsp_output, hsp_output, std::string, std::string, std::string, std::string> printer_payload;
+typedef tbb::flow::tuple<int, hsp_output, hsp_output, std::string, std::string, uint32_t, uint32_t> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
 typedef tbb::flow::tuple<printer_payload, size_t> printer_input;
 
