@@ -58,9 +58,6 @@ struct Configuration {
     // Output parameters
     std::string output_format;
     std::string output;
-
-    char **q_sequence;
-    char **rc_q_sequence;
     std::string output_filename;
 };
 
