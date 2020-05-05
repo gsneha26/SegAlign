@@ -39,54 +39,49 @@ std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char* RevComp(char* seq, uint32_t len) {
+void RevComp(size_t rc_start, size_t start, uint32_t len) {
 
-    char* rc = (char*) malloc(len*sizeof(char));
-
-    for (size_t r = 0, i = len; i-- > 0;) {
-        if (seq[i] != 'a' && seq[i] != 'A' &&
-                seq[i] != 'c' && seq[i] != 'C' &&
-                seq[i] != 'g' && seq[i] != 'G' &&
-                seq[i] != 't' && seq[i] != 'T' &&
-                seq[i] != 'n' && seq[i] != 'N') {
-            fprintf(stderr, "Bad Nt char: %c\n", seq[i]);
-            exit(1);
-        }
-        switch (seq[i]) {
-            case 'a': rc[r++] = 't';
+    for (size_t r = 0, i = start+len; i-- > 0;) {
+        
+        switch (query_DRAM->buffer[i]) {
+            case 'a': query_rc_DRAM->buffer[r++] = 't';
                       break;
 
-            case 'A': rc[r++] = 'T';
+            case 'A': query_rc_DRAM->buffer[r++] = 'T';
                       break;
 
-            case 'c': rc[r++] = 'g';
+            case 'c': query_rc_DRAM->buffer[r++] = 'g';
                       break;
 
-            case 'C': rc[r++] = 'G';
+            case 'C': query_rc_DRAM->buffer[r++] = 'G';
                       break;
 
-            case 'g': rc[r++] = 'c';
+            case 'g': query_rc_DRAM->buffer[r++] = 'c';
                       break;
 
-            case 'G': rc[r++] = 'C';
+            case 'G': query_rc_DRAM->buffer[r++] = 'C';
                       break;
 
-            case 't': rc[r++] = 'a';
+            case 't': query_rc_DRAM->buffer[r++] = 'a';
                       break;
 
-            case 'T': rc[r++] = 'A';
+            case 'T': query_rc_DRAM->buffer[r++] = 'A';
                       break;
 
-            case 'n': rc[r++] = 'n';
+            case 'n': query_rc_DRAM->buffer[r++] = 'n';
                       break;
 
-            case 'N': rc[r++] = 'N';
+            case 'N': query_rc_DRAM->buffer[r++] = 'N';
                       break;
+
+            case '&': query_rc_DRAM->buffer[r++] = '&';
+                      break;
+
+            default: printf("Bad Nt char!\n");
         }
     }
-
-    return rc;
 }
+
 int main(int argc, char** argv){
 
 //    gettimeofday(&start_time_complete, NULL);
@@ -136,7 +131,7 @@ int main(int argc, char** argv){
     catch(std::exception &e){
         if(!vm.count("help")){
             if(!vm.count("target") || !vm.count("query")){
-		fprintf(stderr, "You must specify a target file and a query file\n"); 
+                fprintf(stderr, "You must specify a target file and a query file\n"); 
             }
         }
 
@@ -309,7 +304,6 @@ int main(int argc, char** argv){
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
         q_chr_index.push_back(description);
-        printf("%lu\n", query_DRAM->bufferPosition);
 
         if (query_DRAM->bufferPosition + seq_len > query_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -319,13 +313,11 @@ int main(int argc, char** argv){
         query_DRAM->bufferPosition += seq_len;
 
         rc_q_chr_coord.push_back(query_rc_DRAM->bufferPosition);
-        printf("%lu\n", query_rc_DRAM->bufferPosition);
         if (query_rc_DRAM->bufferPosition + seq_len > query_rc_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
-        char *query_rc = RevComp(kseq_rd->seq.s, seq_len);
-        
-        memcpy(query_rc_DRAM->buffer + query_rc_DRAM->bufferPosition, query_rc, seq_len);
+
+        RevComp(query_DRAM->bufferPosition, query_rc_DRAM->bufferPosition, seq_len);
         query_rc_DRAM->bufferPosition += seq_len;
 
         uint32_t curr_pos = 0;
@@ -387,7 +379,6 @@ int main(int argc, char** argv){
         r_chr_len.push_back(seq_len);
         r_chr_index.push_back(description);
 
-        printf("%lu\n", ref_DRAM->bufferPosition);
         if (ref_DRAM->bufferPosition + seq_len > ref_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
@@ -484,7 +475,6 @@ int main(int argc, char** argv){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                printf("%lu %lu\n", send_r_start, send_r_len);
                 sa = new SeedPosTable (ref_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
