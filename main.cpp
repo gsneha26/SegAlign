@@ -25,14 +25,14 @@ DRAM *g_DRAM = nullptr;
 std::vector<std::string> q_chr_id;
 std::vector<uint32_t> q_buffer;
 std::vector<uint32_t>  q_chr_len;
-std::vector<std::string>  q_chr_index;
+std::vector<uint32_t>  q_chr_index;
 std::vector<size_t>  q_chr_coord;
 std::vector<size_t>  rc_q_chr_coord;
 
 // ref 
 std::vector<std::string> r_chr_id;
 std::vector<uint32_t>  r_chr_len;
-std::vector<std::string>  r_chr_index;
+std::vector<uint32_t>  r_chr_index;
 std::vector<size_t>  r_chr_coord;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,8 +302,7 @@ int main(int argc, char** argv){
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
-        q_chr_index.push_back(description);
-//        q_chr_index.push_back(total_q_chr);
+        q_chr_index.push_back(total_q_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -342,12 +341,6 @@ int main(int argc, char** argv){
         total_q_chr++;
     }
 
-//    int q_digits = std::to_string(total_q_chr).length();
-//
-//    for(int i = 0; i < total_q_chr; i++){
-//        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
-//    }
-
     total_query_intervals= interval_list.size();
 
     g_DRAM->querySize = g_DRAM->bufferPosition;
@@ -381,8 +374,7 @@ int main(int argc, char** argv){
         r_chr_coord.push_back(g_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
-        r_chr_index.push_back(description);
-//        r_chr_index.push_back(total_r_chr);
+        r_chr_index.push_back(total_r_chr);
 
         if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -393,11 +385,6 @@ int main(int argc, char** argv){
 
         total_r_chr++;
     }
-    //int r_digits = std::to_string(total_r_chr).length();
-
-    //for(int i = 0; i < total_r_chr; i++){
-    //    r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
-    //}
 
     gzclose(f_rd);
 
@@ -451,7 +438,7 @@ int main(int argc, char** argv){
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
     uint32_t q_chr_sent;
-    std::string r_index;
+    uint32_t r_index;
 
     std::string r_chr;
     std::string q_chr;
@@ -460,7 +447,7 @@ int main(int argc, char** argv){
     size_t rc_q_start;
     uint32_t q_buffer_id;
     uint32_t q_chr_invoked;
-    std::string q_index;
+    uint32_t q_index;
     uint32_t q_num;
     uint32_t r_num;
 
