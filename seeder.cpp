@@ -43,12 +43,13 @@ printer_input seeder_body::operator()(seeder_input input) {
 
         //end position
         uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
+
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();
 
         //start to end position in the chunk
         for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(g_DRAM->buffer, q_start+j, cfg.seed_size);
+            index = GetKmerIndexAtPos(query_DRAM->buffer, q_start+j, cfg.seed_size);
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
@@ -82,7 +83,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();
         for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(g_DRAM->buffer, rc_q_start+j, cfg.seed_size);
+            index = GetKmerIndexAtPos(query_rc_DRAM->buffer, rc_q_start+j, cfg.seed_size);
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 

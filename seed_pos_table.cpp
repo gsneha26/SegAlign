@@ -77,6 +77,7 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
             }
             });
 
+    printf("%lu %lu\n", index_table_size_-1, num_index);
     g_SendSeedPosTable(index_table_+1, index_table_size_-1, pos_table_, num_index, max_pos);
 
     free(tmp_index_arr);
