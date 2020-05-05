@@ -65,7 +65,7 @@ else
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
-	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
+	    echo "faToTwoBit './$i' './$(basename -s .fa $i).2bit'" >> cmd.sh
 	done
   parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
@@ -79,7 +79,7 @@ else
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
 	do
-	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
+	    echo "faToTwoBit './$i' './$(basename -s .fa $i).2bit'" >> cmd.sh
 	done
   parallel --jobs=$(nproc) < cmd.sh
 	rm cmd.sh *.fa
