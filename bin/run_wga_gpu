@@ -59,8 +59,9 @@ else
 	1>&2 echo "Splitting reference chromosome"
 	cd $DATA_FOLDER
 	mkdir -p "ref"
-	faSplit byname $refPath ref/
 	cd "ref"
+  ndigits=${#refChr}
+  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $refPath /">"/ {*}
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
@@ -73,8 +74,9 @@ else
 	1>&2 echo "Splitting query chromosome"
 	cd $DATA_FOLDER
 	mkdir -p "query"
-	faSplit byname $queryPath query/
 	cd "query"
+  ndigits=${#queryChr}
+  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $queryPath /">"/ {*}
 
 	1>&2 echo "Converting chromosome wise fasta to 2bit format"
 	for i in *;
