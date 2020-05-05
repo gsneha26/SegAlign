@@ -9,7 +9,7 @@ public:
 	char* buffer;
 	std::size_t size;
 
-	std::size_t querySize;
+	std::size_t seqSize;
 	std::size_t bufferPosition;
 public:
 	DRAM();
