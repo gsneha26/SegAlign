@@ -797,13 +797,14 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
     
+    printf("%lu\n", start_addr);
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
         char* d_ref_seq_tmp;
         check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
 
-        err = cudaMemcpy(d_ref_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_ref_seq_tmp, ref_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMemcpy failed! ref_seq\n");
             exit(1);
@@ -820,6 +821,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
     cudaError_t err;
     query_length[buffer] = len;
+    printf("%lu\n", start_addr);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
@@ -827,7 +829,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
         char* d_query_seq_tmp;
         check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
 
-        err = cudaMemcpy(d_query_seq_tmp, g_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_query_seq_tmp, query_DRAM->buffer + start_addr, len*sizeof(char), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaMemcpy failed! query_seq\n");
             exit(1);

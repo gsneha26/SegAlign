@@ -19,7 +19,9 @@ long useconds, seconds, mseconds;
 Configuration cfg;
 SeedPosTable *sa;
 
-DRAM *g_DRAM = nullptr;
+DRAM *ref_DRAM = nullptr;
+DRAM *query_DRAM = nullptr;
+DRAM *query_rc_DRAM = nullptr;
 
 // query
 std::vector<std::string> q_chr_id;
@@ -274,7 +276,9 @@ int main(int argc, char** argv){
 
     g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size);
 
-    g_DRAM = new DRAM;
+    ref_DRAM = new DRAM;
+    query_DRAM = new DRAM;
+    query_rc_DRAM = new DRAM;
     
     // Read query file
     if(cfg.debug){
@@ -284,7 +288,9 @@ int main(int argc, char** argv){
     fprintf(stderr, "\nReading query file ...\n");
 
     gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
-    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); }
+    if (!f_rd) { 
+        fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); exit(EXIT_FAILURE); 
+    }
         
     kseq_t *kseq_rd = kseq_init(f_rd);
     std::vector<seed_interval> interval_list;
@@ -298,28 +304,29 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
         
-        q_chr_coord.push_back(g_DRAM->bufferPosition);
+        q_chr_coord.push_back(query_DRAM->bufferPosition);
         q_chr_id.push_back(description);
         q_buffer.push_back(0);
         q_chr_len.push_back(seq_len);
         q_chr_index.push_back(description);
-//        q_chr_index.push_back(total_q_chr);
+        printf("%lu\n", query_DRAM->bufferPosition);
 
-        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+        if (query_DRAM->bufferPosition + seq_len > query_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
         
-        memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        g_DRAM->bufferPosition += seq_len;
+        memcpy(query_DRAM->buffer + query_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
+        query_DRAM->bufferPosition += seq_len;
 
-        rc_q_chr_coord.push_back(g_DRAM->bufferPosition);
-        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+        rc_q_chr_coord.push_back(query_rc_DRAM->bufferPosition);
+        printf("%lu\n", query_rc_DRAM->bufferPosition);
+        if (query_rc_DRAM->bufferPosition + seq_len > query_rc_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
         char *query_rc = RevComp(kseq_rd->seq.s, seq_len);
         
-        memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, query_rc, seq_len);
-        g_DRAM->bufferPosition += seq_len;
+        memcpy(query_rc_DRAM->buffer + query_rc_DRAM->bufferPosition, query_rc, seq_len);
+        query_rc_DRAM->bufferPosition += seq_len;
 
         uint32_t curr_pos = 0;
         uint32_t end_pos = seq_len - cfg.seed_size;
@@ -342,15 +349,10 @@ int main(int argc, char** argv){
         total_q_chr++;
     }
 
-//    int q_digits = std::to_string(total_q_chr).length();
-//
-//    for(int i = 0; i < total_q_chr; i++){
-//        q_chr_index.push_back("query"+std::string(q_digits-std::to_string(i).length(), '0')+std::to_string(i));
-//    }
-
     total_query_intervals= interval_list.size();
 
-    g_DRAM->querySize = g_DRAM->bufferPosition;
+    query_DRAM->seqSize = query_DRAM->bufferPosition;
+    query_rc_DRAM->seqSize = query_rc_DRAM->bufferPosition;
     gzclose(f_rd);
 
     if(cfg.debug){
@@ -369,7 +371,9 @@ int main(int argc, char** argv){
     fprintf(stderr, "\nReading target file ...\n");
 
     f_rd = gzopen(cfg.reference_filename.c_str(), "r");
-    if (!f_rd) { fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); }
+    if (!f_rd) { 
+        fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); exit(EXIT_FAILURE); 
+    }
         
     kseq_rd = kseq_init(f_rd);
     uint32_t total_r_chr = 0;
@@ -378,26 +382,21 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string description = std::string(kseq_rd->name.s, kseq_rd->name.l);
         
-        r_chr_coord.push_back(g_DRAM->bufferPosition);
+        r_chr_coord.push_back(ref_DRAM->bufferPosition);
         r_chr_id.push_back(description);
         r_chr_len.push_back(seq_len);
         r_chr_index.push_back(description);
-//        r_chr_index.push_back(total_r_chr);
 
-        if (g_DRAM->bufferPosition + seq_len > g_DRAM->size) {
+        printf("%lu\n", ref_DRAM->bufferPosition);
+        if (ref_DRAM->bufferPosition + seq_len > ref_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
         
-        memcpy(g_DRAM->buffer + g_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        g_DRAM->bufferPosition += seq_len;
+        memcpy(ref_DRAM->buffer + ref_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
+        ref_DRAM->bufferPosition += seq_len;
 
         total_r_chr++;
     }
-    //int r_digits = std::to_string(total_r_chr).length();
-
-    //for(int i = 0; i < total_r_chr; i++){
-    //    r_chr_index.push_back("ref"+std::string(r_digits-std::to_string(i).length(), '0')+std::to_string(i));
-    //}
 
     gzclose(f_rd);
 
@@ -484,7 +483,9 @@ int main(int argc, char** argv){
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);
                 }
-                sa = new SeedPosTable (g_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+
+                printf("%lu %lu\n", send_r_start, send_r_len);
+                sa = new SeedPosTable (ref_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
                     useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
@@ -580,8 +581,8 @@ int main(int argc, char** argv){
                     reader_output& chrom = get<0>(op);
                     chrom.query_chr = q_chr;
                     chrom.ref_chr = send_r_chr;
-                    chrom.q_start = q_start;//chr_coord[q_index];
-                    chrom.rc_q_start = rc_q_start;//chr_coord[q_index];
+                    chrom.q_start = q_start;
+                    chrom.rc_q_start = rc_q_start;
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.q_index = q_index;
                     chrom.r_index = r_index;
