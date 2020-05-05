@@ -64,8 +64,6 @@ rm -rf $CURR/lastz-distrib-1.04.03 $CURR/lastz-1.04.03.tar
 cd $CURR/bin/
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faToTwoBit
 chmod +x faToTwoBit
-wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faSplit
-chmod +x faSplit
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
 chmod +x twoBitToFa
 sudo cp $CURR/bin/* /usr/local/bin/

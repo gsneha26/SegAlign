@@ -34,8 +34,8 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t q_len = chrom.q_len;
     size_t q_start = chrom.q_start;
     size_t rc_q_start = chrom.rc_q_start;
-    std::string q_index = chrom.q_index;
-    std::string r_index = chrom.r_index;
+    uint32_t q_index = chrom.q_index;
+    uint32_t r_index = chrom.r_index;
 
     fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with buffer %u\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, buffer);
 
