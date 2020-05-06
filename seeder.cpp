@@ -33,11 +33,10 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t buffer = data.buffer;
     uint32_t q_len = chrom.q_len;
     size_t q_start = chrom.q_start;
-    size_t rc_q_start = chrom.rc_q_start;
-    uint32_t q_index = chrom.q_index;
-    uint32_t r_index = chrom.r_index;
+    size_t r_start = chrom.r_start;
+    uint32_t q_block_index = chrom.block_index;
 
-    fprintf (stderr, "Chromosome %s interval %u/%u (%u:%u) with buffer %u\n", chrom.query_chr.c_str(), num_invoked, num_intervals, start_pos, end_pos, buffer);
+//    fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with buffer %u\n", q_block_index, num_invoked, num_intervals, start_pos, end_pos, buffer);
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
@@ -83,7 +82,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         std::vector<uint64_t> seed_offset_vector;
         seed_offset_vector.clear();
         for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(query_rc_DRAM->buffer, rc_q_start+j, cfg.seed_size);
+            index = GetKmerIndexAtPos(query_rc_DRAM->buffer, q_start+j, cfg.seed_size);
             if (index != ((uint32_t) 1 << 31)) {
                 seed_offset = (index << 32) + j;
                 seed_offset_vector.push_back(seed_offset); 
@@ -113,5 +112,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, chrom.query_chr, chrom.ref_chr, r_index, q_index), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, q_block_index, r_start, q_start), token);
 }

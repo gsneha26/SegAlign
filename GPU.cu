@@ -102,6 +102,10 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
             dst = N_NT;
             dst_rc = N_NT;
         }
+        else if (ch == '&'){
+            dst = E_NT;
+            dst_rc = E_NT;
+        }
         dst_seq[i] = dst;
         dst_seq_rc[len -1 -i] = dst_rc;
     }
@@ -132,6 +136,8 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
             dst = L_NT;
         else if ((ch == 'n') || (ch == 'N'))
             dst = N_NT;
+        else if (ch == '&')
+            dst = E_NT;
         dst_seq[i] = dst;
     }
 }
@@ -302,6 +308,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
         __syncwarp();
 
         //////////////////////////////////////////////////////////////////
+        //Right extension
 
         if(lane_id ==0){
             tile[warp_id] = 0;
@@ -409,6 +416,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
         __syncwarp();
 
         ////////////////////////////////////////////////////////////////
+        //Left extension
 
         if(lane_id ==0){
             tile[warp_id] = 0;
@@ -630,12 +638,12 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         for(int i = 0; i < iters; i++){
 
             find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], iter_start_index, iter_start_val);
-            if(rev){
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], noentropy);
-            }
-            else{
+            if(rev==false){
                 find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], noentropy);
             }
+            //else{
+              //  find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], num_hits, d_hsp[g], noentropy);
+            //}
 
             thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
 
@@ -797,7 +805,6 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     cudaError_t err;
     ref_len = len;
     
-    printf("%lu\n", start_addr);
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
@@ -821,7 +828,6 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
     cudaError_t err;
     query_length[buffer] = len;
-    printf("%lu\n", start_addr);
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
