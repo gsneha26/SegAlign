@@ -1,8 +1,8 @@
 #include "graph.h"
 #include <algorithm>
 #include <iterator>
-#include <vector>
 #include <iostream>
+#include <map>
 
 std::mutex io_lock;
 
@@ -16,7 +16,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &rc_segments = get<2>(payload);
     auto &block_index = get<3>(payload);
     auto &r_block_start = get<4>(payload);
-    auto &q_block_start = get<5>(payload);
+    auto &r_block_end = get<5>(payload);
+    auto &q_block_start = get<6>(payload);
+    auto &q_inter_start = get<7>(payload);
+    auto &q_inter_end = get<8>(payload);
 
     std::string base_filename;
     std::string segment_filename;
@@ -24,39 +27,92 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string err_filename;
     std::string cmd;
 
-    for (auto e: fw_segments) {
-        size_t seg_r_start = e.ref_start + r_block_start;
-        size_t seg_q_start = e.query_start + q_block_start;
-        size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
-        size_t q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
-        std::cout << seg_r_start << " " << r_chr_name[r_index] << " " << seg_r_start-r_chr_start[r_index] +1 << " " << seg_r_start-r_chr_start[r_index] +1+e.len<< " " << seg_q_start << " " << q_chr_name[q_index] << " " << seg_q_start-q_chr_start[q_index] +1<< " " << seg_q_start-q_chr_start[q_index]+1+e.len << " " << e.score << std::endl;
+    uint32_t num_hsps = fw_segments.size() + rc_segments.size();
+
+    if(num_hsps > 0){
+
+        std::cout << "Num HSP: " << num_hsps << std::endl;
+
+        size_t start_r_chr = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), r_block_start) - r_chr_start.cbegin() - 1; 
+        size_t end_r_chr = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), r_block_end) - r_chr_start.cbegin() - 1; 
+        size_t start_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_start) - q_chr_start.cbegin() - 1; 
+        size_t end_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_end) - q_chr_start.cbegin() - 1; 
+
+        std::vector<std::string> base_files; 
+
+        int t = 0;
+        for(size_t r = start_r_chr; r <= end_r_chr; r++){
+            base_files.push_back("tmp"+std::to_string(index)+".block"+std::to_string(block_index)+"."+r_chr_name[r]);
+        }
+
+        uint32_t curr_q_chr_index = start_q_chr;
+        std::string curr_q_chr = q_chr_name[start_q_chr];
+        size_t curr_q_chr_start = q_chr_start[start_q_chr]; 
+        size_t curr_q_chr_end = curr_q_chr_start + q_chr_len[start_q_chr];
+
+        uint32_t num_ref = end_r_chr - start_r_chr + 1;
+        uint32_t num_query = end_q_chr - start_q_chr + 1;
+
+        std::vector <std::vector <std::string>> sorted_segments(num_ref);
+
+        for (auto e: fw_segments) {
+            size_t seg_r_start = e.ref_start + r_block_start;
+            size_t seg_q_start = e.query_start + q_block_start;
+            size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1 - start_r_chr;
+
+            if(seg_q_start >= curr_q_chr_start && seg_q_start < curr_q_chr_end){
+                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n");
+            }
+            else{
+                for(int i = 0; i < num_ref;i++){
+                    if(sorted_segments[i].size() > 0){
+                        base_filename = base_files[i]+"."+curr_q_chr;
+                        segment_filename = base_filename+".segments";
+                        err_filename = base_filename+".err";
+                        output_filename  = base_filename+"."+cfg.output_format;
+
+                        FILE* segmentFile = fopen(segment_filename.c_str(), "w");
+                        for(int j = 0; j< sorted_segments[i].size(); j++){
+                            fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
+                        }
+                        fclose(segmentFile);
+                        sorted_segments[i].clear();
+                    }
+                }
+
+                size_t q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
+                curr_q_chr_index = q_index;
+                curr_q_chr = q_chr_name[curr_q_chr_index];
+                curr_q_chr_start = q_chr_start[curr_q_chr_index];
+                curr_q_chr_end = curr_q_chr_start + q_chr_len[curr_q_chr_index];
+                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n");
+            }
+        }
+
+        for(int i = 0; i < num_ref;i++){
+            if(sorted_segments[i].size() > 0){
+                base_filename = base_files[i]+"."+curr_q_chr;
+                segment_filename = base_filename+".segments";
+                err_filename = base_filename+".err";
+                output_filename  = base_filename+"."+cfg.output_format;
+
+                FILE* segmentFile = fopen(segment_filename.c_str(), "w");
+                for(int j = 0; j< sorted_segments[i].size(); j++){
+                    fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
+                }
+                fclose(segmentFile);
+                sorted_segments[i].clear();
+            }
+        }
     }
 
+
     /*
-    base_filename = "tmp"+std::to_string(index);//+".chr"+std::to_string(r_index)+".chr"+std::to_string(q_index);
-    segment_filename = base_filename+".segments";
-    err_filename = base_filename+".err";
-    output_filename  = base_filename+"."+cfg.output_format;
-
-    FILE* segmentFile = fopen(segment_filename.c_str(), "w");
-
     if(cfg.gapped){
         fprintf(segmentFile, "#name1\tstart1\tend1\tname2\tstart2\tend2\tstrand2\tscore\n");
     }
 
-    for (auto e: fw_segments) {
-        fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t+\t%d\n", ref_chr.c_str(),(e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-    }
-
-    for (auto e: rc_segments) {
-        fprintf(segmentFile, "%s\t%d\t%d\t%s\t%d\t%d\t-\t%d\n", ref_chr.c_str(), (e.ref_start+1), (e.ref_start+e.len+1), query_chr.c_str(), (e.query_start+1), (e.query_start+e.len+1), e.score);
-    }
-
-    fclose(segmentFile);
-
     if(cfg.gapped){
-
-        std::string cmd;
 
         cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(index)+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(index)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
         if(cfg.notrivial)
