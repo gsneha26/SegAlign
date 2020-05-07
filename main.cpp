@@ -316,7 +316,7 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        printf("%s %lu %lu\n", seq_name.c_str(), seq_len, query_DRAM->bufferPosition);
+        //printf("%s %lu %lu\n", seq_name.c_str(), seq_len, query_DRAM->bufferPosition);
         q_chr_name.push_back(seq_name);
         q_chr_start.push_back(query_DRAM->bufferPosition);
         q_chr_len.push_back(seq_len);
@@ -335,7 +335,7 @@ int main(int argc, char** argv){
         if(seq_block_len > SEQ_BLOCK_SIZE){
 
             q_chr_len_padded.push_back(seq_len);
-            printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
+            //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
             query_block_len.push_back(seq_block_len);
 
             if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size){
@@ -351,6 +351,7 @@ int main(int argc, char** argv){
             while (curr_pos < end_pos) {
                 uint32_t start = curr_pos;
                 uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
+                //printf("%u, %u\n", start, end);
                 seed_interval inter;
                 inter.start = start;
                 inter.end = end;
@@ -379,7 +380,7 @@ int main(int argc, char** argv){
 
     if(seq_block_len > 0){
 
-        printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
+        //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
         query_block_len.push_back(seq_block_len);
 
         if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size) {
@@ -410,7 +411,6 @@ int main(int argc, char** argv){
         prev_num_intervals = interval_list.size();
     }
 
-    printf("%lu, %lu\n", query_DRAM->bufferPosition, query_rc_DRAM->bufferPosition);
     printf("total chr: %d, total blocks: %d\n", total_q_chr, total_q_blocks);
 
     for(int k = 0; k < total_q_chr; k++){
@@ -460,7 +460,7 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        printf("%s %lu %lu\n", seq_name.c_str(), seq_len, ref_DRAM->bufferPosition);
+        //printf("%s %lu %lu\n", seq_name.c_str(), seq_len, ref_DRAM->bufferPosition);
         r_chr_name.push_back(seq_name);
         r_chr_start.push_back(ref_DRAM->bufferPosition);
         r_chr_len.push_back(seq_len);
@@ -478,7 +478,7 @@ int main(int argc, char** argv){
         if(seq_block_len > SEQ_BLOCK_SIZE){
             r_chr_len_padded.push_back(seq_len);
 
-            printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
+            //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
             ref_block_len.push_back(seq_block_len);
 
             seq_block_start = ref_DRAM->bufferPosition;
@@ -496,11 +496,10 @@ int main(int argc, char** argv){
     }
 
     if(seq_block_len > 0){
-        printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
+        //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
         ref_block_len.push_back(seq_block_len);
         total_r_blocks += 1;
     }
-    printf("%lu\n", ref_DRAM->bufferPosition);
     printf("total chr: %d, total blocks: %d\n", total_r_chr, total_r_blocks);
 
     for(int k = 0; k < total_r_chr; k++){
@@ -520,6 +519,9 @@ int main(int argc, char** argv){
     	mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
     	fprintf(stderr, "Time elapsed (loading complete target from file): %ld msec \n\n", mseconds);
     }
+
+    cfg.num_ref = total_r_chr;
+    cfg.num_query = total_q_chr;
 
     // start alignment
     fprintf(stderr, "\nStart alignment ...\n");
@@ -580,7 +582,7 @@ int main(int argc, char** argv){
                 send_r_start = ref_block_start[r_chr_sent];
                 send_r_len   = ref_block_len[r_chr_sent];
 
-                fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
+                //fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
                 if(r_chr_sent > 0)
                     g_clearRef();
                 g_SendRefWriteRequest (send_r_start, send_r_len);
@@ -621,7 +623,7 @@ int main(int argc, char** argv){
 
                     q_buffer[q_chr_sent] = q_chr_sent;
                     send_buffer_id = q_chr_sent;
-                    fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
+                    //fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
                     if(r_chr_sent > 0)
                         g_clearQuery(send_buffer_id);
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer_id);
@@ -642,7 +644,7 @@ int main(int argc, char** argv){
                             q_buffer[q_chr_sent] = i;
                             prev_chr_intervals[i] += block_num_intervals[q_chr_sent];
 
-                            fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
+                            //fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
                             g_clearQuery(i);
                             g_SendQueryWriteRequest (send_q_start, send_q_len, i);
 
@@ -683,6 +685,7 @@ int main(int argc, char** argv){
                     reader_output& chrom = get<0>(op);
                     chrom.q_start = q_start;
                     chrom.r_start = send_r_start;
+                    chrom.r_len = send_r_len;
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.block_index = q_chr_invoked; 
                     if(chr_intervals_invoked == chr_intervals_num) {
