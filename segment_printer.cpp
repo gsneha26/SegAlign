@@ -50,6 +50,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         uint32_t curr_q_chr_index = start_q_chr;
         std::string curr_q_chr = q_chr_name[start_q_chr];
+        uint32_t curr_q_chr_file_name = q_chr_file_name[start_q_chr];
         size_t curr_q_chr_start = q_chr_start[start_q_chr]; 
         size_t curr_q_chr_end = curr_q_chr_start + q_chr_len[start_q_chr];
 
@@ -81,7 +82,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                         fclose(segmentFile);
                         if(cfg.gapped){
 
-                            cmd = "lastz "+cfg.data_folder+"ref/"+r_chr_name[i+start_r_chr]+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+curr_q_chr+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                            cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
                             if(cfg.notrivial)
                                 cmd = cmd+" --notrivial";
                             if(cfg.scoring_file != "")
@@ -99,6 +100,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 size_t q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
                 curr_q_chr_index = q_index;
                 curr_q_chr = q_chr_name[curr_q_chr_index];
+                curr_q_chr_file_name = q_chr_file_name[curr_q_chr_index];
                 curr_q_chr_start = q_chr_start[curr_q_chr_index];
                 curr_q_chr_end = curr_q_chr_start + q_chr_len[curr_q_chr_index];
                 sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n");
@@ -123,7 +125,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
                 if(cfg.gapped){
 
-                    cmd = "lastz "+cfg.data_folder+"ref/"+r_chr_name[i+start_r_chr]+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+curr_q_chr+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                    cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
                     if(cfg.notrivial)
                         cmd = cmd+" --notrivial";
                     if(cfg.scoring_file != "")
@@ -144,6 +146,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         curr_q_chr_index = start_q_chr;
         curr_q_chr = rc_q_chr_name[curr_q_chr_index];
+        curr_q_chr_file_name = rc_q_chr_file_name[curr_q_chr_index];
         curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
         curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
 
@@ -173,7 +176,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                         fclose(segmentFile);
                         if(cfg.gapped){
 
-                            cmd = "lastz "+cfg.data_folder+"ref/"+r_chr_name[i+start_r_chr]+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+curr_q_chr+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                            cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
                             if(cfg.notrivial)
                                 cmd = cmd+" --notrivial";
                             if(cfg.scoring_file != "")
@@ -191,6 +194,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 size_t q_index = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), seg_q_start) - rc_q_chr_start.cbegin() - 1;
                 curr_q_chr_index = q_index;
                 curr_q_chr = rc_q_chr_name[curr_q_chr_index];
+                curr_q_chr_file_name = rc_q_chr_file_name[curr_q_chr_index];
                 curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
                 curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
                 sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n");
@@ -214,7 +218,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 fclose(segmentFile);
                 if(cfg.gapped){
 
-                    cmd = "lastz "+cfg.data_folder+"ref/"+r_chr_name[i+start_r_chr]+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/"+curr_q_chr+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                    cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
                     if(cfg.notrivial)
                         cmd = cmd+" --notrivial";
                     if(cfg.scoring_file != "")
@@ -229,10 +233,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             }
         }
     }
-
-    /*
-
-    */
 
     get<0>(op).try_put(token);
 };
