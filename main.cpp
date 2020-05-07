@@ -24,14 +24,17 @@ DRAM *query_DRAM = nullptr;
 DRAM *query_rc_DRAM = nullptr;
 
 std::vector<std::string> q_chr_name;
+std::vector<uint32_t>    q_chr_file_name;
 std::vector<size_t>      q_chr_start;
 std::vector<size_t>      q_chr_len;
 
 std::vector<std::string> rc_q_chr_name;
+std::vector<uint32_t>    rc_q_chr_file_name;
 std::vector<size_t>      rc_q_chr_start;
 std::vector<size_t>      rc_q_chr_len;
 
 std::vector<std::string> r_chr_name;
+std::vector<uint32_t>    r_chr_file_name;
 std::vector<size_t>      r_chr_start;
 std::vector<size_t>      r_chr_len;
 
@@ -320,6 +323,7 @@ int main(int argc, char** argv){
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
         q_chr_name.push_back(seq_name);
+        q_chr_file_name.push_back(total_q_chr);
         q_chr_start.push_back(query_DRAM->bufferPosition);
         q_chr_len.push_back(seq_len);
         q_buffer.push_back(0);
@@ -341,6 +345,7 @@ int main(int argc, char** argv){
 
             for(int i = block_chrs.size()-1; i >= 0; i--){
                 rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
+                rc_q_chr_file_name.push_back(q_chr_file_name[block_chrs[i]]);
                 rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
                 rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
             }
@@ -463,6 +468,7 @@ int main(int argc, char** argv){
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
         r_chr_name.push_back(seq_name);
+        r_chr_file_name.push_back(total_r_chr);
         r_chr_start.push_back(ref_DRAM->bufferPosition);
         r_chr_len.push_back(seq_len);
 
