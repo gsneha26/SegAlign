@@ -26,12 +26,14 @@ DRAM *query_rc_DRAM = nullptr;
 std::vector<std::string> q_chr_name;
 std::vector<size_t>      q_chr_start;
 std::vector<size_t>      q_chr_len;
-std::vector<size_t>      q_chr_len_padded;
+
+std::vector<std::string> rc_q_chr_name;
+std::vector<size_t>      rc_q_chr_start;
+std::vector<size_t>      rc_q_chr_len;
 
 std::vector<std::string> r_chr_name;
 std::vector<size_t>      r_chr_start;
 std::vector<size_t>      r_chr_len;
-std::vector<size_t>      r_chr_len_padded;
 
 // query
 std::vector<uint32_t> q_buffer;
@@ -46,7 +48,7 @@ std::vector<size_t>   ref_block_len;
 
 void RevComp(size_t rc_start, size_t start, size_t len) {
 
-    size_t r = 0;
+    size_t r = rc_start;
     for (size_t i = start+len; i> start; i--) {
         
         switch (query_DRAM->buffer[i-1]) {
@@ -311,16 +313,17 @@ int main(int argc, char** argv){
     size_t seq_block_start = query_DRAM->bufferPosition;
     size_t seq_block_len = 0;
     query_block_start.push_back(query_DRAM->bufferPosition);
+    std::vector<uint32_t> block_chrs;
 
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        //printf("%s %lu %lu\n", seq_name.c_str(), seq_len, query_DRAM->bufferPosition);
         q_chr_name.push_back(seq_name);
         q_chr_start.push_back(query_DRAM->bufferPosition);
         q_chr_len.push_back(seq_len);
         q_buffer.push_back(0);
+        block_chrs.push_back(total_q_chr);
 
         if (query_DRAM->bufferPosition + seq_len > query_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -334,9 +337,13 @@ int main(int argc, char** argv){
 
         if(seq_block_len > SEQ_BLOCK_SIZE){
 
-            q_chr_len_padded.push_back(seq_len);
-            //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
             query_block_len.push_back(seq_block_len);
+
+            for(int i = block_chrs.size()-1; i >= 0; i--){
+                rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
+                rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
+                rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
+            }
 
             if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size){
                 exit(EXIT_FAILURE); 
@@ -351,7 +358,6 @@ int main(int argc, char** argv){
             while (curr_pos < end_pos) {
                 uint32_t start = curr_pos;
                 uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
-                //printf("%u, %u\n", start, end);
                 seed_interval inter;
                 inter.start = start;
                 inter.end = end;
@@ -367,33 +373,39 @@ int main(int argc, char** argv){
             seq_block_start = query_DRAM->bufferPosition;
             query_block_start.push_back(query_DRAM->bufferPosition);
             seq_block_len = 0;
+            block_chrs.clear();
 
             total_q_blocks += 1;
         }
         else{
-            q_chr_len_padded.push_back(seq_len+1);
             memset(query_DRAM->buffer + query_DRAM->bufferPosition, '&', 1);
             query_DRAM->bufferPosition += 1;
             seq_block_len += 1;
         }
     }
+    seq_block_len--;
 
     if(seq_block_len > 0){
 
-        //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
         query_block_len.push_back(seq_block_len);
 
         if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size) {
             exit(EXIT_FAILURE); 
         }
 
-        RevComp(seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len-1);
-        query_rc_DRAM->bufferPosition += seq_block_len-1;
+        RevComp(seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len);
+        query_rc_DRAM->bufferPosition += seq_block_len;
+
+        for(int i = block_chrs.size()-1; i >= 0; i--){
+            rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
+            rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
+            rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
+        }
 
         total_q_blocks += 1;
 
         uint32_t curr_pos = 0;
-        uint32_t end_pos = seq_block_len -1 - cfg.seed_size;
+        uint32_t end_pos = seq_block_len - cfg.seed_size;
         
         while (curr_pos < end_pos) {
             uint32_t start = curr_pos;
@@ -409,16 +421,6 @@ int main(int argc, char** argv){
         
         block_num_intervals.push_back(interval_list.size()-prev_num_intervals);
         prev_num_intervals = interval_list.size();
-    }
-
-    printf("total chr: %d, total blocks: %d\n", total_q_chr, total_q_blocks);
-
-    for(int k = 0; k < total_q_chr; k++){
-        printf("%s, %lu, %lu\n", q_chr_name[k].c_str(), q_chr_start[k], q_chr_len[k]);
-    }
-
-    for(int k = 0; k < total_q_blocks; k++){
-        printf("%lu, %lu\n", query_block_start[k], query_block_len[k]);
     }
 
     query_DRAM->seqSize = query_DRAM->bufferPosition;
@@ -460,7 +462,6 @@ int main(int argc, char** argv){
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
 
-        //printf("%s %lu %lu\n", seq_name.c_str(), seq_len, ref_DRAM->bufferPosition);
         r_chr_name.push_back(seq_name);
         r_chr_start.push_back(ref_DRAM->bufferPosition);
         r_chr_len.push_back(seq_len);
@@ -476,9 +477,7 @@ int main(int argc, char** argv){
         total_r_chr++;
 
         if(seq_block_len > SEQ_BLOCK_SIZE){
-            r_chr_len_padded.push_back(seq_len);
 
-            //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len);
             ref_block_len.push_back(seq_block_len);
 
             seq_block_start = ref_DRAM->bufferPosition;
@@ -488,26 +487,17 @@ int main(int argc, char** argv){
             total_r_blocks += 1;
         }
         else{
-            r_chr_len_padded.push_back(seq_len+1);
             memset(ref_DRAM->buffer + ref_DRAM->bufferPosition, '&', 1);
             ref_DRAM->bufferPosition += 1;
             seq_block_len += 1;
         }
     }
 
+    seq_block_len--;
+
     if(seq_block_len > 0){
-        //printf("Start block %lu, %lu\n", seq_block_start, seq_block_len-1);
         ref_block_len.push_back(seq_block_len);
         total_r_blocks += 1;
-    }
-    printf("total chr: %d, total blocks: %d\n", total_r_chr, total_r_blocks);
-
-    for(int k = 0; k < total_r_chr; k++){
-        printf("%s, %lu, %lu\n", r_chr_name[k].c_str(), r_chr_start[k], r_chr_len[k]);
-    }
-
-    for(int k = 0; k < total_r_blocks; k++){
-        printf("%lu, %lu\n", ref_block_start[k], ref_block_len[k]);
     }
 
     gzclose(f_rd);
@@ -667,7 +657,6 @@ int main(int argc, char** argv){
                 completed_intervals += chr_intervals_num;
                 chr_intervals_num = block_num_intervals[q_chr_invoked];
 
-                //fprintf(stderr, "\nStarting query %s with buffer %d ...\n", q_chr, q_buffer_id);
 
                 chr_intervals_invoked = 0;
                 invoke_q_chr = false;

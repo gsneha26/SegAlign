@@ -36,8 +36,10 @@ printer_input seeder_body::operator()(seeder_input input) {
     size_t r_start = chrom.r_start;
     size_t r_len = chrom.r_len;
     uint32_t q_block_index = chrom.block_index;
+    uint32_t rc_start_pos = q_len - end_pos;
+    uint32_t rc_end_pos = q_len - start_pos;
 
-//    fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with buffer %u\n", q_block_index, num_invoked, num_intervals, start_pos, end_pos, buffer);
+    fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with buffer %u\n", q_block_index, num_invoked, num_intervals, start_pos, end_pos, buffer);
 
     for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
@@ -113,5 +115,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, q_block_index, r_start, r_start+r_len-1, q_start, start_pos, end_pos), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, q_block_index, r_start, r_start+r_len-1, q_start, start_pos, end_pos, q_len+cfg.seed_size), token);
 }
