@@ -403,6 +403,7 @@ int main(int argc, char** argv){
 
         for(int i = block_chrs.size()-1; i >= 0; i--){
             rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
+            rc_q_chr_file_name.push_back(q_chr_file_name[block_chrs[i]]);
             rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
             rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
         }
