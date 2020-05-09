@@ -45,7 +45,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         std::vector<std::string> base_files; 
 
         for(size_t r = start_r_chr; r <= end_r_chr; r++){
-            base_files.push_back("tmp"+std::to_string(index)+".block"+std::to_string(block_index)+"."+r_chr_name[r]);
+            base_files.push_back("tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".chr"+std::to_string(r));
         }
 
         uint32_t curr_q_chr_index = start_q_chr;
@@ -69,7 +69,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             else{
                 for(int i = 0; i < num_ref;i++){
                     if(sorted_segments[i].size() > 0){
-                        base_filename = base_files[i]+"."+curr_q_chr+".plus";
+                        base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".plus";
                         segment_filename = base_filename+".segments";
                         err_filename = base_filename+".err";
                         output_filename  = base_filename+"."+cfg.output_format;
@@ -108,7 +108,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         for(int i = 0; i < num_ref;i++){
             if(sorted_segments[i].size() > 0){
-                base_filename = base_files[i]+"."+curr_q_chr+".plus";
+                base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".plus";
                 segment_filename = base_filename+".segments";
                 err_filename = base_filename+".err";
                 output_filename  = base_filename+"."+cfg.output_format;
@@ -158,7 +158,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             else{
                 for(int i = 0; i < num_ref;i++){
                     if(sorted_segments[i].size() > 0){
-                        base_filename = base_files[i]+"."+curr_q_chr+".minus";
+                        base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".minus";
                         segment_filename = base_filename+".segments";
                         err_filename = base_filename+".err";
                         output_filename  = base_filename+"."+cfg.output_format;
@@ -199,7 +199,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         for(int i = 0; i < num_ref;i++){
             if(sorted_segments[i].size() > 0){
-                base_filename = base_files[i]+"."+curr_q_chr+".minus";
+                base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".minus";
                 segment_filename = base_filename+".segments";
                 err_filename = base_filename+".err";
                 output_filename  = base_filename+"."+cfg.output_format;
