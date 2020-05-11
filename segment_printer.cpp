@@ -21,6 +21,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &q_inter_start = get<7>(payload);
     auto &q_inter_end = get<8>(payload);
     auto &q_block_len = get<9>(payload);
+    auto &r_block_index = get<10>(payload);
+    r_block_index--;
     uint32_t rc_q_inter_start = q_block_len - cfg.seed_size - q_inter_end;
     uint32_t rc_q_inter_end = q_block_len - cfg.seed_size - q_inter_start;
 
@@ -39,153 +41,81 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         size_t start_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_start) - q_chr_start.cbegin() - 1; 
         size_t end_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_end) - q_chr_start.cbegin() - 1; 
 
-        uint32_t num_ref = end_r_chr - start_r_chr + 1;
-        uint32_t num_query = end_q_chr - start_q_chr + 1;
-
-        std::vector<std::string> base_files; 
-
-        for(size_t r = start_r_chr; r <= end_r_chr; r++){
-            base_files.push_back("tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".chr"+std::to_string(r));
-        }
-
         uint32_t curr_q_chr_index = start_q_chr;
         std::string curr_q_chr = q_chr_name[start_q_chr];
         uint32_t curr_q_chr_file_name = q_chr_file_name[start_q_chr];
         size_t curr_q_chr_start = q_chr_start[start_q_chr]; 
         size_t curr_q_chr_end = curr_q_chr_start + q_chr_len[start_q_chr];
 
-        std::vector <std::vector <std::string>> sorted_segments(num_ref);
+        base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".plus"; 
+        segment_filename = base_filename+".segments";
         std::string out_str;
+        FILE* segmentFile = fopen(segment_filename.c_str(), "w");
 
         for (auto e: fw_segments) {
             size_t seg_r_start = e.ref_start + r_block_start;
             size_t seg_q_start = q_block_start + e.query_start;
-            size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1 - start_r_chr;
-            size_t q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
+            size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
             if(seg_q_start >= curr_q_chr_start && seg_q_start < curr_q_chr_end){
-                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n");
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n";
             }
             else{
-                for(int i = 0; i < num_ref;i++){
-                    if(sorted_segments[i].size() > 0){
-                        base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".plus";
-                        segment_filename = base_filename+".segments";
-                        err_filename = base_filename+".err";
-                        output_filename  = base_filename+"."+cfg.output_format;
-
-                        FILE* segmentFile = fopen(segment_filename.c_str(), "w");
-                        for(int j = 0; j< sorted_segments[i].size(); j++){
-                            fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
-                        }
-                        fclose(segmentFile);
-                        if(cfg.gapped){
-
-                            cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                            if(cfg.notrivial)
-                                cmd = cmd+" --notrivial";
-                            if(cfg.scoring_file != "")
-                                cmd = cmd+" --scoring=" + cfg.scoring_file;
-                            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
-
-                            io_lock.lock();
-                            printf("%s\n", cmd.c_str());
-                            io_lock.unlock();
-                        }
-                        sorted_segments[i].clear();
-                    }
-                }
-
                 size_t q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
                 curr_q_chr_index = q_index;
                 curr_q_chr = q_chr_name[curr_q_chr_index];
                 curr_q_chr_file_name = q_chr_file_name[curr_q_chr_index];
                 curr_q_chr_start = q_chr_start[curr_q_chr_index];
                 curr_q_chr_end = curr_q_chr_start + q_chr_len[curr_q_chr_index];
-                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n");
+
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n";
             }
+            fprintf(segmentFile, "%s", out_str.c_str());
         }
 
-        for(int i = 0; i < num_ref;i++){
-            if(sorted_segments[i].size() > 0){
-                base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".plus";
-                segment_filename = base_filename+".segments";
-                err_filename = base_filename+".err";
-                output_filename  = base_filename+"."+cfg.output_format;
+        fclose(segmentFile);
 
-                FILE* segmentFile = fopen(segment_filename.c_str(), "w");
-                for(int j = 0; j< sorted_segments[i].size(); j++){
-                    fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
-                }
-                fclose(segmentFile);
+        if(cfg.gapped){
 
-                if(cfg.gapped){
+            err_filename = base_filename+".err";
+            output_filename  = base_filename+"."+cfg.output_format;
 
-                    cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                    if(cfg.notrivial)
-                        cmd = cmd+" --notrivial";
-                    if(cfg.scoring_file != "")
-                        cmd = cmd+" --scoring=" + cfg.scoring_file;
-                    cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+            cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+            if(cfg.notrivial)
+                cmd = cmd+" --notrivial";
+            if(cfg.scoring_file != "")
+                cmd = cmd+" --scoring=" + cfg.scoring_file;
+            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
 
-                    io_lock.lock();
-                    printf("%s\n", cmd.c_str());
-                    io_lock.unlock();
-                }
-
-                sorted_segments[i].clear();
-            }
+            io_lock.lock();
+            printf("%s\n", cmd.c_str());
+            io_lock.unlock();
         }
 
         start_q_chr = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), q_block_start+rc_q_inter_start) - rc_q_chr_start.cbegin() - 1; 
         end_q_chr = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), q_block_start+rc_q_inter_end) - rc_q_chr_start.cbegin() - 1; 
 
-        curr_q_chr_index = start_q_chr;
+        curr_q_chr_index = end_q_chr;
         curr_q_chr = rc_q_chr_name[curr_q_chr_index];
         curr_q_chr_file_name = rc_q_chr_file_name[curr_q_chr_index];
         curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
         curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
 
+        base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".minus"; 
+        segment_filename = base_filename+".segments";
+        segmentFile = fopen(segment_filename.c_str(), "w");
         
-        for (auto e: rc_segments) {
+        //for (auto e: rc_segments) {
+        for(int r = rc_segments.size()-1; r > 0; r--){
+            auto e =  rc_segments[r];
             size_t seg_r_start = e.ref_start + r_block_start;
             size_t seg_q_start = e.query_start + q_block_start;
-            size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1 - start_r_chr;
+            size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
             if(seg_q_start >= curr_q_chr_start && seg_q_start < curr_q_chr_end){
-                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n");
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n";
             }
             else{
-                for(int i = 0; i < num_ref;i++){
-                    if(sorted_segments[i].size() > 0){
-                        base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".minus";
-                        segment_filename = base_filename+".segments";
-                        err_filename = base_filename+".err";
-                        output_filename  = base_filename+"."+cfg.output_format;
-
-                        FILE* segmentFile = fopen(segment_filename.c_str(), "a");
-                        for(int j = 0; j< sorted_segments[i].size(); j++){
-                            fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
-                        }
-                        fclose(segmentFile);
-
-                        if(cfg.gapped){
-
-                            cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                            if(cfg.notrivial)
-                                cmd = cmd+" --notrivial";
-                            if(cfg.scoring_file != "")
-                                cmd = cmd+" --scoring=" + cfg.scoring_file;
-                            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
-
-                            io_lock.lock();
-                            printf("%s\n", cmd.c_str());
-                            io_lock.unlock();
-                        }
-                        sorted_segments[i].clear();
-                        
-                    }
-                }
 
                 size_t q_index = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), seg_q_start) - rc_q_chr_start.cbegin() - 1;
                 curr_q_chr_index = q_index;
@@ -193,37 +123,28 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 curr_q_chr_file_name = rc_q_chr_file_name[curr_q_chr_index];
                 curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
                 curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
-                sorted_segments[r_index].emplace_back(r_chr_name[r_index+start_r_chr] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index+start_r_chr]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index+start_r_chr]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n");
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n";
             }
+            fprintf(segmentFile, "%s", out_str.c_str());
         }
 
-        for(int i = 0; i < num_ref;i++){
-            if(sorted_segments[i].size() > 0){
-                base_filename = base_files[i]+".chr"+std::to_string(curr_q_chr_index)+".minus";
-                segment_filename = base_filename+".segments";
-                err_filename = base_filename+".err";
-                output_filename  = base_filename+"."+cfg.output_format;
+        fclose(segmentFile);
 
-                FILE* segmentFile = fopen(segment_filename.c_str(), "a");
-                for(int j = 0; j< sorted_segments[i].size(); j++){
-                    fprintf(segmentFile, "%s", sorted_segments[i][j].c_str());
-                }
-                fclose(segmentFile);
-                if(cfg.gapped){
+        if(cfg.gapped){
 
-                    cmd = "lastz "+cfg.data_folder+"ref/chr"+std::to_string(r_chr_file_name[i+start_r_chr])+".2bit[nameparse=darkspace] "+cfg.data_folder+"query/chr"+std::to_string(curr_q_chr_file_name)+".2bit[nameparse=darkspace] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                    if(cfg.notrivial)
-                        cmd = cmd+" --notrivial";
-                    if(cfg.scoring_file != "")
-                        cmd = cmd+" --scoring=" + cfg.scoring_file;
-                    cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+            err_filename = base_filename+".err";
+            output_filename  = base_filename+"."+cfg.output_format;
 
-                    io_lock.lock();
-                    printf("%s\n", cmd.c_str());
-                    io_lock.unlock();
-                }
-                sorted_segments[i].clear();
-            }
+            cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+            if(cfg.notrivial)
+                cmd = cmd+" --notrivial";
+            if(cfg.scoring_file != "")
+                cmd = cmd+" --scoring=" + cfg.scoring_file;
+            cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+
+            io_lock.lock();
+            printf("%s\n", cmd.c_str());
+            io_lock.unlock();
         }
     }
 
