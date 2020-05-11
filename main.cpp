@@ -258,7 +258,7 @@ int main(int argc, char** argv){
     }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
-    cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
+    cfg.num_threads = 32;//(cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
 
     if(cfg.debug){
@@ -290,6 +290,7 @@ int main(int argc, char** argv){
     query_DRAM = new DRAM;
     query_rc_DRAM = new DRAM;
     
+    FILE *block_name_file;
     // Read query file
     if(cfg.debug){
 	    gettimeofday(&start_time, NULL);
@@ -315,12 +316,16 @@ int main(int argc, char** argv){
 
     size_t seq_block_start = query_DRAM->bufferPosition;
     size_t seq_block_len = 0;
+    size_t query_max_block_len = 0;
+
     query_block_start.push_back(query_DRAM->bufferPosition);
     std::vector<uint32_t> block_chrs;
+    block_name_file = fopen(("query_block"+std::to_string(total_q_blocks)+".name").c_str(), "w");
 
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
+        fprintf(block_name_file, (seq_name+"\n").c_str());
 
         q_chr_name.push_back(seq_name);
         q_chr_file_name.push_back(total_q_chr);
@@ -342,6 +347,8 @@ int main(int argc, char** argv){
         if(seq_block_len > SEQ_BLOCK_SIZE){
 
             query_block_len.push_back(seq_block_len);
+            if(seq_block_len > query_max_block_len)
+                query_max_block_len = seq_block_len;
 
             for(int i = block_chrs.size()-1; i >= 0; i--){
                 rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
@@ -381,6 +388,8 @@ int main(int argc, char** argv){
             block_chrs.clear();
 
             total_q_blocks += 1;
+            fclose(block_name_file);
+            block_name_file = fopen(("query_block"+std::to_string(total_q_blocks)+".name").c_str(), "w");
         }
         else{
             memset(query_DRAM->buffer + query_DRAM->bufferPosition, '&', 1);
@@ -388,11 +397,13 @@ int main(int argc, char** argv){
             seq_block_len += 1;
         }
     }
-    seq_block_len--;
 
     if(seq_block_len > 0){
+        seq_block_len--;
 
         query_block_len.push_back(seq_block_len);
+        if(seq_block_len > query_max_block_len)
+            query_max_block_len = seq_block_len;
 
         if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size) {
             exit(EXIT_FAILURE); 
@@ -429,11 +440,13 @@ int main(int argc, char** argv){
         prev_num_intervals = interval_list.size();
     }
 
+    fclose(block_name_file);
     query_DRAM->seqSize = query_DRAM->bufferPosition;
     query_rc_DRAM->seqSize = query_rc_DRAM->bufferPosition;
     gzclose(f_rd);
 
     total_query_intervals = interval_list.size();
+    //g_InitializeQuery (query_max_block_len);
 
     if(cfg.debug){
     	gettimeofday(&end_time, NULL);
@@ -464,9 +477,11 @@ int main(int argc, char** argv){
     seq_block_len = 0;
     ref_block_start.push_back(ref_DRAM->bufferPosition);
 
+    block_name_file = fopen(("ref_block"+std::to_string(total_r_blocks)+".name").c_str(), "w");
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
+        fprintf(block_name_file, (seq_name+"\n").c_str());
 
         r_chr_name.push_back(seq_name);
         r_chr_file_name.push_back(total_r_chr);
@@ -492,6 +507,8 @@ int main(int argc, char** argv){
             seq_block_len = 0;
 
             total_r_blocks += 1;
+            fclose(block_name_file);
+            block_name_file = fopen(("ref_block"+std::to_string(total_r_blocks)+".name").c_str(), "w");
         }
         else{
             memset(ref_DRAM->buffer + ref_DRAM->bufferPosition, '&', 1);
@@ -500,13 +517,13 @@ int main(int argc, char** argv){
         }
     }
 
-    seq_block_len--;
-
     if(seq_block_len > 0){
+        seq_block_len--;
         ref_block_len.push_back(seq_block_len);
         total_r_blocks += 1;
     }
 
+    fclose(block_name_file);
     gzclose(f_rd);
 
     if(cfg.debug){
@@ -579,7 +596,7 @@ int main(int argc, char** argv){
                 send_r_start = ref_block_start[r_chr_sent];
                 send_r_len   = ref_block_len[r_chr_sent];
 
-                //fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
+                fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
                 if(r_chr_sent > 0)
                     g_clearRef();
                 g_SendRefWriteRequest (send_r_start, send_r_len);
@@ -620,7 +637,7 @@ int main(int argc, char** argv){
 
                     q_buffer[q_chr_sent] = q_chr_sent;
                     send_buffer_id = q_chr_sent;
-                    //fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
+                    fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
                     if(r_chr_sent > 0)
                         g_clearQuery(send_buffer_id);
                     g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer_id);
@@ -641,7 +658,7 @@ int main(int argc, char** argv){
                             q_buffer[q_chr_sent] = i;
                             prev_chr_intervals[i] += block_num_intervals[q_chr_sent];
 
-                            //fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
+                            fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
                             g_clearQuery(i);
                             g_SendQueryWriteRequest (send_q_start, send_q_len, i);
 
@@ -684,6 +701,7 @@ int main(int argc, char** argv){
                     chrom.r_len = send_r_len;
                     chrom.q_len = q_len-cfg.seed_size;
                     chrom.block_index = q_chr_invoked; 
+                    chrom.r_block_index = r_chr_sent; 
                     if(chr_intervals_invoked == chr_intervals_num) {
                         q_chr_invoked++;
                         invoke_q_chr = true;

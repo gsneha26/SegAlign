@@ -36,6 +36,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     size_t r_start = chrom.r_start;
     size_t r_len = chrom.r_len;
     uint32_t q_block_index = chrom.block_index;
+    uint32_t r_block_index = chrom.r_block_index;
     uint32_t rc_start_pos = q_len - end_pos;
     uint32_t rc_end_pos = q_len - start_pos;
 
@@ -116,5 +117,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, q_block_index, r_start, r_start+r_len-1, q_start, start_pos, end_pos, q_len+cfg.seed_size), token);
+    return printer_input(printer_payload(num_invoked, fw_segments, rc_segments, q_block_index, r_start, r_start+r_len-1, q_start, start_pos, end_pos, q_len+cfg.seed_size, r_block_index), token);
 }
