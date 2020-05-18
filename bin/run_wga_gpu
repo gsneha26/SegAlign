@@ -4,6 +4,8 @@
 #4 - file not found
 #5 - no permissions to create directory
 #6 - error with LASTZ gapped extension
+#7 - unable to open file
+#9 - not enopugh allocated CPU DRAM
 
 set -e
 

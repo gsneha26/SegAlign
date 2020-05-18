@@ -114,6 +114,7 @@ int main(int argc, char** argv){
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
         ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
         ("lastz_interval", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
+        ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "NUmber of GPUs to use")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
@@ -284,7 +285,7 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size);
+    cfg.num_gpu = g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size, cfg.num_gpu);
 
     ref_DRAM = new DRAM;
     query_DRAM = new DRAM;
@@ -301,7 +302,7 @@ int main(int argc, char** argv){
     gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
     if (!f_rd) { 
         fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); 
-        exit(EXIT_FAILURE); 
+        exit(7); 
     }
         
     kseq_t *kseq_rd = kseq_init(f_rd);
@@ -335,7 +336,8 @@ int main(int argc, char** argv){
         block_chrs.push_back(total_q_chr);
 
         if (query_DRAM->bufferPosition + seq_len > query_DRAM->size) {
-            exit(EXIT_FAILURE); 
+            fprintf(stderr, "Not enough memory in query DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
+            exit(9); 
         }
         
         memcpy(query_DRAM->buffer + query_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
@@ -358,7 +360,8 @@ int main(int argc, char** argv){
             }
 
             if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size){
-                exit(EXIT_FAILURE); 
+                fprintf(stderr, "Not enough memory in query_rc DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
+                exit(9); 
             }
 
             RevComp(query_rc_DRAM->bufferPosition, seq_block_start, seq_block_len);
@@ -406,7 +409,8 @@ int main(int argc, char** argv){
             query_max_block_len = seq_block_len;
 
         if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size) {
-            exit(EXIT_FAILURE); 
+            fprintf(stderr, "Not enough memory in query_rc DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
+            exit(9); 
         }
 
         RevComp(seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len);
@@ -466,7 +470,7 @@ int main(int argc, char** argv){
     f_rd = gzopen(cfg.reference_filename.c_str(), "r");
     if (!f_rd) { 
         fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); 
-        exit(EXIT_FAILURE); 
+        exit(7); 
     }
         
     kseq_rd = kseq_init(f_rd);
@@ -489,7 +493,8 @@ int main(int argc, char** argv){
         r_chr_len.push_back(seq_len);
 
         if (ref_DRAM->bufferPosition + seq_len > ref_DRAM->size) {
-            exit(EXIT_FAILURE); 
+            fprintf(stderr, "Not enough memory in ref DRAM. Need to reduce input target sequence size to less than 6GB!\n"); 
+            exit(9); 
         }
         
         memcpy(ref_DRAM->buffer + ref_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
