@@ -767,7 +767,7 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
         MAX_SEEDS = WGA_CHUNK;
 
     if(global_mem_gb <= 8){
-        MAX_HITS = MAX_SEEDS * 10;
+        MAX_HITS = MAX_SEEDS * 5;
     }
     else{
         MAX_HITS = MAX_SEEDS * 20;
