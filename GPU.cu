@@ -669,7 +669,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
                     err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
                     if (err != cudaSuccess) {
-                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
+                        fprintf(stderr, "Error: cudaMemcpy failed! hsp output\n");
                         exit(1);
                     }
                 }
@@ -683,7 +683,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
                     err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
                     if (err != cudaSuccess) {
-                        fprintf(stderr, "Error: cudaMemcpy failed! hsp with num_anchors= %u\n", num_anchors[i]);
+                        fprintf(stderr, "Error: cudaMemcpy failed! hsp output\n");
                         exit(1);
                     }
                 }
@@ -731,18 +731,10 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
+int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu){
 
-    size_t ret = 0;
     cudaError_t err;
     int nDevices;
-
-    if(transition)
-        MAX_SEEDS = 13*WGA_CHUNK;
-    else
-        MAX_SEEDS = WGA_CHUNK;
-    MAX_HITS = MAX_SEEDS * 10;
-    MAX_HITS_SIZE = 2*MAX_HITS;
 
     err = cudaGetDeviceCount(&nDevices);
     if (err != cudaSuccess) {
@@ -750,8 +742,37 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
         exit(1);
     }
 
-    NUM_DEVICES = nDevices; 
+    if(num_gpu == -1){
+        NUM_DEVICES = nDevices; 
+    }
+    else{
+        if(num_gpu <= nDevices){
+            NUM_DEVICES = num_gpu;
+        }
+        else{
+            fprintf(stderr, "Requested GPUs greater than available GPUs\n");
+            exit(10);
+        }
+    }
+
     fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
+
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    float global_mem_gb = static_cast<float>(deviceProp.totalGlobalMem / 1073741824.0f);
+
+    if(transition)
+        MAX_SEEDS = 13*WGA_CHUNK;
+    else
+        MAX_SEEDS = WGA_CHUNK;
+
+    if(global_mem_gb <= 8){
+        MAX_HITS = MAX_SEEDS * 10;
+    }
+    else{
+        MAX_HITS = MAX_SEEDS * 20;
+    }
+    MAX_HITS_SIZE = 2*MAX_HITS;
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -804,7 +825,7 @@ size_t InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK){
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
 
-    return ret;
+    return NUM_DEVICES;
 }
 
 void SendRefWriteRequest (size_t start_addr, size_t len){

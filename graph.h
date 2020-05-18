@@ -56,6 +56,7 @@ struct Configuration {
     uint32_t num_threads;
     uint32_t num_ref;
     uint32_t num_query;
+    int num_gpu;
 
     // Output parameters
     std::string output_format;

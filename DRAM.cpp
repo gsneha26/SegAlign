@@ -5,7 +5,7 @@
 #include "tbb/tbb.h"
 
 DRAM::DRAM()
-	: size(5ull * 1024ull * 1024ull * 1024ull), // 5GB CPU memory
+	: size(6ull * 1024ull * 1024ull * 1024ull), // 6GB CPU memory
 	seqSize(0),
 	bufferPosition(0)
 {
