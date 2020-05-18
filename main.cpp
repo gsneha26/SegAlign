@@ -258,7 +258,7 @@ int main(int argc, char** argv){
     }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
-    cfg.num_threads = 32;//(cfg.num_threads == 1) ? 2 : cfg.num_threads;
+    cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
 
     if(cfg.debug){
