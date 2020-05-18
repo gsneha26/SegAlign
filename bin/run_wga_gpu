@@ -57,6 +57,7 @@ else
 	mkdir -p $DATA_FOLDER
 	
 	cd $DATA_FOLDER
+  1>&2 echo "Converintg fasta files to 2bit format"
   faToTwoBit $refPath ref.2bit
   faToTwoBit $queryPath query.2bit
 
@@ -85,8 +86,6 @@ else
 
   if [ $ng -eq 0 ]; then
       rm *.segments *.err
-  else
-      echo -e '#'name1'\t'start1'\t'end1'\t'name2'\t'start2'\t'end2'\t'strand2'\t'score
   fi
   cat tmp*
   rm -rf $OUTPUT_FOLDER
