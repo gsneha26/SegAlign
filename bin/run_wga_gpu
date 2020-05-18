@@ -56,35 +56,10 @@ else
 	DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
 	mkdir -p $DATA_FOLDER
 	
-	1>&2 echo "Splitting reference chromosome"
 	cd $DATA_FOLDER
-	mkdir -p "ref"
-	cd "ref"
-  ndigits=${#refChr}
-  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $refPath /">"/ {*}
+  faToTwoBit $refPath ref.2bit
+  faToTwoBit $queryPath query.2bit
 
-	1>&2 echo "Converting chromosome wise fasta to 2bit format"
-	for i in *;
-	do
-	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
-	done
-  parallel --jobs=$(nproc) < cmd.sh
-	rm cmd.sh *.fa
-	
-	1>&2 echo "Splitting query chromosome"
-	cd $DATA_FOLDER
-	mkdir -p "query"
-	cd "query"
-  ndigits=${#queryChr}
-  csplit -s -z -f 'chr' -b '%01d.fa' -n 1 $queryPath /">"/ {*}
-
-	1>&2 echo "Converting chromosome wise fasta to 2bit format"
-	for i in *;
-	do
-	    echo "faToTwoBit $i $(basename -s .fa $i).2bit" >> cmd.sh
-	done
-  parallel --jobs=$(nproc) < cmd.sh
-	rm cmd.sh *.fa
 	
   1>&2 echo "Executing: \"wga $refPath $queryPath $DATA_FOLDER $optionalArguments\""
   time {
@@ -115,4 +90,5 @@ else
   fi
   cat tmp*
   rm -rf $OUTPUT_FOLDER
+
 fi
