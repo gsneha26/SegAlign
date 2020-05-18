@@ -111,7 +111,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             segment_filename = base_filename+".segments";
             segmentFile = fopen(segment_filename.c_str(), "w");
 
-            for(int r = rc_segments.size()-1; r > 0; r--){
+            for(int r = rc_segments.size()-1; r >= 0; r--){
                 auto e =  rc_segments[r];
                 size_t seg_r_start = e.ref_start + r_block_start;
                 size_t seg_q_start = e.query_start + q_block_start;
