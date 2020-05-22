@@ -6,6 +6,7 @@
 #6 - error with LASTZ gapped extension
 #7 - unable to open file
 #9 - not enopugh allocated CPU DRAM
+#10 - Requested GPUs greater than available GPUs
 
 set -e
 
@@ -76,7 +77,7 @@ else
   rm -rf $DATA_FOLDER
 
   if [ $ng -eq 0 ]; then
-      err_lines=$(cat *.err | wc -l)
+      err_lines=$(grep FAILURE *.err | wc -l)
 
       if [ $err_lines -gt 0 ]; then
           1>&2 echo ""
