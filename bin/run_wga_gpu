@@ -88,7 +88,7 @@ else
   fi
 
   if [ $ng -eq 0 ]; then
-      rm *.segments *.err
+      for i in *.segments *.err; do rm $i; done
   fi
   cat tmp*
   rm -rf $OUTPUT_FOLDER
