@@ -770,7 +770,7 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
         MAX_HITS = MAX_SEEDS * 5;
     }
     else{
-        MAX_HITS = MAX_SEEDS * 20;
+        MAX_HITS = MAX_SEEDS * 40;
     }
     MAX_HITS_SIZE = 2*MAX_HITS;
 
