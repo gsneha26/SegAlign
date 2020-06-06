@@ -744,8 +744,5 @@ int main(int argc, char** argv){
 //    -------------------------------------------------------------------------- 
     g_ShutdownProcessor();
 
-//    gettimeofday(&end_time_complete, NULL);
-//    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
-//    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
     return 0;
 }
