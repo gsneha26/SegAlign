@@ -31,9 +31,7 @@ The following dependencies are required by SegAlign:
   * faToTwoBit (from kentUtils)
   * Intel TBB library
 
-A script is provided to automatically install these dependencies.
-
-* Install dependencies (this might take a while)
+The dependencies can be installed with the given script as follows (this might take a while): 
 
 ```
     $ cd $PROJECT_DIR

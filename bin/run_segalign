@@ -60,7 +60,7 @@ else
 	mkdir -p $DATA_FOLDER
 	
 	cd $DATA_FOLDER
-  1>&2 echo "Converintg fasta files to 2bit format"
+  1>&2 echo "Converting fasta files to 2bit format"
   faToTwoBit $refPath ref.2bit
   faToTwoBit $queryPath query.2bit
 
