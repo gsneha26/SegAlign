@@ -73,5 +73,5 @@ mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j $(nproc)
-cp $CURR/build/wga $CURR/bin/		
+cp $CURR/build/segalign $CURR/bin/		
 sudo cp $CURR/bin/* /usr/local/bin/
