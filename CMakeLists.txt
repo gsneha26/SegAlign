@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.8)
 
 set(CMAKE_CUDA_COMPILER nvcc)
-project(wga LANGUAGES C CXX CUDA)
+project(segalign LANGUAGES C CXX CUDA)
 find_package(CUDA 9.0 REQUIRED)
 
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
@@ -21,7 +21,7 @@ include_directories(${ZLIB_INCLUDE_DIR})
 FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
-add_executable(wga
+add_executable(segalign
     DRAM.cpp
     GPU.cu
     seed_pos_table.cpp
@@ -31,24 +31,23 @@ add_executable(wga
     main.cpp
     )
 
-#install(TARGETS wga DESTINATION /usr/local/bin)
-set_property(TARGET wga PROPERTY CUDA_STANDARD 11)
+set_property(TARGET segalign PROPERTY CUDA_STANDARD 11)
 
 # We need to explicitly state that we need all CUDA files in the particle
 # library to be built with -dc as the member functions could be called by
 # other libraries and executables
-set_target_properties(wga PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(segalign PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
-target_compile_options(wga PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+target_compile_options(segalign PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            --generate-line-info>)
 
 if(ZLIB_FOUND)
     include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries (wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
+    target_link_libraries (segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
 endif()
 
 if(TARGET zlib::zlib)
-    target_link_libraries(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
+    target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
 endif()
 
-TARGET_LINK_LIBRARIES(wga PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
