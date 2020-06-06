@@ -5,7 +5,7 @@ A Scalable GPU System for Pairwise Whole Genome Alignments
 ## Table of Contents
 
 - [Overview](#overview)
-- [Dependenciesi](#dependencies)
+- [Dependencies](#dependencies)
 - [How to run SegAlign](#run)
     - [Running a test](#test)
 
