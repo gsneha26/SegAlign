@@ -26,7 +26,7 @@ The following dependencies are required by SegAlign:
   * libboost-all-dev
   * CMake 3.8
   * parallel
-  * CUDA 10.2 toolkit
+  * NVIDIA CUDA 10.2 toolkit
   * LASTZ 1.04.03
   * faToTwoBit (from kentUtils)
   * Intel TBB library
