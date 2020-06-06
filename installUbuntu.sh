@@ -66,7 +66,7 @@ wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faToTwoBit
 chmod +x faToTwoBit
 sudo cp $CURR/bin/* /usr/local/bin/
 
-# WGA_GPU
+# SegAlign 
 cd $CURR
 git clone https://github.com/01org/tbb
 mkdir build
