@@ -55,6 +55,30 @@ struct hspEqual{
     }
 };
 
+struct hspComp{
+    __host__ __device__
+        bool operator()(hsp x, hsp y){
+            if(x.query_start < y.query_start)
+                return true;
+            else if(x.query_start == y.query_start){
+                if(x.ref_start < y.ref_start)
+                    return true;
+                else if(x.ref_start == y.ref_start){
+                    if(x.len < y.len){
+                        return true;
+                    }
+                    else{
+                        return false;
+                    }
+                }
+                else
+                    return false;
+            }
+            else 
+                return false;
+    }
+};
+
 // wrap of cudaMalloc error checking in one place.  
 static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
     cudaError_t err = cudaMalloc(buf, bytes);
@@ -159,12 +183,12 @@ void fill_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_hits
 
         if(id > 0){
             if(index > d_done[id-1]){
-                d_hsp_reduced[index-1]    =  d_hsp[id];
+                d_hsp_reduced[index-1] = d_hsp[id];
             }
         }
         else{
             if(index == 1){
-                d_hsp_reduced[0]    = d_hsp[0];
+                d_hsp_reduced[0] = d_hsp[0];
             }
         }
     }
@@ -266,7 +290,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ uint32_t extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
-    __shared__ float entropy[NUM_WARPS];
+    __shared__ double entropy[NUM_WARPS];
 
     int thread_score;
     int max_thread_score;
@@ -537,7 +561,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
 
                 entropy[warp_id] = 0.f;
                 for(int i = 0; i < 4; i++){
-                    entropy[warp_id] += ((float) count[i])/((float) extent[warp_id]) * ((count[i] != 0) ? log(((double) count[i]) / ((double) extent[warp_id])): 0.f); 
+                    entropy[warp_id] += ((double) count[i])/((double) (extent[warp_id]+1)) * ((count[i] != 0) ? log(((double) count[i]) / ((double) (extent[warp_id]+1))): 0.f); 
                 }
                 entropy[warp_id] = -entropy[warp_id]/log(4.0f);
             }
@@ -553,7 +577,8 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
                     d_hsp[hid].ref_start = ref_loc[warp_id] - left_extent[warp_id];
                     d_hsp[hid].query_start = query_loc[warp_id] - left_extent[warp_id];
                     d_hsp[hid].len = extent[warp_id];
-                    d_hsp[hid].score = total_score[warp_id];
+                    if(entropy[warp_id] > 0)
+                        d_hsp[hid].score = total_score[warp_id]*entropy[warp_id];
                     d_done[hid] = 1;
                 }
                 else{
@@ -663,6 +688,9 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
             if(num_anchors[i] > 0){
                 fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits);
+
+                thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
+
                 if(nounique) {
 
                     h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
