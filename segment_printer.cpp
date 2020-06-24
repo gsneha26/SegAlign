@@ -32,7 +32,9 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string err_filename;
     std::string cmd;
 
-    uint32_t num_hsps = fw_segments.size() + rc_segments.size();
+    uint32_t num_fw_hsps = fw_segments.size();
+    uint32_t num_rc_hsps = rc_segments.size();
+    uint32_t num_hsps = num_fw_hsps + num_rc_hsps;
 
     if(num_hsps > 0){
 
@@ -50,13 +52,35 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         std::string out_str;
         FILE* segmentFile;
 
-        if(fw_segments.size() > 0){
+        uint32_t file_index = 0;
+        uint32_t hsps_printed = 0;
 
-            base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".plus"; 
+        if(num_fw_hsps > 0){
+
+            base_filename = "tmp"+std::to_string(index)+".file"+std::to_string(file_index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".plus"; 
             segment_filename = base_filename+".segments";
             segmentFile = fopen(segment_filename.c_str(), "w");
 
             for (auto e: fw_segments) {
+                if(hsps_printed > MAX_HSPS_FILE){
+                    fclose(segmentFile);
+
+                    cmd = "aws s3 cp "+segment_filename+" "+cfg.data_folder;
+
+                    io_lock.lock();
+                    printf("%s\n", cmd.c_str());
+                    io_lock.unlock();
+
+                    file_index += 1;
+                    hsps_printed = 1;
+                    base_filename = "tmp"+std::to_string(index)+".file"+std::to_string(file_index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".plus"; 
+                    segment_filename = base_filename+".segments";
+                    segmentFile = fopen(segment_filename.c_str(), "w");
+                }
+                else{
+                    hsps_printed += 1;
+                }
+
                 size_t seg_r_start = e.ref_start + r_block_start;
                 size_t seg_q_start = q_block_start + e.query_start;
                 size_t r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
@@ -79,22 +103,12 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
             fclose(segmentFile);
 
-            if(cfg.gapped){
+            cmd = "aws s3 cp "+segment_filename+" "+cfg.data_folder;
 
-                err_filename = base_filename+".err";
-                output_filename  = base_filename+"."+cfg.output_format;
+            io_lock.lock();
+            printf("%s\n", cmd.c_str());
+            io_lock.unlock();
 
-                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                if(cfg.notrivial)
-                    cmd = cmd+" --notrivial";
-                if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
-                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
-
-                io_lock.lock();
-                printf("%s\n", cmd.c_str());
-                io_lock.unlock();
-            }
         }
 
         start_q_chr = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), q_block_start+rc_q_inter_start) - rc_q_chr_start.cbegin() - 1; 
@@ -106,12 +120,33 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
         curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
 
-        if(rc_segments.size() > 0){
-            base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".minus"; 
+        file_index = 0;
+        hsps_printed = 0;
+
+        if(num_rc_hsps > 0){
+            base_filename = "tmp"+std::to_string(index)+".file"+std::to_string(file_index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".minus"; 
             segment_filename = base_filename+".segments";
             segmentFile = fopen(segment_filename.c_str(), "w");
 
-            for(int r = rc_segments.size()-1; r >= 0; r--){
+            for(int r = num_rc_hsps-1; r >= 0; r--){
+                if(hsps_printed > MAX_HSPS_FILE){
+                    fclose(segmentFile);
+
+                    cmd = "aws s3 cp "+segment_filename+" "+cfg.data_folder;
+
+                    io_lock.lock();
+                    printf("%s\n", cmd.c_str());
+                    io_lock.unlock();
+
+                    file_index += 1;
+                    hsps_printed = 1;
+                    base_filename = "tmp"+std::to_string(index)+".file"+std::to_string(file_index)+".block"+std::to_string(block_index)+".r"+std::to_string(r_block_start)+".minus"; 
+                    segment_filename = base_filename+".segments";
+                    segmentFile = fopen(segment_filename.c_str(), "w");
+                }
+                else{
+                    hsps_printed += 1;
+                }
                 auto e =  rc_segments[r];
                 size_t seg_r_start = e.ref_start + r_block_start;
                 size_t seg_q_start = e.query_start + q_block_start;
@@ -136,22 +171,12 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
             fclose(segmentFile);
 
-            if(cfg.gapped){
+            cmd = "aws s3 cp "+segment_filename+" "+cfg.data_folder;
 
-                err_filename = base_filename+".err";
-                output_filename  = base_filename+"."+cfg.output_format;
+            io_lock.lock();
+            printf("%s\n", cmd.c_str());
+            io_lock.unlock();
 
-                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
-                if(cfg.notrivial)
-                    cmd = cmd+" --notrivial";
-                if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
-                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
-
-                io_lock.lock();
-                printf("%s\n", cmd.c_str());
-                io_lock.unlock();
-            }
         }
     }
 
