@@ -1,2 +1,4 @@
 tbb/
 build/
+test/
+bin/

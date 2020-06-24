@@ -52,6 +52,7 @@ fi
 
 # LASTZ
 cd $CURR
+mkdir bin
 wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
 gunzip lastz-1.04.03.tar.gz
 tar -xvf lastz-1.04.03.tar 
@@ -66,7 +67,6 @@ wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faToTwoBit
 chmod +x faToTwoBit
 wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
 chmod +x twoBitToFa
-sudo cp $CURR/bin/* /usr/local/bin/
 
 # SegAlign 
 cd $CURR
@@ -76,4 +76,6 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j $(nproc)
 cp $CURR/build/segalign $CURR/bin/		
+cp $CURR/scripts/run_segalign $CURR/bin/
 sudo cp $CURR/bin/* /usr/local/bin/
+rm -rf $CURR/bin
