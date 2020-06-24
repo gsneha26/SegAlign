@@ -22,13 +22,13 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(segalign
-    DRAM.cpp
-    GPU.cu
-    seed_pos_table.cpp
-    ntcoding.cpp
-    seeder.cpp
-    segment_printer.cpp
-    main.cpp
+    src/DRAM.cpp
+    src/GPU.cu
+    src/seed_pos_table.cpp
+    src/ntcoding.cpp
+    src/seeder.cpp
+    src/segment_printer.cpp
+    src/main.cpp
     )
 
 set_property(TARGET segalign PROPERTY CUDA_STANDARD 11)
