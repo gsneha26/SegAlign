@@ -84,12 +84,14 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 err_filename = base_filename+".err";
                 output_filename  = base_filename+"."+cfg.output_format;
 
-                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --strand=plus";
+                if(cfg.ambiguous != "")
+                    cmd = cmd+" --ambiguous="+cfg.ambiguous;
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
                     cmd = cmd+" --scoring=" + cfg.scoring_file;
-                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
                 printf("%s\n", cmd.c_str());
@@ -141,12 +143,14 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 err_filename = base_filename+".err";
                 output_filename  = base_filename+"."+cfg.output_format;
 
-                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" 2> "+err_filename;
+                cmd = "lastz "+cfg.data_folder+"ref.2bit[nameparse=darkspace][multiple][subset=ref_block"+std::to_string(r_block_index)+".name] "+cfg.data_folder+"query.2bit[nameparse=darkspace][subset=query_block"+std::to_string(block_index)+".name] --format="+ cfg.output_format +" --ydrop="+std::to_string(cfg.ydrop)+" --gappedthresh="+std::to_string(cfg.gappedthresh)+" --strand=minus";
+                if(cfg.ambiguous != "")
+                    cmd = cmd+" --ambiguous="+cfg.ambiguous;
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
                     cmd = cmd+" --scoring=" + cfg.scoring_file;
-                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename;
+                cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
                 printf("%s\n", cmd.c_str());
