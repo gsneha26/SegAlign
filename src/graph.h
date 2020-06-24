@@ -27,6 +27,7 @@ struct Configuration {
     std::string scoring_file;
     std::string ambiguous;
     std::string hsplim;
+    std::string strand;
 
     //Scoring
     int sub_mat[NUC2];

@@ -42,74 +42,78 @@ printer_input seeder_body::operator()(seeder_input input) {
 
     fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with buffer %u\n", q_block_index, num_invoked, num_intervals, start_pos, end_pos, buffer);
 
-    for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
+    if(cfg.strand == "plus" || cfg.strand == "both"){
+        for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
-        //end position
-        uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
+            //end position
+            uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
 
-        std::vector<uint64_t> seed_offset_vector;
-        seed_offset_vector.clear();
+            std::vector<uint64_t> seed_offset_vector;
+            seed_offset_vector.clear();
 
-        //start to end position in the chunk
-        for (uint32_t j = i; j < e; j++) {
+            //start to end position in the chunk
+            for (uint32_t j = i; j < e; j++) {
 
-            index = GetKmerIndexAtPos(query_DRAM->buffer, q_start+j, cfg.seed_size);
-            if (index != ((uint32_t) 1 << 31)) {
-                seed_offset = (index << 32) + j;
-                seed_offset_vector.push_back(seed_offset); 
+                index = GetKmerIndexAtPos(query_DRAM->buffer, q_start+j, cfg.seed_size);
+                if (index != ((uint32_t) 1 << 31)) {
+                    seed_offset = (index << 32) + j;
+                    seed_offset_vector.push_back(seed_offset); 
 
-                if (cfg.transition) {
-                    for (int t=0; t < sa->GetKmerSize(); t++) {
-                        if (IsTransitionAtPos(t) == 1) {
-                            transition_index = (index ^ (TRANSITION_MASK << (2*t)));
-                            seed_offset = (transition_index << 32) + j;
-                            seed_offset_vector.push_back(seed_offset); 
+                    if (cfg.transition) {
+                        for (int t=0; t < sa->GetKmerSize(); t++) {
+                            if (IsTransitionAtPos(t) == 1) {
+                                transition_index = (index ^ (TRANSITION_MASK << (2*t)));
+                                seed_offset = (transition_index << 32) + j;
+                                seed_offset_vector.push_back(seed_offset); 
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if(seed_offset_vector.size() > 0){
-            seeder_body::num_seeds += seed_offset_vector.size();
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh, cfg.noentropy, cfg.nounique);
-            seeder_body::num_seed_hits += anchors[0].score;
-            if(anchors.size() > 1){
-                fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
-                seeder_body::num_hsps += anchors.size()-1;
+            if(seed_offset_vector.size() > 0){
+                seeder_body::num_seeds += seed_offset_vector.size();
+                std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh, cfg.noentropy, cfg.nounique);
+                seeder_body::num_seed_hits += anchors[0].score;
+                if(anchors.size() > 1){
+                    fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
+                    seeder_body::num_hsps += anchors.size()-1;
+                }
             }
         }
     }
 
-    for (uint32_t i = q_len - end_pos; i < q_len - start_pos; i += cfg.wga_chunk_size) {
-        uint32_t e = std::min(i + cfg.wga_chunk_size, q_len - start_pos);
+    if(cfg.strand == "minus" || cfg.strand == "both"){
+        for (uint32_t i = q_len - end_pos; i < q_len - start_pos; i += cfg.wga_chunk_size) {
+            uint32_t e = std::min(i + cfg.wga_chunk_size, q_len - start_pos);
 
-        std::vector<uint64_t> seed_offset_vector;
-        seed_offset_vector.clear();
-        for (uint32_t j = i; j < e; j++) {
-            index = GetKmerIndexAtPos(query_rc_DRAM->buffer, q_start+j, cfg.seed_size);
-            if (index != ((uint32_t) 1 << 31)) {
-                seed_offset = (index << 32) + j;
-                seed_offset_vector.push_back(seed_offset); 
-                if (cfg.transition) {
-                    for (int t=0; t < sa->GetKmerSize(); t++) {
-                        if (IsTransitionAtPos(t) == 1) {
-                            transition_index = (index ^ (TRANSITION_MASK << (2*t)));
-                            seed_offset = (transition_index << 32) + j;
-                            seed_offset_vector.push_back(seed_offset); 
+            std::vector<uint64_t> seed_offset_vector;
+            seed_offset_vector.clear();
+            for (uint32_t j = i; j < e; j++) {
+                index = GetKmerIndexAtPos(query_rc_DRAM->buffer, q_start+j, cfg.seed_size);
+                if (index != ((uint32_t) 1 << 31)) {
+                    seed_offset = (index << 32) + j;
+                    seed_offset_vector.push_back(seed_offset); 
+                    if (cfg.transition) {
+                        for (int t=0; t < sa->GetKmerSize(); t++) {
+                            if (IsTransitionAtPos(t) == 1) {
+                                transition_index = (index ^ (TRANSITION_MASK << (2*t)));
+                                seed_offset = (transition_index << 32) + j;
+                                seed_offset_vector.push_back(seed_offset); 
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if(seed_offset_vector.size() > 0){
-            seeder_body::num_seeds += seed_offset_vector.size();
-            std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh, cfg.noentropy, cfg.nounique);
-            seeder_body::num_seed_hits += anchors[0].score;
-            if(anchors.size() > 1){
-                rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
-                seeder_body::num_hsps += anchors.size()-1;
+            if(seed_offset_vector.size() > 0){
+                seeder_body::num_seeds += seed_offset_vector.size();
+                std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer, cfg.seed_size, cfg.xdrop, cfg.hspthresh, cfg.noentropy, cfg.nounique);
+                seeder_body::num_seed_hits += anchors[0].score;
+                if(anchors.size() > 1){
+                    rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
+                    seeder_body::num_hsps += anchors.size()-1;
+                }
             }
         }
     }
