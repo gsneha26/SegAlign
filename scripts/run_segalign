@@ -90,7 +90,8 @@ else
   if [ $ng -eq 0 ]; then
       for i in *.segments *.err; do rm $i; done
   fi
-  cat tmp*
+  for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done
+  for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done
   rm -rf $OUTPUT_FOLDER
 
 fi
