@@ -26,6 +26,7 @@ struct Configuration {
     std::string data_folder;
     std::string scoring_file;
     std::string ambiguous;
+    std::string hsplim;
 
     //Scoring
     int sub_mat[NUC2];
@@ -62,6 +63,8 @@ struct Configuration {
     std::string output_format;
     std::string output;
     std::string output_filename;
+
+    uint32_t hsplimit_num;
 };
 
 extern Configuration cfg;

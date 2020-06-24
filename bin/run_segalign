@@ -25,7 +25,7 @@ for ((i=2; i < $#; i++))
 
 if [ $# -eq 1 ] || [ $# -eq 0 ] 
 then
-	wga $1
+	segalign $1
 else
 	refPath=$(readlink -f $1)
 	queryPath=$(readlink -f $2)
@@ -60,17 +60,17 @@ else
 	mkdir -p $DATA_FOLDER
 	
 	cd $DATA_FOLDER
-  1>&2 echo "Converintg fasta files to 2bit format"
+  1>&2 echo "Converting fasta files to 2bit format"
   faToTwoBit $refPath ref.2bit
   faToTwoBit $queryPath query.2bit
 
 	
-  1>&2 echo "Executing: \"wga $refPath $queryPath $DATA_FOLDER $optionalArguments\""
+  1>&2 echo "Executing: \"segalign $refPath $queryPath $DATA_FOLDER $optionalArguments\""
   time {
   pids=""
   count=0
   cd $OUTPUT_FOLDER
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL wga $refPath $queryPath $DATA_FOLDER $optionalArguments )
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
       wait $pids
   }
 

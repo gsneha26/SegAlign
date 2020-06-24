@@ -108,6 +108,7 @@ int main(int argc, char** argv){
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't use entropy factor for filtering stage")
+        ("queryhsplimit", po::value<std::string>(&cfg.hsplim), "Discard queries that have more than <n> HSPs")
         ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive elements")
         ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
         ("output", po::value<std::string>(&cfg.output), "output filename")
@@ -145,7 +146,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_wga_gpu target query data_folder [options]\n"); 
+        fprintf(stderr, "Usage: run_segalign target query data_folder [options]\n"); 
         std::cout << desc << std::endl;
         return 1;
     }
@@ -174,6 +175,12 @@ int main(int argc, char** argv){
 
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
+
+    std::vector <std::string> hsp_fields;
+    boost::split(hsp_fields, cfg.hsplim, boost::is_any_of(":") );
+
+    if(hsp_fields.size() > 1)
+        cfg.hsplimit_num = std::stoi(hsp_fields[1]);
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;
@@ -744,8 +751,5 @@ int main(int argc, char** argv){
 //    -------------------------------------------------------------------------- 
     g_ShutdownProcessor();
 
-//    gettimeofday(&end_time_complete, NULL);
-//    seconds = end_time_complete.tv_sec - start_time_complete.tv_sec;
-//    fprintf(stderr, "\nTime elapsed (complete pipeline): %ld sec \n", seconds);
     return 0;
 }
