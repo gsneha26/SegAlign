@@ -18,8 +18,8 @@ find_package(ZLIB REQUIRED)
 find_path(ZLIB_INCLUDE_DIR zlib.h)
 include_directories(${ZLIB_INCLUDE_DIR})
 
-FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
-INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+find_package(Boost COMPONENTS program_options REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(segalign
     DRAM.cpp
@@ -40,6 +40,7 @@ set_target_properties(segalign PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 target_compile_options(segalign PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            --generate-line-info>)
+target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 
 if(ZLIB_FOUND)
     include_directories(${ZLIB_INCLUDE_DIRS})
@@ -50,4 +51,4 @@ if(TARGET zlib::zlib)
     target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
 endif()
 
-TARGET_LINK_LIBRARIES(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
+target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
