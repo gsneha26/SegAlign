@@ -28,7 +28,7 @@ The following dependencies are required by SegAlign:
   * parallel
   * NVIDIA CUDA 10.2 toolkit
   * LASTZ 1.04.03
-  * faToTwoBit (from kentUtils)
+  * faToTwoBit, twoBitToFa (from kentUtils)
   * Intel TBB library
 
 The dependencies can be installed with the given script as follows (this might take a while): 
@@ -54,7 +54,12 @@ The dependencies can be installed with the given script as follows (this might t
 ### <a name="test"></a> Running a test
 
 ```
-    $ gunzip $PROJECT_DIR/data/ce11.fa.gz
-    $ gunzip $PROJECT_DIR/data/cb4.fa.gz
-    $ run_segalign $PROJECT_DIR/data/ce11.fa $PROJECT_DIR/data/cb4.fa > ce11.cb4.maf
+    $ cd $PROJECT_DIR
+    $ mkdir test
+    $ cd test
+    $ wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+    $ wget https://hgdownload-test.gi.ucsc.edu/goldenPath/cb4/bigZips/cb4.2bit 
+    $ twoBitToFa ce11.2bit ce11.fa
+    $ twoBitToFa cb4.2bit cb4.fa
+    $ run_segalign ce11.fa cb4.fa > ce11.cb4.maf
 ```
