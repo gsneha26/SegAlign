@@ -35,7 +35,7 @@ The dependencies can be installed with the given script as follows (this might t
 
 ```
     $ cd $PROJECT_DIR
-    $ ./installUbuntu.sh
+    $ ./scripts/installUbuntu.sh
 ```
 
 ## <a name="run"></a> How to run SegAlign
