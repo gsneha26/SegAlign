@@ -333,7 +333,7 @@ int main(int argc, char** argv){
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
-        fprintf(block_name_file, (seq_name+"\n").c_str());
+        fprintf(block_name_file, "%s\n", seq_name.c_str());
 
         q_chr_name.push_back(seq_name);
         q_chr_file_name.push_back(total_q_chr);
@@ -492,7 +492,7 @@ int main(int argc, char** argv){
     while (kseq_read(kseq_rd) >= 0) {
         size_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
-        fprintf(block_name_file, (seq_name+"\n").c_str());
+        fprintf(block_name_file, "%s\n", seq_name.c_str());
 
         r_chr_name.push_back(seq_name);
         r_chr_file_name.push_back(total_r_chr);
