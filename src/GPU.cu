@@ -61,15 +61,19 @@ struct hspComp{
             if(x.query_start < y.query_start)
                 return true;
             else if(x.query_start == y.query_start){
-                if(x.ref_start < y.ref_start)
+                if(x.len > y.len)
                     return true;
-                else if(x.ref_start == y.ref_start){
-                    if(x.len < y.len){
+                else if(x.len == y.len){
+                    if(x.ref_start < y.ref_start)
                         return true;
+                    else if(x.ref_start == y.ref_start){
+                        if(x.score > y.score)
+                            return true;
+                        else
+                            return false;
                     }
-                    else{
+                    else
                         return false;
-                    }
                 }
                 else
                     return false;
@@ -287,6 +291,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     __shared__ uint32_t prev_max_pos[NUM_WARPS];
     __shared__ bool edge_found[NUM_WARPS]; 
     __shared__ bool xdrop_found[NUM_WARPS]; 
+    __shared__ bool new_max_found[NUM_WARPS]; 
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ uint32_t extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
@@ -299,6 +304,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     bool xdrop_done;
     int temp;
     short count[4];
+    short count_del[4];
     char r_chr;
     char q_chr;
     uint32_t ref_pos;
@@ -340,6 +346,7 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             tile[warp_id] = 0;
             xdrop_found[warp_id] = false;
             edge_found[warp_id] = false;
+            new_max_found[warp_id] = false;
             entropy[warp_id] = 1.0f;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = -1000;
@@ -351,6 +358,10 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
         count[1] = 0;
         count[2] = 0;
         count[3] = 0;
+        count_del[0] = 0;
+        count_del[1] = 0;
+        count_del[2] = 0;
+        count_del[3] = 0;
         max_pos = 0;
 
         __syncwarp();
@@ -413,6 +424,12 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             }
 
             if(lane_id == warp_size-1){
+
+                if(max_pos > prev_max_pos[warp_id])
+                    new_max_found[warp_id] = true;
+                else
+                    new_max_found[warp_id] = false;
+
                 if(xdrop_done){
                     total_score[warp_id] += max_thread_score;
                     xdrop_found[warp_id] = true;
@@ -436,10 +453,24 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             }
             __syncwarp();
 
-            if(pos_offset <=  tile[warp_id])
-                if(r_chr == q_chr)
-                    count[r_chr]++;
+            if(new_max_found[warp_id]){
+                for(int i = 0; i < 4; i++){
+                    count[i] = count[i] + count_del[i];
+                    count_del[i] = 0;
+                }
+            }
             __syncwarp();
+
+            if(r_chr == q_chr){
+                if(pos_offset <= prev_max_pos[warp_id]){
+                    count[r_chr] += 1;
+                }
+                else{
+                    count_del[r_chr] += 1;
+                }
+            }
+            __syncwarp();
+
         }
 
         __syncwarp();
@@ -451,11 +482,17 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             tile[warp_id] = 0;
             xdrop_found[warp_id] = false;
             edge_found[warp_id] = false;
+            new_max_found[warp_id] = false;
             prev_score[warp_id] = 0;
             prev_max_score[warp_id] = -1000;
             prev_max_pos[warp_id] = 0;
             left_extent[warp_id] = 0;
         }
+
+        count_del[0] = 0;
+        count_del[1] = 0;
+        count_del[2] = 0;
+        count_del[3] = 0;
         max_pos = 0;
         __syncwarp();
 
@@ -514,6 +551,12 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             }
 
             if(lane_id == warp_size-1){
+
+                if(max_pos > prev_max_pos[warp_id])
+                    new_max_found[warp_id] = true;
+                else
+                    new_max_found[warp_id] = false;
+
                 if(xdrop_done){
                     total_score[warp_id]+=max_thread_score;
                     xdrop_found[warp_id] = true;
@@ -539,11 +582,24 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
             }
             __syncwarp();
 
-            if(pos_offset <=  tile[warp_id])
-                if(r_chr == q_chr)
-                    count[r_chr]++;
-
+            if(new_max_found[warp_id]){
+                for(int i = 0; i < 4; i++){
+                    count[i] = count[i] + count_del[i];
+                    count_del[i] = 0;
+                }
+            }
             __syncwarp();
+
+            if(r_chr == q_chr){
+                if(pos_offset <= prev_max_pos[warp_id]){
+                    count[r_chr] += 1;
+                }
+                else{
+                    count_del[r_chr] += 1;
+                }
+            }
+            __syncwarp();
+
         }
 
         //////////////////////////////////////////////////////////////////
