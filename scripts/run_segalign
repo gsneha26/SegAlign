@@ -60,18 +60,23 @@ else
 	mkdir -p $DATA_FOLDER
 	
 	cd $DATA_FOLDER
+  1>&2 echo ""
   1>&2 echo "Converting fasta files to 2bit format"
   faToTwoBit $refPath ref.2bit
   faToTwoBit $queryPath query.2bit
 
-	
-  1>&2 echo "Executing: \"segalign $refPath $queryPath $DATA_FOLDER $optionalArguments\""
-  time {
   pids=""
+  FAIL=0
+
+  1>&2 echo ""
+  1>&2 echo "Executing: \"segalign $refPath $queryPath $DATA_FOLDER $optionalArguments\""
+  
+  time {
   count=0
   cd $OUTPUT_FOLDER
+
   while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
-      wait $pids
+      wait $pids || let "FAIL+=1"
   }
 
   rm -rf $DATA_FOLDER
@@ -79,7 +84,7 @@ else
   if [ $ng -eq 0 ]; then
       err_lines=$(grep FAILURE *.err | wc -l)
 
-      if [ $err_lines -gt 0 ]; then
+      if [ $err_lines -gt 0 ] || [ $FAIL -gt 0 ]; then
           1>&2 echo ""
           1>&2 echo "Error in LASTZ process!"
           1>&2 cat *.err
@@ -90,6 +95,7 @@ else
   if [ $ng -eq 0 ]; then
       for i in *.segments *.err; do rm $i; done
   fi
+
   for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done
   for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done
   rm -rf $OUTPUT_FOLDER
