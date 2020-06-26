@@ -107,7 +107,6 @@ int main(int argc, char** argv){
         ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage")
         ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive HSPs after filter stage")
-        ("queryhsplimit", po::value<std::string>(&cfg.hsplim), "Discard queries that have more than <n> HSPs")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
         ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
         ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
@@ -177,12 +176,6 @@ int main(int argc, char** argv){
 
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
-
-    std::vector <std::string> hsp_fields;
-    boost::split(hsp_fields, cfg.hsplim, boost::is_any_of(":") );
-
-    if(hsp_fields.size() > 1)
-        cfg.hsplimit_num = std::stoi(hsp_fields[1]);
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;

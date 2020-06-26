@@ -41,8 +41,6 @@ struct Configuration {
     int hspthresh;
     bool noentropy;
     bool nounique;
-    std::string hsplim;
-    uint32_t hsplimit_num;
 
     //Extension parameters
     bool gapped;
