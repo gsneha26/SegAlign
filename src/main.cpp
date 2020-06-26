@@ -147,7 +147,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign target query data_folder [options]\n"); 
+        fprintf(stderr, "Usage: run_segalign target query [options]\n"); 
         std::cout << desc << std::endl;
         return 1;
     }

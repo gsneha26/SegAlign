@@ -11,15 +11,32 @@
 set -e
 
 optionalArguments=""
+optionalArguments1=""
 ng=0
+outf=0
+output_filename=""
+total_args=0
 
 args=("$@")
 for ((i=2; i < $#; i++))
     {
+        new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
+        optionalArguments1="$optionalArguments1 $new_arg"
         optionalArguments="$optionalArguments ${args[$i]}"
+    }
 
-        if [[ "$optionalArguments" == *"--nogapped"* ]]; then
+split_args=( $optionalArguments1 )
+total_args=${#split_args[@]}
+
+for ((i=0; i < $total_args; i++))
+    {
+        if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
             ng=1
+        fi
+
+        if [[ "${split_args[$i]}" == *"--output"* ]]; then
+            outf=1
+            output_filename=$(readlink -f ${split_args[$(($i+1))]})
         fi
     }
 
@@ -96,8 +113,15 @@ else
       for i in *.segments *.err; do rm $i; done
   fi
 
-  for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done
-  for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done
+  if [ $outf -eq 1 ]; then
+      touch $output_filename
+      for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done 
+      for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename; done 
+  else
+      for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done 
+      for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done 
+  fi
+
   rm -rf $OUTPUT_FOLDER
 
 fi
