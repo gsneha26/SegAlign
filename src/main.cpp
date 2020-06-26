@@ -97,34 +97,35 @@ int main(int argc, char** argv){
 
     po::options_description desc{"Options"};
     desc.add_options()
+        ("strand", po::value<std::string>(&cfg.strand)->default_value("both"), "strand to search - plus/minus/both")
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
-        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "ambiguous nucleotides (n/iupac)")
-        ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern")
-        ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "step length")
-        ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop threshold")
-        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop threshold")
-        ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "threshold for high scoring pairs")
-        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "threshold for gapped alignments")
-        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "allow (or don't) one transition in a seed hit")
-        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't do gapped extension")
-        ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't use entropy factor for filtering stage")
-        ("strand", po::value<std::string>(&cfg.strand)->default_value("both"), "Which strand to search - plus, minus, both")
+        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "ambiguous nucleotides - n/iupac")
+        ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern-12of19(1110100110010101111)/14of22(1110101100110010101111)/an arbitrary pattern of 1s, 0s, and Ts ")
+        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit")
+        ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "Offset between the starting positions of successive target words considered for generating seed table")
+        ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop value for gap-free extension")
+        ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
+        ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage")
+        ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive HSPs after filter stage")
         ("queryhsplimit", po::value<std::string>(&cfg.hsplim), "Discard queries that have more than <n> HSPs")
-        ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive elements")
-        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Do not output a trivial self-alignment block if the target and query sequences are identical")
+        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
+        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
+        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
+        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical")
+        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
-        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file")
+        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion")
         ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
         ("lastz_interval", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
-        ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "NUmber of GPUs to use")
+        ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "Specify number of GPUs to use - -1 if all the GPUs should be used")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
     po::options_description hidden;
     hidden.add_options()
-        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target file")
-        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query file")
-        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with 2bit files");
+        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format")
+        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query sequence file in FASTA format")
+        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with sequence files in 2bit format");
 
     po::options_description all_options;
     all_options.add(desc);

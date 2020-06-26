@@ -19,53 +19,52 @@ using namespace tbb::flow;
 
 struct Configuration {
     //FASTA files
-    std::string reference_name;
-    std::string query_name;
     std::string reference_filename;
     std::string query_filename;
     std::string data_folder;
-    std::string scoring_file;
-    std::string ambiguous;
-    std::string hsplim;
     std::string strand;
 
     //Scoring
+    std::string scoring_file;
+    std::string ambiguous;
     int sub_mat[NUC2];
 
     //Seed parameters
-    std::string seed;
-    uint32_t seed_size;
     std::string seed_shape;
     bool transition;
-    bool noentropy;
-    bool nounique;
-    bool debug;
     uint32_t step;
+    std::string seed;
+    uint32_t seed_size;
     
     //Filter parameters
-    uint32_t wga_chunk_size;
-    uint32_t lastz_interval_size;
     int xdrop; 
     int hspthresh;
+    bool noentropy;
+    bool nounique;
+    std::string hsplim;
+    uint32_t hsplimit_num;
 
     //Extension parameters
     bool gapped;
-    int gappedthresh;
     int ydrop;
+    int gappedthresh;
     bool notrivial;
-
-    //Multi-threading
-    uint32_t num_threads;
-    uint32_t num_ref;
-    uint32_t num_query;
-    int num_gpu;
 
     // Output parameters
     std::string output_format;
     std::string output;
-    std::string output_filename;
+    bool markend;
 
-    uint32_t hsplimit_num;
+    //System parameters
+    uint32_t wga_chunk_size;
+    uint32_t lastz_interval_size;
+    int num_gpu;
+    bool debug;
+
+    uint32_t num_threads;
+    uint32_t num_ref;
+    uint32_t num_query;
+
 };
 
 extern Configuration cfg;
