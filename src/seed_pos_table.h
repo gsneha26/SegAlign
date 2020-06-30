@@ -1,6 +1,6 @@
 #include <assert.h>
 #include "ntcoding.h"
-#include "GPU.h"
+#include "seed_filter.h"
 
 class SeedPosTable {
     private:

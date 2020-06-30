@@ -1,4 +1,4 @@
-#include "GPU.h"
+#include "seed_filter.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
