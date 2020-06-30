@@ -30,7 +30,6 @@ set -x
 sudo apt update 
 sudo apt-get install \
 	build-essential \
-	zlib1g-dev \
 	libboost-all-dev \
 	cmake \
 	parallel

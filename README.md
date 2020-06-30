@@ -22,14 +22,13 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 
 ## <a name="dependencies"></a> Dependencies
 The following dependencies are required by SegAlign:
-  * zlib1g-dev
-  * libboost-all-dev
-  * CMake 3.8
-  * parallel
   * NVIDIA CUDA 10.2 toolkit
+  * CMake 3.8
+  * Intel TBB library
+  * libboost-all-dev
+  * parallel
   * LASTZ 1.04.03
   * faToTwoBit, twoBitToFa (from kentUtils)
-  * Intel TBB library
 
 The dependencies can be installed with the given script as follows (this might take a while): 
 
