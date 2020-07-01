@@ -30,7 +30,7 @@ The following dependencies are required by SegAlign:
   * LASTZ 1.04.03
   * faToTwoBit, twoBitToFa (from kentUtils)
 
-The dependencies can be installed with the given script as follows (this might take a while): 
+The dependencies can be installed with the given script as follows, which might take a while (only installs the dependencies not present already). This script requires sudo to install most packages at the system level. Using the `-c` option skips CUDA installation. 
 
 ```
     $ cd $PROJECT_DIR
