@@ -40,7 +40,6 @@ struct Configuration {
     int xdrop; 
     int hspthresh;
     bool noentropy;
-    bool nounique;
 
     //Extension parameters
     bool gapped;

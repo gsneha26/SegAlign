@@ -19,7 +19,6 @@ int check_status = 0;
 int NUM_DEVICES;
 int MAX_SEEDS;
 int MAX_HITS;
-int MAX_HITS_SIZE;
 std::vector<int> available_gpus;
 std::mutex mu;
 std::condition_variable cv;
@@ -167,34 +166,6 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
         else if (ch == '&')
             dst = E_NT;
         dst_seq[i] = dst;
-    }
-}
-
-__global__
-void fill_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_hits){
-
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int stride = block_dim * grid_dim;
-    uint32_t start = block_dim * block_id + thread_id;
-    int index = 0;
-
-    for (uint32_t id = start; id < num_hits; id += stride) {
-        index = d_done[id];
-
-        if(id > 0){
-            if(index > d_done[id-1]){
-                d_hsp_reduced[index-1] = d_hsp[id];
-            }
-        }
-        else{
-            if(index == 1){
-                d_hsp_reduced[0] = d_hsp[0];
-            }
-        }
     }
 }
 
@@ -650,7 +621,35 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy, bool nounique){
+__global__
+void compress_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_hits){
+
+    int thread_id = threadIdx.x;
+    int block_dim = blockDim.x;
+    int grid_dim = gridDim.x;
+    int block_id = blockIdx.x;
+
+    int stride = block_dim * grid_dim;
+    uint32_t start = block_dim * block_id + thread_id;
+    int index = 0;
+
+    for (uint32_t id = start; id < num_hits; id += stride) {
+        index = d_done[id];
+
+        if(id > 0){
+            if(index > d_done[id-1]){
+                d_hsp_reduced[index-1] = d_hsp[id];
+            }
+        }
+        else{
+            if(index == 1){
+                d_hsp_reduced[0] = d_hsp[0];
+            }
+        }
+    }
+}
+
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy){
 
     cudaError_t err;
 
@@ -692,38 +691,33 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         exit(1);
     }
     
-    int iters = num_hits/MAX_HITS+1;
+    int num_iter = num_hits/MAX_HITS+1;
+    uint32_t iter_hit_limit = MAX_HITS;
+    thrust::device_vector<uint32_t> limit_pos (num_iter); 
 
-    thrust::device_vector<uint32_t> limit_value (iters); 
-    thrust::device_vector<uint32_t> limit_pos (iters); 
+    for(int i = 0; i < num_iter-1; i++){
+        thrust::device_vector<uint32_t>::iterator result_end = thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, iter_hit_limit);
+        uint32_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
+        iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
+        limit_pos[i] = pos;
+    }
 
-    for(int i = 0; i < iters-1; i++)
-        limit_value[i] = (i+1)*MAX_HITS;
+    limit_pos[num_iter-1] = num_seeds-1;
 
-    limit_value[iters-1] = num_hits+1;
+    hsp** h_hsp = (hsp**) malloc(num_iter*sizeof(hsp*));
+    uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
 
-    thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, limit_value.begin(), limit_value.end(), limit_pos.begin()); 
-
-    for(int i = 0; i < iters-1; i++)
-        limit_pos[i] --;
-    limit_pos[iters-1] = num_seeds-1;
-
-    hsp** h_hsp = (hsp**) malloc(iters*sizeof(hsp*));
-    uint32_t* num_anchors = (uint32_t*) calloc(iters, sizeof(uint32_t));
-    uint32_t iter_start_index, iter_end_index, iter_start_val, iter_end_val;
-    iter_start_index = 0;
-    iter_end_index =  limit_pos[0]+1;
-    iter_start_val = 0;
-    iter_end_val = d_hit_num_vec[g][limit_pos[0]];
+    uint32_t start_seed_index = 0;
+    uint32_t start_hit_val = 0;
     uint32_t iter_num_seeds, iter_num_hits;
-    iter_num_seeds = iter_end_index - iter_start_index;
-    iter_num_hits = iter_end_val - iter_start_val;
 
     if(num_hits > 0){
         
-        for(int i = 0; i < iters; i++){
+        for(int i = 0; i < num_iter; i++){
+            iter_num_seeds = limit_pos[i] + 1 - start_seed_index;
+            iter_num_hits  = d_hit_num_vec[g][limit_pos[i]] - start_hit_val;
 
-            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], iter_start_index, iter_start_val);
+            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val);
 
             if(rev){
                 find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done_array[g]);
@@ -743,13 +737,11 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
             total_anchors += num_anchors[i];
 
             if(num_anchors[i] > 0){
-                fill_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits);
+                compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done_array[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits);
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
-
                 thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
-
                 h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
 
                 err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
@@ -759,19 +751,11 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
                 }
             }
 
-            if(i < iters-1){
-                iter_start_index = iter_end_index;
-                iter_end_index =  limit_pos[i+1]+1;
-                iter_num_seeds = iter_end_index - iter_start_index;
-
-                iter_start_val = iter_end_val;
-                iter_end_val = d_hit_num_vec[g][limit_pos[i+1]];
-                iter_num_hits = iter_end_val - iter_start_val;
-            }
+            start_seed_index = limit_pos[i] + 1;
+            start_hit_val = d_hit_num_vec[g][limit_pos[i]];
         }
     }
 
-    limit_value.clear();
     limit_pos.clear();
 
     {
@@ -788,7 +772,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     gpu_filter_output.push_back(first_el);
 
     if(total_anchors > 0){
-        for(int it = 0; it < iters; it++){
+        for(int it = 0; it < num_iter; it++){
 
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
@@ -837,12 +821,11 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
         MAX_SEEDS = WGA_CHUNK;
 
     if(global_mem_gb <= 8){
-        MAX_HITS = MAX_SEEDS * 5;
+        MAX_HITS = MAX_SEEDS * 10;
     }
     else{
         MAX_HITS = MAX_SEEDS * 40;
     }
-    MAX_HITS_SIZE = 2*MAX_HITS;
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -865,13 +848,13 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
 
         cudaSetDevice(g);
 
-        d_done_vec.emplace_back(MAX_HITS_SIZE, 0);
+        d_done_vec.emplace_back(MAX_HITS, 0);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
 
-        d_hsp_vec.emplace_back(MAX_HITS_SIZE, zeroHsp);
+        d_hsp_vec.emplace_back(MAX_HITS, zeroHsp);
         d_hsp[g] = thrust::raw_pointer_cast(d_hsp_vec.at(g).data());
 
-        d_hsp_reduced_vec.emplace_back(MAX_HITS_SIZE, zeroHsp);
+        d_hsp_reduced_vec.emplace_back(MAX_HITS, zeroHsp);
         d_hsp_reduced[g] = thrust::raw_pointer_cast(d_hsp_reduced_vec.at(g).data());
 
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);

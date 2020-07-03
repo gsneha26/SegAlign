@@ -106,7 +106,6 @@ int main(int argc, char** argv){
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop value for gap-free extension")
         ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage")
-        ("nounique", po::bool_switch(&cfg.nounique)->default_value(false), "don't remove repetitive HSPs after filter stage")
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
         ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
         ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
