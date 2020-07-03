@@ -274,7 +274,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 }
 
 __global__
-void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, int *d_sub_mat, int xdrop, int hspthresh, uint32_t* d_done, uint32_t ref_len, uint32_t query_len, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp, bool noentropy){
+void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, hsp* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -720,16 +720,16 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     iter_num_hits = iter_end_val - iter_start_val;
 
     if(num_hits > 0){
-
+        
         for(int i = 0; i < iters; i++){
 
             find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], iter_start_index, iter_start_val);
 
             if(rev){
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], noentropy);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done_array[g]);
             }
             else{
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], d_sub_mat[g], xdrop, hspthresh, d_done_array[g], ref_len, query_length[buffer], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], noentropy);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done_array[g]);
             }
 
             thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
@@ -747,29 +747,15 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
 
-                if(nounique) {
+                thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
-                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+                h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
 
-                    err = cudaMemcpy(h_hsp[i], d_hsp_reduced[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
-                    if (err != cudaSuccess) {
-                        fprintf(stderr, "Error: cudaMemcpy failed! hsp output\n");
-                        exit(1);
-                    }
-                }
-
-                else {
-
-                    thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
-                    num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
-
-                    h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
-
-                    err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
-                    if (err != cudaSuccess) {
-                        fprintf(stderr, "Error: cudaMemcpy failed! hsp output\n");
-                        exit(1);
-                    }
+                err = cudaMemcpy(h_hsp[i], d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost);
+                if (err != cudaSuccess) {
+                    fprintf(stderr, "Error: cudaMemcpy failed! hsp output\n");
+                    exit(1);
                 }
             }
 
