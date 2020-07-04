@@ -23,29 +23,31 @@ std::vector<int> available_gpus;
 std::mutex mu;
 std::condition_variable cv;
 
-uint32_t ref_len;
-uint32_t query_length[BUFFER_DEPTH];
+int **d_sub_mat;
 
 char** d_ref_seq;
+uint32_t ref_len;
+
 char** d_query_seq;
 char** d_query_rc_seq;
-
-int **d_sub_mat;
+uint32_t query_length[BUFFER_DEPTH];
 
 uint32_t** d_index_table;
 uint32_t** d_pos_table;
 
 uint64_t** d_seed_offsets;
 
-hsp** d_hsp;
-hsp** d_hsp_reduced;
-std::vector<thrust::device_vector<hsp> > d_hsp_vec;
-std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
-
-std::vector<thrust::device_vector<uint32_t> > d_done_vec;
-std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
-uint32_t** d_done_array;
 uint32_t** d_hit_num_array;
+std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
+
+uint32_t** d_done_array;
+std::vector<thrust::device_vector<uint32_t> > d_done_vec;
+
+hsp** d_hsp;
+std::vector<thrust::device_vector<hsp> > d_hsp_vec;
+
+hsp** d_hsp_reduced;
+std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
 
 struct hspEqual{
     __host__ __device__
@@ -92,6 +94,37 @@ static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) 
 }
 	 
 __global__
+void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
+    int thread_id = threadIdx.x;
+    int block_dim = blockDim.x;
+    int grid_dim = gridDim.x;
+    int block_id = blockIdx.x;
+
+    int stride = block_dim * grid_dim;
+    uint32_t start = block_dim * block_id + thread_id;
+
+    for (uint32_t i = start; i < len; i += stride) {
+        char ch = src_seq[i];
+        char dst = X_NT;
+        if (ch == 'A')
+            dst = A_NT;
+        else if (ch == 'C')
+            dst = C_NT;
+        else if (ch == 'G')
+            dst = G_NT;
+        else if (ch == 'T')
+            dst = T_NT;
+        else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
+            dst = L_NT;
+        else if ((ch == 'n') || (ch == 'N'))
+            dst = N_NT;
+        else if (ch == '&')
+            dst = E_NT;
+        dst_seq[i] = dst;
+    }
+}
+
+__global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -135,37 +168,6 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
         }
         dst_seq[i] = dst;
         dst_seq_rc[len -1 -i] = dst_rc;
-    }
-}
-
-__global__
-void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int stride = block_dim * grid_dim;
-    uint32_t start = block_dim * block_id + thread_id;
-
-    for (uint32_t i = start; i < len; i += stride) {
-        char ch = src_seq[i];
-        char dst = X_NT;
-        if (ch == 'A')
-            dst = A_NT;
-        else if (ch == 'C')
-            dst = C_NT;
-        else if (ch == 'G')
-            dst = G_NT;
-        else if (ch == 'T')
-            dst = T_NT;
-        else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
-            dst = L_NT;
-        else if ((ch == 'n') || (ch == 'N'))
-            dst = N_NT;
-        else if (ch == '&')
-            dst = E_NT;
-        dst_seq[i] = dst;
     }
 }
 
@@ -827,26 +829,50 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
         MAX_HITS = MAX_SEEDS * 40;
     }
 
-    d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
-    d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
-    d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
-    d_done_vec.reserve(NUM_DEVICES);
+
+    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    
+    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+
+    d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
+
+    d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_hit_num_vec.reserve(NUM_DEVICES);
+
+    d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_done_vec.reserve(NUM_DEVICES);
+
+    d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_vec.reserve(NUM_DEVICES);
+
+    d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_reduced_vec.reserve(NUM_DEVICES);
+
     hsp zeroHsp;
     zeroHsp.ref_start = 0;
     zeroHsp.query_start = 0;
     zeroHsp.len = 0;
     zeroHsp.score = 0;
 
-
     for(int g = 0; g < NUM_DEVICES; g++){
 
         cudaSetDevice(g);
+
+        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
+        err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaMemcpy failed! sub_mat\n");
+            exit(1);
+        }
+
+        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
+
+        d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
+        d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
 
         d_done_vec.emplace_back(MAX_HITS, 0);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
@@ -857,27 +883,9 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
         d_hsp_reduced_vec.emplace_back(MAX_HITS, zeroHsp);
         d_hsp_reduced[g] = thrust::raw_pointer_cast(d_hsp_reduced_vec.at(g).data());
 
-        d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
-        d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
-
-        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
-        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
-
-        err = cudaMemcpy(d_sub_mat[g], sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaMemcpy failed! sub_mat\n");
-            exit(1);
-        }
-
         available_gpus.push_back(g);
     }
     
-    d_query_seq    = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
-    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-
     return NUM_DEVICES;
 }
 
