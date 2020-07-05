@@ -286,7 +286,7 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    cfg.num_gpu = g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size, cfg.num_gpu);
+    cfg.num_gpu = g_InitializeProcessor (cfg.sub_mat, cfg.transition, cfg.wga_chunk_size, cfg.num_gpu, cfg.seed_size, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
     ref_DRAM = new DRAM;
     query_DRAM = new DRAM;

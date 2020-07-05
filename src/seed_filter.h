@@ -15,9 +15,9 @@ struct hsp {
     int score;
 };
 
-typedef int(*InitializeProcessor_ptr)(int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu);
+typedef int(*InitializeProcessor_ptr)(int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy);
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t ref_size, uint32_t max_pos_index);
-typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy);
+typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer);
 typedef void(*InclusivePrefixScan_ptr)(uint32_t* data, uint32_t len);
 typedef void(*ShutdownProcessor_ptr)();
 typedef void(*clearQuery_ptr)(uint32_t buffer);

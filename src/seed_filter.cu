@@ -23,7 +23,16 @@ std::vector<int> available_gpus;
 std::mutex mu;
 std::condition_variable cv;
 
+uint32_t seed_size;
+uint32_t** d_index_table;
+uint32_t** d_pos_table;
+
+uint64_t** d_seed_offsets;
+
 int **d_sub_mat;
+int xdrop;
+int hspthresh;
+bool noentropy;
 
 char** d_ref_seq;
 uint32_t ref_len;
@@ -31,11 +40,6 @@ uint32_t ref_len;
 char** d_query_seq;
 char** d_query_rc_seq;
 uint32_t query_length[BUFFER_DEPTH];
-
-uint32_t** d_index_table;
-uint32_t** d_pos_table;
-
-uint64_t** d_seed_offsets;
 
 uint32_t** d_hit_num_array;
 std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
@@ -202,7 +206,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int seed_size, uint32_t* seed_hit_num, int num_hits, seedHit* d_hit, uint32_t start_seed_index, uint32_t start_hit_index){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, seedHit* d_hit, uint32_t start_seed_index, uint32_t start_hit_index){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -652,7 +656,7 @@ void compress_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer, uint32_t seed_size, int xdrop, int hspthresh, bool noentropy){
+std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     cudaError_t err;
 
@@ -788,8 +792,13 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu){
+int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu, uint32_t input_seed_size, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
+    seed_size = input_seed_size;
+    xdrop = input_xdrop;
+    hspthresh = input_hspthresh;
+    noentropy = input_noentropy;
+    
     cudaError_t err;
     int nDevices;
 
