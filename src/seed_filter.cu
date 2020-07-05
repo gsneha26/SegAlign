@@ -40,6 +40,9 @@ uint64_t** d_seed_offsets;
 uint32_t** d_hit_num_array;
 std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 
+seedHit** d_hit;
+std::vector<thrust::device_vector<seedHit> > d_hit_vec;
+
 uint32_t** d_done_array;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 
@@ -199,7 +202,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, int seed_size, uint32_t* seed_hit_num, int num_hits, seedHit* d_hit, uint32_t start_seed_index, uint32_t start_hit_index){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -237,17 +240,15 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
                 ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size - 1;
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
 
-                d_hsp[dram_address].ref_start = ref_loc[warp_id];
-                d_hsp[dram_address].query_start = query_loc; 
-                d_hsp[dram_address].len = 0;
-                d_hsp[dram_address].score = 0;
+                d_hit[dram_address].ref_start = ref_loc[warp_id];
+                d_hit[dram_address].query_start = query_loc; 
             }
         }
     }
 }
 
 __global__
-void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, hsp* d_hsp, uint32_t* d_done){
+void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, seedHit* d_hit, hsp* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -296,16 +297,16 @@ void find_anchors (const char* __restrict__  d_ref_seq, const char* __restrict__
 
         if(hid < num_hits){
             if(lane_id == 0){
-                ref_loc[warp_id] = d_hsp[hid].ref_start;
-                query_loc[warp_id] = d_hsp[hid].query_start;
+                ref_loc[warp_id] = d_hit[hid].ref_start;
+                query_loc[warp_id] = d_hit[hid].query_start;
                 total_score[warp_id] = 0; 
             }
         }
         else{
             if(lane_id == 0){
 
-                ref_loc[warp_id] = d_hsp[hid0].ref_start;
-                query_loc[warp_id] = d_hsp[hid0].query_start;
+                ref_loc[warp_id] = d_hit[hid0].ref_start;
+                query_loc[warp_id] = d_hit[hid0].query_start;
                 total_score[warp_id] = 0; 
             }
         }
@@ -719,13 +720,13 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
             iter_num_seeds = limit_pos[i] + 1 - start_seed_index;
             iter_num_hits  = d_hit_num_vec[g][limit_pos[i]] - start_hit_val;
 
-            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val);
+            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hit[g], start_seed_index, start_hit_val);
 
             if(rev){
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done_array[g]);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_rc_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hit[g], d_hsp[g], d_done_array[g]);
             }
             else{
-                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done_array[g]);
+                find_anchors <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_query_seq[buffer*NUM_DEVICES+g], ref_len, query_length[buffer], d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hit[g], d_hsp[g], d_done_array[g]);
             }
 
             thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
@@ -843,6 +844,9 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
     d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_hit_num_vec.reserve(NUM_DEVICES);
 
+    d_hit = (seedHit**) malloc(NUM_DEVICES*sizeof(seedHit*));
+    d_hit_vec.reserve(NUM_DEVICES);
+
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_done_vec.reserve(NUM_DEVICES);
 
@@ -851,6 +855,10 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
 
     d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
     d_hsp_reduced_vec.reserve(NUM_DEVICES);
+
+    seedHit zeroHit;
+    zeroHit.ref_start = 0;
+    zeroHit.query_start = 0;
 
     hsp zeroHsp;
     zeroHsp.ref_start = 0;
@@ -873,6 +881,9 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
 
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
         d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
+
+        d_hit_vec.emplace_back(MAX_HITS, zeroHit);
+        d_hit[g] = thrust::raw_pointer_cast(d_hit_vec.at(g).data());
 
         d_done_vec.emplace_back(MAX_HITS, 0);
         d_done_array[g] = thrust::raw_pointer_cast(d_done_vec.at(g).data());
@@ -1019,6 +1030,7 @@ void ShutdownProcessor(){
 
     d_done_vec.clear();
     d_hit_num_vec.clear();
+    d_hit_vec.clear();
     d_hsp_vec.clear();
     d_hsp_reduced_vec.clear();
 

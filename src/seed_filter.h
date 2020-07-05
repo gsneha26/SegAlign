@@ -3,6 +3,11 @@
 #include <condition_variable>
 #include <vector>
 
+struct seedHit {
+    uint32_t ref_start;
+    uint32_t query_start;
+};
+
 struct hsp {
     uint32_t ref_start;
     uint32_t query_start;
