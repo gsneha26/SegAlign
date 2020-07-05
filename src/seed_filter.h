@@ -22,6 +22,7 @@ typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_
 typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer);
 typedef uint32_t (*Filter_ptr)(char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, hsp* hsp_out);
 typedef void(*InclusivePrefixScan_ptr)(uint32_t* data, uint32_t len);
+typedef void(*ShutdownUngappedExtension_ptr)();
 typedef void(*ShutdownProcessor_ptr)();
 typedef void(*clearQuery_ptr)(uint32_t buffer);
 typedef void(*clearRef_ptr)();
@@ -37,6 +38,7 @@ extern Filter_ptr g_Filter;
 extern SendRefWriteRequest_ptr g_SendRefWriteRequest;
 extern SendQueryWriteRequest_ptr g_SendQueryWriteRequest;
 extern InclusivePrefixScan_ptr g_InclusivePrefixScan;
+extern ShutdownUngappedExtension_ptr g_ShutdownUngappedExtension;
 extern ShutdownProcessor_ptr g_ShutdownProcessor;
 extern clearQuery_ptr g_clearQuery;
 extern clearRef_ptr g_clearRef;

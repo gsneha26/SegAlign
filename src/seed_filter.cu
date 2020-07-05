@@ -19,23 +19,38 @@
 #define MAX_SEED_HITS_PER_GB 8388608
 #define MAX_UNGAPPED_PER_GB 4194304
 
-std::mutex gpu_lock;
+// Control Variables
 
 int err;                            
 int check_status = 0;
-int NUM_DEVICES;
-uint32_t MAX_SEEDS;
-uint32_t MAX_SEED_HITS;
-uint32_t MAX_UNGAPPED;
-std::vector<int> available_gpus;
+std::mutex gpu_lock;
 std::mutex mu;
 std::condition_variable cv;
+std::vector<int> available_gpus;
+
+int NUM_DEVICES;
+
+// Seed Variables
+uint32_t MAX_SEEDS;
+uint32_t MAX_SEED_HITS;
 
 uint32_t seed_size;
 uint32_t** d_index_table;
 uint32_t** d_pos_table;
 
 uint64_t** d_seed_offsets;
+
+uint32_t** d_hit_num_array;
+std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
+
+seedHit** d_hit;
+std::vector<thrust::device_vector<seedHit> > d_hit_vec;
+
+hsp** d_hsp;
+std::vector<thrust::device_vector<hsp> > d_hsp_vec;
+
+//Filter Variables
+uint32_t MAX_UNGAPPED;
 
 int **d_sub_mat;
 int xdrop;
@@ -49,17 +64,8 @@ char** d_query_seq;
 char** d_query_rc_seq;
 uint32_t query_length[BUFFER_DEPTH];
 
-uint32_t** d_hit_num_array;
-std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
-
-seedHit** d_hit;
-std::vector<thrust::device_vector<seedHit> > d_hit_vec;
-
 uint32_t** d_done_array;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
-
-hsp** d_hsp;
-std::vector<thrust::device_vector<hsp> > d_hsp_vec;
 
 hsp** d_hsp_reduced;
 std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
@@ -1087,13 +1093,18 @@ void clearQuery(uint32_t buffer){
     }
 }
 
-void ShutdownProcessor(){
+void ShutdownUngappedExtension(){
 
     d_done_vec.clear();
+    d_hsp_reduced_vec.clear();
+}
+
+void ShutdownProcessor(){
+
+    g_ShutdownUngappedExtension();
     d_hit_num_vec.clear();
     d_hit_vec.clear();
     d_hsp_vec.clear();
-    d_hsp_reduced_vec.clear();
 
     cudaDeviceReset();
 }
@@ -1107,6 +1118,7 @@ Filter_ptr g_Filter = Filter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;
 InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;
+ShutdownUngappedExtension_ptr g_ShutdownUngappedExtension = ShutdownUngappedExtension;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
 clearRef_ptr g_clearRef = clearRef;
 clearQuery_ptr g_clearQuery = clearQuery;
