@@ -12,7 +12,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 
-// Each seed hit is 2 uint32_t - 8B
+// Each seed hit is 8B, hsp is 16B
 // With 32MB for the seed_hit array and both the HSPs array per 1GB GPU memory
 // With higher GPU memory, the size just linearly increases
 
@@ -890,6 +890,10 @@ void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_
     zeroHsp.len = 0;
     zeroHsp.score = 0;
 
+    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
 
@@ -939,10 +943,6 @@ void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspth
 
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
 
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
-    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    
     d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_done_vec.reserve(NUM_DEVICES);
 
