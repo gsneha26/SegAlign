@@ -792,13 +792,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu, uint32_t input_seed_size, int input_xdrop, int input_hspthresh, bool input_noentropy){
+int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu){
 
-    seed_size = input_seed_size;
-    xdrop = input_xdrop;
-    hspthresh = input_hspthresh;
-    noentropy = input_noentropy;
-    
     cudaError_t err;
     int nDevices;
 
@@ -907,6 +902,21 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
     }
     
     return NUM_DEVICES;
+}
+
+
+void InitializeSeeder (uint32_t input_seed_size){
+
+    seed_size = input_seed_size;
+}
+
+
+void InitializeUngappedExtension (int input_xdrop, int input_hspthresh, bool input_noentropy){
+
+    xdrop = input_xdrop;
+    hspthresh = input_hspthresh;
+    noentropy = input_noentropy;
+    
 }
 
 void SendRefWriteRequest (size_t start_addr, size_t len){
@@ -1031,7 +1041,6 @@ void clearQuery(uint32_t buffer){
         cudaSetDevice(g);
         cudaFree(d_query_seq[buffer*NUM_DEVICES+g]);
         cudaFree(d_query_rc_seq[buffer*NUM_DEVICES+g]);
-
     }
 }
 
@@ -1047,6 +1056,8 @@ void ShutdownProcessor(){
 }
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
+InitializeSeeder_ptr g_InitializeSeeder = InitializeSeeder;
+InitializeUngappedExtension_ptr g_InitializeUngappedExtension = InitializeUngappedExtension;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
