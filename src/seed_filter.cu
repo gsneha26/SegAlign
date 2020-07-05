@@ -792,9 +792,8 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
-int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int num_gpu){
+int InitializeProcessor (int num_gpu){
 
-    cudaError_t err;
     int nDevices;
 
     err = cudaGetDeviceCount(&nDevices);
@@ -818,28 +817,19 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
 
     fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
 
-    cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, 0);
-    float global_mem_gb = static_cast<float>(deviceProp.totalGlobalMem / 1073741824.0f);
+    return NUM_DEVICES;
+}
+
+
+void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size){
 
     if(transition)
         MAX_SEEDS = 13*WGA_CHUNK;
     else
         MAX_SEEDS = WGA_CHUNK;
 
-    if(global_mem_gb <= 8){
-        MAX_HITS = MAX_SEEDS * 10;
-    }
-    else{
-        MAX_HITS = MAX_SEEDS * 40;
-    }
+    seed_size = input_seed_size;
 
-    d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
-
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
-    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
 
@@ -848,6 +838,40 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
     d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_hit_num_vec.reserve(NUM_DEVICES);
 
+    for(int g = 0; g < NUM_DEVICES; g++){
+
+        cudaSetDevice(g);
+        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
+
+        d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
+        d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
+    }
+}
+
+
+void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
+
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    float global_mem_gb = static_cast<float>(deviceProp.totalGlobalMem / 1073741824.0f);
+
+    if(global_mem_gb <= 8){
+        MAX_HITS = MAX_SEEDS * 10;
+    }
+    else{
+        MAX_HITS = MAX_SEEDS * 40;
+    }
+
+    xdrop = input_xdrop;
+    hspthresh = input_hspthresh;
+    noentropy = input_noentropy;
+    
+    d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
+
+    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    
     d_hit = (seedHit**) malloc(NUM_DEVICES*sizeof(seedHit*));
     d_hit_vec.reserve(NUM_DEVICES);
 
@@ -881,11 +905,6 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
             exit(1);
         }
 
-        check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
-
-        d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
-        d_hit_num_array[g] = thrust::raw_pointer_cast(d_hit_num_vec.at(g).data());
-
         d_hit_vec.emplace_back(MAX_HITS, zeroHit);
         d_hit[g] = thrust::raw_pointer_cast(d_hit_vec.at(g).data());
 
@@ -900,23 +919,6 @@ int InitializeProcessor (int* sub_mat, bool transition, uint32_t WGA_CHUNK, int 
 
         available_gpus.push_back(g);
     }
-    
-    return NUM_DEVICES;
-}
-
-
-void InitializeSeeder (uint32_t input_seed_size){
-
-    seed_size = input_seed_size;
-}
-
-
-void InitializeUngappedExtension (int input_xdrop, int input_hspthresh, bool input_noentropy){
-
-    xdrop = input_xdrop;
-    hspthresh = input_hspthresh;
-    noentropy = input_noentropy;
-    
 }
 
 void SendRefWriteRequest (size_t start_addr, size_t len){
