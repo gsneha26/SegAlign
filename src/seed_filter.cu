@@ -129,7 +129,7 @@ struct hspComp{
 };
 
 __global__
-void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
+void compress_string (char* dst_seq, char* src_seq, uint32_t len){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -160,7 +160,7 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 }
 
 __global__
-void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
+void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -171,38 +171,29 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = X_NT;
         char dst_rc = X_NT;
         if (ch == 'A'){
-            dst = A_NT;
             dst_rc = T_NT;
         }
         else if (ch == 'C'){ 
-            dst = C_NT;
             dst_rc = G_NT;
         }
         else if (ch == 'G'){
-            dst = G_NT;
             dst_rc = C_NT;
         }
         else if (ch == 'T'){
-            dst = T_NT;
             dst_rc = A_NT;
         }
         else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't')){
-            dst = L_NT;
             dst_rc = L_NT;
         }
         else if ((ch == 'n') || (ch == 'N')){
-            dst = N_NT;
             dst_rc = N_NT;
         }
         else if (ch == '&'){
-            dst = E_NT;
             dst_rc = E_NT;
         }
-        dst_seq[i] = dst;
-        dst_seq_rc[len -1 -i] = dst_rc;
+        dst_seq[len -1 -i] = dst_rc;
     }
 }
 
@@ -686,7 +677,7 @@ void compress_output (uint32_t* d_done, uint32_t start_index, hsp* d_hsp, hsp* d
     }
 }
 
-int InitializeProcessor (int num_gpu){
+int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
     int nDevices;
 
@@ -710,15 +701,6 @@ int InitializeProcessor (int num_gpu){
     }
 
     fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
-
-    for(int g = 0; g < NUM_DEVICES; g++){
-        available_gpus.push_back(g);
-    }
-
-    return NUM_DEVICES;
-}
-
-void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size){
 
     seed_size = input_seed_size;
 
@@ -778,7 +760,13 @@ void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_
 
         d_hsp_vec.emplace_back(MAX_SEED_HITS, zeroHsp);
         d_hsp[g] = thrust::raw_pointer_cast(d_hsp_vec.at(g).data());
+
+        available_gpus.push_back(g);
     }
+
+    g_InitializeUngappedExtension(NUM_DEVICES, sub_mat, input_xdrop, input_hspthresh, input_noentropy);
+
+    return NUM_DEVICES;
 }
 
 void InclusivePrefixScan (uint32_t* data, uint32_t len) {
@@ -866,7 +854,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
         check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
 
-        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
+        g_CompressSeq(d_ref_seq_tmp, d_ref_seq[g], len);
 
         check_cuda_free((void*)d_ref_seq_tmp, "ref_seq_tmp");
     }
@@ -892,7 +880,8 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
         check_cuda_malloc((void**)&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_seq"); 
         check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_rc_seq"); 
 
-        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
+        g_CompressSeq(d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], len);
+        g_CompressRevCompSeq(d_query_seq_tmp, d_query_rc_seq[buffer*NUM_DEVICES+g], len);
 
         check_cuda_free((void*)d_query_seq_tmp, "query_seq_tmp");
     }
@@ -1037,7 +1026,19 @@ void ShutdownProcessor(){
     cudaDeviceReset();
 }
 
-void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy, int num_gpu){
+void CompressSeq(char* input_seq, char* output_seq, size_t len){
+
+    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
+
+}
+
+void CompressRevCompSeq(char* input_seq, char* output_seq, size_t len){
+
+    compress_rev_comp_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
+
+}
+
+void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
     xdrop = input_xdrop;
     hspthresh = input_hspthresh;
@@ -1126,8 +1127,13 @@ void ShutdownUngappedExtension(){
     d_tmp_hsp_vec.clear();
 }
 
+InitializeUngappedExtension_ptr g_InitializeUngappedExtension = InitializeUngappedExtension;
+CompressSeq_ptr g_CompressSeq = CompressSeq;
+CompressRevCompSeq_ptr g_CompressRevCompSeq = CompressRevCompSeq;
+UngappedExtend_ptr g_UngappedExtend = UngappedExtend;
+ShutdownUngappedExtension_ptr g_ShutdownUngappedExtension = ShutdownUngappedExtension;
+
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
-InitializeSeeder_ptr g_InitializeSeeder = InitializeSeeder;
 InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
@@ -1136,7 +1142,3 @@ SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 clearRef_ptr g_clearRef = clearRef;
 clearQuery_ptr g_clearQuery = clearQuery;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
-
-InitializeUngappedExtension_ptr g_InitializeUngappedExtension = InitializeUngappedExtension;
-UngappedExtend_ptr g_UngappedExtend = UngappedExtend;
-ShutdownUngappedExtension_ptr g_ShutdownUngappedExtension = ShutdownUngappedExtension;
