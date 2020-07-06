@@ -924,7 +924,7 @@ void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_
     }
 }
 
-void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
+void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy, int num_gpu){
 
     xdrop = input_xdrop;
     hspthresh = input_hspthresh;
@@ -941,15 +941,15 @@ void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspth
     zeroHsp.len = 0;
     zeroHsp.score = 0;
 
-    d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
+    d_sub_mat = (int**) malloc(num_gpu*sizeof(int*));
 
-    d_done_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_done_vec.reserve(NUM_DEVICES);
+    d_done_array = (uint32_t**) malloc(num_gpu*sizeof(uint32_t*));
+    d_done_vec.reserve(num_gpu);
 
-    d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
-    d_hsp_reduced_vec.reserve(NUM_DEVICES);
+    d_hsp_reduced = (hsp**) malloc(num_gpu*sizeof(hsp*));
+    d_hsp_reduced_vec.reserve(num_gpu);
 
-    for(int g = 0; g < NUM_DEVICES; g++){
+    for(int g = 0; g < num_gpu; g++){
 
         cudaSetDevice(g);
 

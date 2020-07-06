@@ -17,7 +17,7 @@ struct hsp {
 
 typedef int(*InitializeProcessor_ptr)(int num_gpu);
 typedef void(*InitializeSeeder_ptr)(bool transition, uint32_t WGA_CHUNK, uint32_t seed_size);
-typedef void(*InitializeUngappedExtension_ptr)(int* sub_mat,int xdrop, int hspthresh, bool noentropy);
+typedef void(*InitializeUngappedExtension_ptr)(int* sub_mat,int xdrop, int hspthresh, bool noentropy, int num_gpu);
 typedef void(*SendSeedPosTable_ptr)(uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t ref_size, uint32_t max_pos_index);
 typedef std::vector<hsp> (*SeedAndFilter_ptr)(std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer);
 typedef uint32_t (*Filter_ptr)(char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, hsp* hsp_out);
