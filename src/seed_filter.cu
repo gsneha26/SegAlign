@@ -57,6 +57,33 @@ std::vector<thrust::device_vector<hsp> > d_hsp_vec;
 hsp** d_hsp_reduced;
 std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
 
+// wrap of cudaMalloc error checking in one place.  
+static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
+    cudaError_t err = cudaMalloc(buf, bytes);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed\n", bytes, tag);
+        exit(1);
+    }
+}
+	 
+// wrap of cudaMemcpy error checking in one place.  
+static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes, cudaMemcpyKind kind, const char* tag) {
+    cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+	 
+// wrap of cudaFree error checking in one place.  
+static inline void check_cuda_free(void* buf, const char* tag) {
+    cudaError_t err = cudaFree(buf);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaFree for %s failed with error \" %s \" \n", tag, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+	 
 struct hspEqual{
     __host__ __device__
         bool operator()(hsp x, hsp y){
@@ -92,24 +119,6 @@ struct hspComp{
     }
 };
 
-// wrap of cudaMalloc error checking in one place.  
-static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
-    cudaError_t err = cudaMalloc(buf, bytes);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed\n", bytes, tag);
-        exit(1);
-    }
-}
-	 
-// wrap of cudaMemcpy error checking in one place.  
-static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes, cudaMemcpyKind kind, const char* tag) {
-    cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(1);
-    }
-}
-	 
 __global__
 void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
     int thread_id = threadIdx.x;
@@ -965,7 +974,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
         compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
 
-        cudaFree(d_ref_seq_tmp);
+        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
     }
 }
 
@@ -991,7 +1000,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
         compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
-        cudaFree(d_query_seq_tmp);
+        check_cuda_free((void*)d_query_seq_tmp, "d_query_seq_tmp");
     }
 }
 
@@ -1005,9 +1014,9 @@ void clearRef(){
             exit(1);
         }
 
-        cudaFree(d_ref_seq[g]);
-        cudaFree(d_index_table[g]);
-        cudaFree(d_pos_table[g]);
+        check_cuda_free((void*)d_ref_seq[g], "d_ref_seq");
+        check_cuda_free((void*)d_index_table[g], "d_index_table");
+        check_cuda_free((void*)d_pos_table[g], "d_pos_table");
     }
 }
 
@@ -1021,8 +1030,8 @@ void clearQuery(uint32_t buffer){
             exit(1);
         }
 
-        cudaFree(d_query_seq[buffer*NUM_DEVICES+g]);
-        cudaFree(d_query_rc_seq[buffer*NUM_DEVICES+g]);
+        check_cuda_free((void*)d_query_seq[buffer*NUM_DEVICES+g], "d_query_seq");
+        check_cuda_free((void*)d_query_rc_seq[buffer*NUM_DEVICES+g], "d_query_rc_seq");
     }
 }
 
