@@ -20,9 +20,6 @@
 #define MAX_UNGAPPED_PER_GB 4194304
 
 // Control Variables
-
-int check_status = 0;
-std::mutex gpu_lock;
 std::mutex mu;
 std::condition_variable cv;
 std::vector<int> available_gpus;
@@ -83,6 +80,15 @@ static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes,
     cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+	 
+// wrap of cudaFree error checking in one place.  
+static inline void check_cuda_free(void* buf, const char* tag) {
+    cudaError_t err = cudaFree(buf);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaFree for %s failed with error \" %s \" \n", tag, cudaGetErrorString(err));
         exit(1);
     }
 }
@@ -756,7 +762,12 @@ void InitializeSeeder (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
         check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
 
         d_hit_num_vec.emplace_back(MAX_SEEDS, 0);
@@ -804,7 +815,11 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
 
         check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
 
@@ -820,10 +835,15 @@ void clearRef(){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
-        cudaFree(d_ref_seq[g]);
-        cudaFree(d_index_table[g]);
-        cudaFree(d_pos_table[g]);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
+        check_cuda_free((void*)d_ref_seq[g], "ref_seq");
+        check_cuda_free((void*)d_index_table[g], "index_table");
+        check_cuda_free((void*)d_pos_table[g], "pos_table");
     }
 }
 
@@ -833,7 +853,12 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
         char* d_ref_seq_tmp;
         check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
 
@@ -843,7 +868,7 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
 
         compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
 
-        cudaFree(d_ref_seq_tmp);
+        check_cuda_free((void*)d_ref_seq_tmp, "ref_seq_tmp");
     }
 }
 
@@ -853,7 +878,12 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
         char* d_query_seq_tmp;
         check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
 
@@ -864,7 +894,7 @@ void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
 
         compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
-        cudaFree(d_query_seq_tmp);
+        check_cuda_free((void*)d_query_seq_tmp, "query_seq_tmp");
     }
 }
 
@@ -986,9 +1016,14 @@ void clearQuery(uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaSetDevice(g);
-        cudaFree(d_query_seq[buffer*NUM_DEVICES+g]);
-        cudaFree(d_query_rc_seq[buffer*NUM_DEVICES+g]);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
+        check_cuda_free((void*)d_query_seq[buffer*NUM_DEVICES+g], "query_seq");
+        check_cuda_free((void*)d_query_rc_seq[buffer*NUM_DEVICES+g], "query_rc_seq");
     }
 }
 
@@ -1029,9 +1064,15 @@ void InitializeUngappedExtension (int* sub_mat, int input_xdrop, int input_hspth
 
     for(int g = 0; g < num_gpu; g++){
 
-        cudaSetDevice(g);
+        cudaError_t err = cudaSetDevice(g);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
+            exit(1);
+        }
+
 
         check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
+
         check_cuda_memcpy((void*)d_sub_mat[g], (void*)sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice, "sub_mat");
 
         d_done_vec.emplace_back(MAX_UNGAPPED, 0);

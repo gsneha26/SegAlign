@@ -26,7 +26,7 @@ typedef void(*clearRef_ptr)();
 typedef void(*clearQuery_ptr)(uint32_t buffer);
 typedef void(*ShutdownProcessor_ptr)();
 
-typedef void(*InitializeUngappedExtension_ptr)(int* sub_mat,int xdrop, int hspthresh, bool noentropy, int num_gpu);
+typedef void(*InitializeUngappedExtension_ptr)(int* sub_mat, int xdrop, int hspthresh, bool noentropy, int num_gpu);
 typedef uint32_t (*UngappedExtend_ptr)(char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, hsp* hsp_out);
 typedef void(*ShutdownUngappedExtension_ptr)();
 
