@@ -7,6 +7,10 @@
 #7 - unable to open file
 #9 - not enopugh allocated CPU DRAM
 #10 - Requested GPUs greater than available GPUs
+#11 - Error with cudaSetDevice in GPU part
+#12 - Error with cudaMalloc in GPU part
+#13 - Error with cudaMemcpy in GPU part
+#14 - Error with cudaFree in GPU part
 
 set -e
 

@@ -70,8 +70,8 @@ extern SeedPosTable *sa;
 struct reader_output {
   size_t q_start;
   size_t r_start;
-  size_t r_len;
-  size_t q_len;
+  uint32_t r_len;
+  uint32_t q_len;
   uint32_t block_index;
   uint32_t r_block_index;
 };
@@ -87,9 +87,9 @@ struct seed_interval {
 typedef std::vector<hsp> hsp_output; 
 
 typedef tbb::flow::tuple <reader_output, seed_interval> seeder_payload;
-typedef tbb::flow::tuple<int, hsp_output, hsp_output, uint32_t, size_t, size_t, size_t, size_t, size_t, uint32_t, uint32_t> printer_payload;
+typedef tbb::flow::tuple <int, hsp_output, hsp_output, uint32_t, size_t, size_t, size_t, size_t, size_t, uint32_t, uint32_t> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
-typedef tbb::flow::tuple<printer_payload, size_t> printer_input;
+typedef tbb::flow::tuple <printer_payload, size_t> printer_input;
 
 typedef tbb::flow::multifunction_node<printer_input, tbb::flow::tuple<size_t>> printer_node;
 
@@ -97,8 +97,8 @@ struct seeder_body{
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
-    	static std::atomic<uint32_t> total_xdrop;
-    	static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
+    static std::atomic<uint32_t> total_xdrop;
+    static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
 	printer_input operator()(seeder_input input);
 };
 

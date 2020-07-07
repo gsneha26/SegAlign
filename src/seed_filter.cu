@@ -57,12 +57,21 @@ std::vector<thrust::device_vector<hsp> > d_hsp_vec;
 hsp** d_hsp_reduced;
 std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
 
+// wrap of cudaSetDevice error checking in one place.  
+static inline void check_cuda_setDevice(int device_id, const char* tag) {
+    cudaError_t err = cudaSetDevice(device_id);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaSetDevice failed for device %d in %s failed with error \" %s \" \n", device_id, tag, cudaGetErrorString(err));
+        exit(11);
+    }
+}
+
 // wrap of cudaMalloc error checking in one place.  
 static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
     cudaError_t err = cudaMalloc(buf, bytes);
     if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed\n", bytes, tag);
-        exit(1);
+        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
+        exit(12);
     }
 }
 	 
@@ -71,7 +80,7 @@ static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes,
     cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(1);
+        exit(13);
     }
 }
 	 
@@ -80,7 +89,7 @@ static inline void check_cuda_free(void* buf, const char* tag) {
     cudaError_t err = cudaFree(buf);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaFree for %s failed with error \" %s \" \n", tag, cudaGetErrorString(err));
-        exit(1);
+        exit(14);
     }
 }
 	 
@@ -699,7 +708,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     available_gpus.pop_back();
     locker.unlock();
 
-    cudaError_t err = cudaSetDevice(g);
+    check_cuda_setDevice(g, "SeedAndFilter");
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
         exit(1);
@@ -874,7 +883,7 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "InitializeProcessor");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -916,7 +925,7 @@ void InclusivePrefixScan (uint32_t* data, uint32_t len) {
         available_gpus.pop_back();
         locker.unlock();
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "InclusivePrefixScan");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -937,7 +946,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "SendSeedPosTable");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -953,13 +962,13 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     }
 }
 
-void SendRefWriteRequest (size_t start_addr, size_t len){
+void SendRefWriteRequest (size_t start_addr, uint32_t len){
 
     ref_len = len;
     
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "SendRefWriteRequest");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -978,13 +987,13 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     }
 }
 
-void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
+void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
 
     query_length[buffer] = len;
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "SendQueryWriteRequest");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -1008,7 +1017,7 @@ void clearRef(){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "clearRef");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);
@@ -1024,7 +1033,7 @@ void clearQuery(uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
+        check_cuda_setDevice(g, "clearQuery");
         if (err != cudaSuccess) {
             fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
             exit(1);

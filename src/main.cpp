@@ -26,30 +26,30 @@ DRAM *query_rc_DRAM = nullptr;
 std::vector<std::string> q_chr_name;
 std::vector<uint32_t>    q_chr_file_name;
 std::vector<size_t>      q_chr_start;
-std::vector<size_t>      q_chr_len;
+std::vector<uint32_t>    q_chr_len;
 
 std::vector<std::string> rc_q_chr_name;
 std::vector<uint32_t>    rc_q_chr_file_name;
 std::vector<size_t>      rc_q_chr_start;
-std::vector<size_t>      rc_q_chr_len;
+std::vector<uint32_t>    rc_q_chr_len;
 
 std::vector<std::string> r_chr_name;
 std::vector<uint32_t>    r_chr_file_name;
 std::vector<size_t>      r_chr_start;
-std::vector<size_t>      r_chr_len;
+std::vector<uint32_t>    r_chr_len;
 
 // query
 std::vector<uint32_t> q_buffer;
 std::vector<size_t>   query_block_start;
-std::vector<size_t>   query_block_len;
+std::vector<uint32_t> query_block_len;
 
 // ref 
 std::vector<size_t>   ref_block_start;
-std::vector<size_t>   ref_block_len;
+std::vector<uint32_t> ref_block_len;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RevComp(size_t rc_start, size_t start, size_t len) {
+void RevComp(size_t rc_start, size_t start, uint32_t len) {
 
     size_t r = rc_start;
     for (size_t i = start+len; i> start; i--) {
@@ -317,15 +317,15 @@ int main(int argc, char** argv){
     uint32_t total_query_intervals = 0;
 
     size_t seq_block_start = query_DRAM->bufferPosition;
-    size_t seq_block_len = 0;
-    size_t query_max_block_len = 0;
+    uint32_t seq_block_len = 0;
+    uint32_t query_max_block_len = 0;
 
     query_block_start.push_back(query_DRAM->bufferPosition);
     std::vector<uint32_t> block_chrs;
     block_name_file = fopen(("query_block"+std::to_string(total_q_blocks)+".name").c_str(), "w");
 
     while (kseq_read(kseq_rd) >= 0) {
-        size_t seq_len = kseq_rd->seq.l;
+        uint32_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
         fprintf(block_name_file, "%s\n", seq_name.c_str());
 
@@ -484,7 +484,7 @@ int main(int argc, char** argv){
 
     block_name_file = fopen(("ref_block"+std::to_string(total_r_blocks)+".name").c_str(), "w");
     while (kseq_read(kseq_rd) >= 0) {
-        size_t seq_len = kseq_rd->seq.l;
+        uint32_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
         fprintf(block_name_file, "%s\n", seq_name.c_str());
 
@@ -568,12 +568,12 @@ int main(int argc, char** argv){
     tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
     uint32_t r_chr_sent = 0;
-    size_t send_r_len;
+    uint32_t send_r_len;
     size_t send_r_start;
     bool send_ref_chr = true;
 
     uint32_t q_chr_sent;
-    size_t send_q_len;
+    uint32_t send_q_len;
     size_t send_q_start;
     bool send_query_chr = false;
     bool invoke_q_chr = false; 
