@@ -23,8 +23,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &q_block_len = get<9>(payload);
     auto &r_block_index = get<10>(payload);
     r_block_index--;
-    uint32_t rc_q_inter_start = q_block_len - cfg.seed_size - q_inter_end;
-    uint32_t rc_q_inter_end = q_block_len - cfg.seed_size - q_inter_start;
+    size_t rc_q_inter_start = q_block_len - cfg.seed_size - q_inter_end;
+    size_t rc_q_inter_end = q_block_len - cfg.seed_size - q_inter_start;
 
     std::string base_filename;
     std::string segment_filename;

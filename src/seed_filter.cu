@@ -30,6 +30,13 @@ int NUM_DEVICES;
 uint32_t MAX_SEEDS;
 uint32_t MAX_SEED_HITS;
 
+char** d_ref_seq;
+uint32_t ref_len;
+
+char** d_query_seq;
+char** d_query_rc_seq;
+uint32_t query_length[BUFFER_DEPTH];
+
 uint32_t seed_size;
 uint32_t** d_index_table;
 uint32_t** d_pos_table;
@@ -53,25 +60,27 @@ int xdrop;
 int hspthresh;
 bool noentropy;
 
-char** d_ref_seq;
-uint32_t ref_len;
-
-char** d_query_seq;
-char** d_query_rc_seq;
-uint32_t query_length[BUFFER_DEPTH];
-
 uint32_t** d_done;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 
 hsp** d_tmp_hsp;
 std::vector<thrust::device_vector<hsp> > d_tmp_hsp_vec;
 
+// wrap of cudaSetDevice error checking in one place.  
+static inline void check_cuda_setDevice(int device_id, const char* tag) {
+    cudaError_t err = cudaSetDevice(device_id);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Error: cudaSetDevice failed for device %d in %s failed with error \" %s \" \n", device_id, tag, cudaGetErrorString(err));
+        exit(11);
+    }
+}
+
 // wrap of cudaMalloc error checking in one place.  
 static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
     cudaError_t err = cudaMalloc(buf, bytes);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(1);
+        exit(12);
     }
 }
 	 
@@ -80,7 +89,7 @@ static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes,
     cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(1);
+        exit(13);
     }
 }
 	 
@@ -89,9 +98,11 @@ static inline void check_cuda_free(void* buf, const char* tag) {
     cudaError_t err = cudaFree(buf);
     if (err != cudaSuccess) {
         fprintf(stderr, "Error: cudaFree for %s failed with error \" %s \" \n", tag, cudaGetErrorString(err));
-        exit(1);
+        exit(14);
     }
 }
+
+///// Start Ungapped Extension related functions executed on the GPU /////
 	 
 struct hspEqual{
     __host__ __device__
@@ -129,7 +140,7 @@ struct hspComp{
 };
 
 __global__
-void compress_string (char* dst_seq, char* src_seq, uint32_t len){ 
+void compress_string (char* dst_seq, char* src_seq, uint32_t len){
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -160,7 +171,7 @@ void compress_string (char* dst_seq, char* src_seq, uint32_t len){
 }
 
 __global__
-void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){ 
+void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -194,79 +205,6 @@ void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){
             dst_rc = E_NT;
         }
         dst_seq[len -1 -i] = dst_rc;
-    }
-}
-
-__global__
-void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint32_t* seed_hit_num){
-
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int stride = block_dim * grid_dim;
-    uint32_t start = block_dim * block_id + thread_id;
-
-    uint32_t num_seed_hit;
-    uint32_t seed;
-    
-    for (uint32_t id = start; id < num_seeds; id += stride) {
-        seed = (seed_offsets[id] >> 32);
-
-        // start and end from the seed block_id table
-        num_seed_hit = d_index_table[seed];
-        if (seed > 0){
-            num_seed_hit -= d_index_table[seed-1];
-        }
-
-        seed_hit_num[id] = num_seed_hit;
-    }
-}
-
-__global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, seedHit* d_hit, uint32_t start_seed_index, uint32_t start_hit_index){
-
-    int thread_id = threadIdx.x;
-    int block_id = blockIdx.x;
-    int warp_size = warpSize;
-    int lane_id = thread_id%warp_size;
-    int warp_id = (thread_id-lane_id)/warp_size;
-
-    __shared__ uint32_t start, end;
-    __shared__ uint32_t seed;
-    __shared__ uint64_t seed_offset;
-
-    __shared__ uint32_t ref_loc[NUM_WARPS];
-    __shared__ uint32_t query_loc;
-    __shared__ uint32_t seed_hit_prefix;
-
-    if(thread_id == 0){
-        seed_offset = d_seed_offsets[block_id+start_seed_index];
-        seed = (seed_offset >> 32);
-        query_loc = ((seed_offset << 32) >> 32) + seed_size - 1;
-
-        // start and end from the seed block_id table
-        end = d_index_table[seed];
-        start = 0;
-        if (seed > 0){
-            start = d_index_table[seed-1];
-        }
-        seed_hit_prefix = seed_hit_num[block_id+start_seed_index]; 
-    }
-    __syncthreads();
-
-
-    for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
-        if(id1+warp_id < end){ 
-            if(lane_id == 0){ 
-                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size - 1;
-                int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
-
-                d_hit[dram_address].ref_start = ref_loc[warp_id];
-                d_hit[dram_address].query_start = query_loc; 
-            }
-        }
     }
 }
 
@@ -677,6 +615,81 @@ void compress_output (uint32_t* d_done, uint32_t start_index, hsp* d_hsp, hsp* d
     }
 }
 
+///////////////////// End Ungapped Extension related functions executed on the GPU ///////////////
+	 
+__global__
+void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint32_t* seed_hit_num){
+
+    int thread_id = threadIdx.x;
+    int block_dim = blockDim.x;
+    int grid_dim = gridDim.x;
+    int block_id = blockIdx.x;
+
+    int stride = block_dim * grid_dim;
+    uint32_t start = block_dim * block_id + thread_id;
+
+    uint32_t num_seed_hit;
+    uint32_t seed;
+    
+    for (uint32_t id = start; id < num_seeds; id += stride) {
+        seed = (seed_offsets[id] >> 32);
+
+        // start and end from the seed block_id table
+        num_seed_hit = d_index_table[seed];
+        if (seed > 0){
+            num_seed_hit -= d_index_table[seed-1];
+        }
+
+        seed_hit_num[id] = num_seed_hit;
+    }
+}
+
+__global__
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, seedHit* d_hit, uint32_t start_seed_index, uint32_t start_hit_index){
+
+    int thread_id = threadIdx.x;
+    int block_id = blockIdx.x;
+    int warp_size = warpSize;
+    int lane_id = thread_id%warp_size;
+    int warp_id = (thread_id-lane_id)/warp_size;
+
+    __shared__ uint32_t start, end;
+    __shared__ uint32_t seed;
+    __shared__ uint64_t seed_offset;
+
+    __shared__ uint32_t ref_loc[NUM_WARPS];
+    __shared__ uint32_t query_loc;
+    __shared__ uint32_t seed_hit_prefix;
+
+    if(thread_id == 0){
+        seed_offset = d_seed_offsets[block_id+start_seed_index];
+        seed = (seed_offset >> 32);
+        query_loc = ((seed_offset << 32) >> 32) + seed_size - 1;
+
+        // start and end from the seed block_id table
+        end = d_index_table[seed];
+        start = 0;
+        if (seed > 0){
+            start = d_index_table[seed-1];
+        }
+        seed_hit_prefix = seed_hit_num[block_id+start_seed_index]; 
+    }
+    __syncthreads();
+
+
+    for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
+        if(id1+warp_id < end){ 
+            if(lane_id == 0){ 
+                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size - 1;
+                int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
+
+                d_hit[dram_address].ref_start = ref_loc[warp_id];
+                d_hit[dram_address].query_start = query_loc; 
+            }
+        }
+    }
+}
+
 int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
     int nDevices;
@@ -744,11 +757,7 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "InitializeProcessor");
 
         check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
 
@@ -781,11 +790,7 @@ void InclusivePrefixScan (uint32_t* data, uint32_t len) {
         available_gpus.pop_back();
         locker.unlock();
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "InclusivePrefixScan");
     }
 
 
@@ -803,11 +808,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "SendSeedPosTable");
 
         check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
 
@@ -819,33 +820,13 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     }
 }
 
-void clearRef(){
-
-    for(int g = 0; g < NUM_DEVICES; g++){
-
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
-
-        check_cuda_free((void*)d_ref_seq[g], "ref_seq");
-        check_cuda_free((void*)d_index_table[g], "index_table");
-        check_cuda_free((void*)d_pos_table[g], "pos_table");
-    }
-}
-
-void SendRefWriteRequest (size_t start_addr, size_t len){
+void SendRefWriteRequest (size_t start_addr, uint32_t len){
 
     ref_len = len;
     
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "SendRefWriteRequest");
 
         char* d_ref_seq_tmp;
         check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
@@ -860,17 +841,13 @@ void SendRefWriteRequest (size_t start_addr, size_t len){
     }
 }
 
-void SendQueryWriteRequest (size_t start_addr, size_t len, uint32_t buffer){
+void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
 
     query_length[buffer] = len;
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "SendQueryWriteRequest");
 
         char* d_query_seq_tmp;
         check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
@@ -909,11 +886,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     available_gpus.pop_back();
     locker.unlock();
 
-    cudaError_t err = cudaSetDevice(g);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-        exit(1);
-    }
+    check_cuda_setDevice(g, "SeedAndFilter");
 
     check_cuda_memcpy((void*)d_seed_offsets[g], (void*)tmp_offset, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice, "seed_offsets");
 
@@ -1001,15 +974,23 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     return gpu_filter_output;
 }
 
+void clearRef(){
+
+    for(int g = 0; g < NUM_DEVICES; g++){
+
+        check_cuda_setDevice(g, "clearRef");
+
+        check_cuda_free((void*)d_ref_seq[g], "ref_seq");
+        check_cuda_free((void*)d_index_table[g], "index_table");
+        check_cuda_free((void*)d_pos_table[g], "pos_table");
+    }
+}
+
 void clearQuery(uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
+        check_cuda_setDevice(g, "clearQuery");
 
         check_cuda_free((void*)d_query_seq[buffer*NUM_DEVICES+g], "query_seq");
         check_cuda_free((void*)d_query_rc_seq[buffer*NUM_DEVICES+g], "query_rc_seq");
@@ -1018,25 +999,15 @@ void clearQuery(uint32_t buffer){
 
 void ShutdownProcessor(){
 
-    g_ShutdownUngappedExtension();
     d_hit_num_vec.clear();
     d_hit_vec.clear();
     d_hsp_vec.clear();
+    g_ShutdownUngappedExtension();
 
     cudaDeviceReset();
 }
 
-void CompressSeq(char* input_seq, char* output_seq, size_t len){
-
-    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
-
-}
-
-void CompressRevCompSeq(char* input_seq, char* output_seq, size_t len){
-
-    compress_rev_comp_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
-
-}
+///// Start Ungapped Extension related functions /////
 
 void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
@@ -1065,12 +1036,7 @@ void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, in
 
     for(int g = 0; g < num_gpu; g++){
 
-        cudaError_t err = cudaSetDevice(g);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
-
+        check_cuda_setDevice(g, "InitializeUngappedExtension");
 
         check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
 
@@ -1082,6 +1048,18 @@ void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, in
         d_tmp_hsp_vec.emplace_back(MAX_UNGAPPED, zeroHsp);
         d_tmp_hsp[g] = thrust::raw_pointer_cast(d_tmp_hsp_vec.at(g).data());
     }
+}
+
+void CompressSeq(char* input_seq, char* output_seq, uint32_t len){
+
+    compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
+
+}
+
+void CompressRevCompSeq(char* input_seq, char* output_seq, uint32_t len){
+
+    compress_rev_comp_string <<<MAX_BLOCKS, MAX_THREADS>>> (output_seq, input_seq, len);
+
 }
 
 uint32_t UngappedExtend (char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, hsp* hsp_out){
@@ -1132,6 +1110,8 @@ CompressSeq_ptr g_CompressSeq = CompressSeq;
 CompressRevCompSeq_ptr g_CompressRevCompSeq = CompressRevCompSeq;
 UngappedExtend_ptr g_UngappedExtend = UngappedExtend;
 ShutdownUngappedExtension_ptr g_ShutdownUngappedExtension = ShutdownUngappedExtension;
+
+///// End Ungapped Extension related functions /////
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
 InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;

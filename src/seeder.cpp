@@ -34,7 +34,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t q_len = chrom.q_len;
     size_t q_start = chrom.q_start;
     size_t r_start = chrom.r_start;
-    size_t r_len = chrom.r_len;
+    uint32_t r_len = chrom.r_len;
     uint32_t q_block_index = chrom.block_index;
     uint32_t r_block_index = chrom.r_block_index;
     uint32_t rc_start_pos = q_len - end_pos;
