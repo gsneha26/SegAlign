@@ -62,3 +62,13 @@ The dependencies can be installed with the given script as follows, which might 
     $ twoBitToFa cb4.2bit cb4.fa
     $ run_segalign ce11.fa cb4.fa > ce11.cb4.maf
 ```
+
+For this branch, chr1.fa file is added. Running
+```
+  $ cd $PROJECT_DIR
+  $ mkdir test
+  $ cd test
+  $ segalign $PROJECT_DIR/data/chr1.fa $PROJECT_DIR/data/chr1.fa $PROJECT_DIR/data/ --nogapped --debug
+```
+
+should result in 107581 HSPs.

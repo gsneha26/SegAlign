@@ -737,7 +737,7 @@ int main(int argc, char** argv){
     if(cfg.debug){
     	fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     	fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
-    	fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
+    	fprintf(stderr, "#HSPs: %lu \n", seeder_body::num_hsps.load());
     }
     
 //    --------------------------------------------------------------------------
