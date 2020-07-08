@@ -1,18 +1,14 @@
-#include "seed_filter.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 #include <iostream>
-#include <thrust/scan.h>
-#include <thrust/unique.h>
-#include <thrust/find.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <thrust/binary_search.h>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
+#include <thrust/scan.h>
+#include <thrust/unique.h>
+#include "parameters.h"
+#include "seed_filter.h"
 
-// Each hsp is 16B
+// Each segment is 16B
 // With 64MB for the HSPs array per 1GB GPU memory
 // With higher GPU memory, the size just linearly increases
 
@@ -51,11 +47,11 @@ std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 
-hsp** d_hsp;
-std::vector<thrust::device_vector<hsp> > d_hsp_vec;
+segment** d_hsp;
+std::vector<thrust::device_vector<segment> > d_hsp_vec;
 
-hsp** d_hsp_reduced;
-std::vector<thrust::device_vector<hsp> > d_hsp_reduced_vec;
+segment** d_hsp_reduced;
+std::vector<thrust::device_vector<segment> > d_hsp_reduced_vec;
 
 // wrap of cudaSetDevice error checking in one place.  
 static inline void check_cuda_setDevice(int device_id, const char* tag) {
@@ -95,14 +91,14 @@ static inline void check_cuda_free(void* buf, const char* tag) {
 	 
 struct hspEqual{
     __host__ __device__
-        bool operator()(hsp x, hsp y){
+        bool operator()(segment x, segment y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
     }
 };
 
 struct hspComp{
     __host__ __device__
-        bool operator()(hsp x, hsp y){
+        bool operator()(segment x, segment y){
             if(x.query_start < y.query_start)
                 return true;
             else if(x.query_start == y.query_start){
@@ -234,7 +230,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, hsp* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segment* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -282,7 +278,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 }
 
 __global__
-void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, hsp* d_hsp, uint32_t* d_done){
+void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, segment* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -659,7 +655,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 }
 
 __global__
-void compress_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_hits){
+void compress_output (uint32_t* d_done, segment* d_hsp, segment* d_hsp_reduced, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -686,7 +682,7 @@ void compress_output (uint32_t* d_done, hsp* d_hsp, hsp* d_hsp_reduced, int num_
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
+std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     uint32_t num_hits = 0;
     uint32_t total_anchors = 0;
@@ -709,10 +705,6 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
     locker.unlock();
 
     check_cuda_setDevice(g, "SeedAndFilter");
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-        exit(1);
-    }
 
     check_cuda_memcpy((void*)d_seed_offsets[g], (void*)tmp_offset, num_seeds*sizeof(uint64_t), cudaMemcpyHostToDevice, "seed_offsets");
 
@@ -735,7 +727,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     limit_pos[num_iter-1] = num_seeds-1;
 
-    hsp** h_hsp = (hsp**) malloc(num_iter*sizeof(hsp*));
+    segment** h_hsp = (segment**) malloc(num_iter*sizeof(segment*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
 
     uint32_t start_seed_index = 0;
@@ -766,15 +758,15 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
                 
-                thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                thrust::device_vector<segment>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
                 total_anchors += num_anchors[i];
 
-                h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+                h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
 
-                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost, "hsp_output");
+                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(segment), cudaMemcpyDeviceToHost, "hsp_output");
             }
 
             start_seed_index = limit_pos[i] + 1;
@@ -790,9 +782,9 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         locker.unlock();
         cv.notify_one();
     }
-    std::vector<hsp> gpu_filter_output;
+    std::vector<segment> gpu_filter_output;
 
-    hsp first_el;
+    segment first_el;
     first_el.len = total_anchors;
     first_el.score = num_hits;
     gpu_filter_output.push_back(first_el);
@@ -869,13 +861,13 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     d_done = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_done_vec.reserve(NUM_DEVICES);
 
-    d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
+    d_hsp = (segment**) malloc(NUM_DEVICES*sizeof(segment*));
     d_hsp_vec.reserve(NUM_DEVICES);
 
-    d_hsp_reduced = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
+    d_hsp_reduced = (segment**) malloc(NUM_DEVICES*sizeof(segment*));
     d_hsp_reduced_vec.reserve(NUM_DEVICES);
 
-    hsp zeroHsp;
+    segment zeroHsp;
     zeroHsp.ref_start = 0;
     zeroHsp.query_start = 0;
     zeroHsp.len = 0;
@@ -884,10 +876,6 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "InitializeProcessor");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
 
@@ -926,10 +914,6 @@ void InclusivePrefixScan (uint32_t* data, uint32_t len) {
         locker.unlock();
 
         check_cuda_setDevice(g, "InclusivePrefixScan");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
     }
 
     thrust::inclusive_scan(thrust::host, data, data + len, data); 
@@ -947,10 +931,6 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "SendSeedPosTable");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
 
@@ -969,10 +949,6 @@ void SendRefWriteRequest (size_t start_addr, uint32_t len){
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "SendRefWriteRequest");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         char* d_ref_seq_tmp;
         check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
@@ -994,10 +970,6 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "SendQueryWriteRequest");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         char* d_query_seq_tmp;
         check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
@@ -1018,10 +990,6 @@ void clearRef(){
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "clearRef");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         check_cuda_free((void*)d_ref_seq[g], "d_ref_seq");
         check_cuda_free((void*)d_index_table[g], "d_index_table");
@@ -1034,10 +1002,6 @@ void clearQuery(uint32_t buffer){
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "clearQuery");
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Error: cudaSetDevice failed with error \" %s \"\n", cudaGetErrorString(err));
-            exit(1);
-        }
 
         check_cuda_free((void*)d_query_seq[buffer*NUM_DEVICES+g], "d_query_seq");
         check_cuda_free((void*)d_query_rc_seq[buffer*NUM_DEVICES+g], "d_query_rc_seq");

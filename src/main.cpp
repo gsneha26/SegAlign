@@ -1,11 +1,16 @@
-#include <string.h>
-#include <boost/program_options.hpp> 
 #include <boost/algorithm/string.hpp>
-#include <tbb/task_scheduler_init.h>
-#include <zlib.h>
+#include <boost/program_options.hpp> 
 #include <iostream>
-#include "graph.h"
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <tbb/reader_writer_lock.h>
+#include <tbb/scalable_allocator.h>
+#include <tbb/task_scheduler_init.h>
 #include "kseq.h"
+#include "zlib.h"
+#include "graph.h"
+#include "parameters.h"
 #include "store.h"
 
 namespace po = boost::program_options;
@@ -737,7 +742,7 @@ int main(int argc, char** argv){
     if(cfg.debug){
     	fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     	fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
-    	fprintf(stderr, "#anchors: %lu \n", seeder_body::num_hsps.load());
+    	fprintf(stderr, "#HSPs: %lu \n", seeder_body::num_hsps.load());
     }
     
 //    --------------------------------------------------------------------------
