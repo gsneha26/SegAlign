@@ -27,6 +27,7 @@ The following dependencies are required by SegAlign:
   * Intel TBB library
   * libboost-all-dev
   * parallel
+  * zlib
   * LASTZ 1.04.03
   * faToTwoBit, twoBitToFa (from kentUtils)
 
