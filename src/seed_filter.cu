@@ -1,20 +1,12 @@
-#include "seed_filter.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 #include <iostream>
-#include <thrust/scan.h>
-#include <thrust/unique.h>
-#include <thrust/find.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <thrust/binary_search.h>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
-
-// Each seed hit is 8B, hsp is 16B
-// With 32MB for the seed_hit array and both the HSPs array per 1GB GPU memory
-// With higher GPU memory, the size just linearly increases
+#include <thrust/scan.h>
+#include <thrust/unique.h>
+#include "parameters.h"
+#include "seed_filter.h"
 
 #define MAX_SEED_HITS_PER_GB 8388608
 #define MAX_UNGAPPED_PER_GB 4194304
@@ -49,22 +41,23 @@ std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 seedHit** d_hit;
 std::vector<thrust::device_vector<seedHit> > d_hit_vec;
 
-hsp** d_hsp;
-std::vector<thrust::device_vector<hsp> > d_hsp_vec;
+segment** d_hsp;
+std::vector<thrust::device_vector<segment> > d_hsp_vec;
 
-//UngappedExtend Variables
-uint32_t MAX_UNGAPPED;
+//UngappedExtend Variables (ideally not visible to the user in the API)
+uint32_t MAX_UNGAPPED; //maximum extensions per iteration in the UngappedExtension function
 
-int **d_sub_mat;
-int xdrop;
-int hspthresh;
-bool noentropy;
+int **d_sub_mat; // substitution score matrix
+int xdrop; // xdrop parameter for the UngappedExtension function
+int hspthresh; // score threshold for qualifying as an HSP
+bool noentropy; // whether or not to adjust scores of segments as a factor of the Shannon entropy
+
 
 uint32_t** d_done;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 
-hsp** d_tmp_hsp;
-std::vector<thrust::device_vector<hsp> > d_tmp_hsp_vec;
+segment** d_tmp_hsp;
+std::vector<thrust::device_vector<segment> > d_tmp_hsp_vec;
 
 // wrap of cudaSetDevice error checking in one place.  
 static inline void check_cuda_setDevice(int device_id, const char* tag) {
@@ -104,16 +97,18 @@ static inline void check_cuda_free(void* buf, const char* tag) {
 
 ///// Start Ungapped Extension related functions executed on the GPU /////
 	 
+// Binary Predicate for generating unique HSPs
 struct hspEqual{
     __host__ __device__
-        bool operator()(hsp x, hsp y){
+        bool operator()(segment x, segment y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
     }
 };
 
+// Binary Predicate for sorting the HSPs
 struct hspComp{
     __host__ __device__
-        bool operator()(hsp x, hsp y){
+        bool operator()(segment x, segment y){
             if(x.query_start < y.query_start)
                 return true;
             else if(x.query_start == y.query_start){
@@ -139,6 +134,7 @@ struct hspComp{
     }
 };
 
+// convert input sequence from alphabet to integers
 __global__
 void compress_string (char* dst_seq, char* src_seq, uint32_t len){
     int thread_id = threadIdx.x;
@@ -170,6 +166,7 @@ void compress_string (char* dst_seq, char* src_seq, uint32_t len){
     }
 }
 
+// convert input sequence to its reverse complement and convert from alphabet to integers
 __global__
 void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){
     int thread_id = threadIdx.x;
@@ -208,8 +205,11 @@ void compress_rev_comp_string (char* dst_seq, char* src_seq, uint32_t len){
     }
 }
 
+// extend the hits to a segment by ungapped x-drop method, adjust low-scoring
+// segment scores based on entropy factor, compare resulting segment scores 
+// to hspthresh and update the d_hsp and d_done vectors
 __global__
-void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, seedHit* d_hit, uint32_t start_index, hsp* d_hsp, uint32_t* d_done){
+void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, seedHit* d_hit, uint32_t start_index, segment* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -585,8 +585,10 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     }
 }
 
+// gather only the HSPs from the resulting segments to the beginning of the
+// tmp_hsp vector 
 __global__
-void compress_output (uint32_t* d_done, uint32_t start_index, hsp* d_hsp, hsp* d_tmp_hsp, int num_hits){
+void compress_output (uint32_t* d_done, uint32_t start_index, segment* d_hsp, segment* d_tmp_hsp, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -731,7 +733,7 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     zeroHit.ref_start = 0;
     zeroHit.query_start = 0;
 
-    hsp zeroHsp;
+    segment zeroHsp;
     zeroHsp.ref_start = 0;
     zeroHsp.query_start = 0;
     zeroHsp.len = 0;
@@ -752,7 +754,7 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     d_hit = (seedHit**) malloc(NUM_DEVICES*sizeof(seedHit*));
     d_hit_vec.reserve(NUM_DEVICES);
 
-    d_hsp = (hsp**) malloc(NUM_DEVICES*sizeof(hsp*));
+    d_hsp = (segment**) malloc(NUM_DEVICES*sizeof(segment*));
     d_hsp_vec.reserve(NUM_DEVICES);
 
     for(int g = 0; g < NUM_DEVICES; g++){
@@ -864,13 +866,12 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
     }
 }
 
-std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
+std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     uint32_t num_hits = 0;
     uint32_t total_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
-    assert(num_seeds <= MAX_SEEDS);
 
     uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
     for (uint32_t i = 0; i < num_seeds; i++) {
@@ -909,7 +910,7 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
 
     limit_pos[num_iter-1] = num_seeds-1;
 
-    hsp** h_hsp = (hsp**) malloc(num_iter*sizeof(hsp*));
+    segment** h_hsp = (segment**) malloc(num_iter*sizeof(segment*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
 
     uint32_t start_seed_index = 0;
@@ -934,9 +935,9 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
             total_anchors += num_anchors[i];
 
             if(num_anchors[i] > 0){
-                h_hsp[i] = (hsp*) calloc(num_anchors[i], sizeof(hsp));
+                h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
 
-                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(hsp), cudaMemcpyDeviceToHost, "hsp_output");
+                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(segment), cudaMemcpyDeviceToHost, "hsp_output");
             }
 
             start_seed_index = limit_pos[i] + 1;
@@ -953,9 +954,9 @@ std::vector<hsp> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool r
         cv.notify_one();
     }
 
-    std::vector<hsp> gpu_filter_output;
+    std::vector<segment> gpu_filter_output;
 
-    hsp first_el;
+    segment first_el;
     first_el.len = total_anchors;
     first_el.score = num_hits;
     gpu_filter_output.push_back(first_el);
@@ -1020,7 +1021,7 @@ void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, in
     float global_mem_gb = static_cast<float>(deviceProp.totalGlobalMem / 1073741824.0f);
     MAX_UNGAPPED = global_mem_gb*MAX_UNGAPPED_PER_GB;
 
-    hsp zeroHsp;
+    segment zeroHsp;
     zeroHsp.ref_start = 0;
     zeroHsp.query_start = 0;
     zeroHsp.len = 0;
@@ -1031,7 +1032,7 @@ void InitializeUngappedExtension (int num_gpu, int* sub_mat, int input_xdrop, in
     d_done = (uint32_t**) malloc(num_gpu*sizeof(uint32_t*));
     d_done_vec.reserve(num_gpu);
 
-    d_tmp_hsp = (hsp**) malloc(num_gpu*sizeof(hsp*));
+    d_tmp_hsp = (segment**) malloc(num_gpu*sizeof(segment*));
     d_tmp_hsp_vec.reserve(num_gpu);
 
     for(int g = 0; g < num_gpu; g++){
@@ -1062,7 +1063,7 @@ void CompressRevCompSeq(char* input_seq, char* output_seq, uint32_t len){
 
 }
 
-uint32_t UngappedExtend (char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, hsp* hsp_out){
+uint32_t UngappedExtend (char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, segment* hsp_out){
 
     int gpu_id;
 
@@ -1090,7 +1091,7 @@ uint32_t UngappedExtend (char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_le
             compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[gpu_id], hit_start, hsp_out, d_tmp_hsp[gpu_id], curr_num_hits);
 
             thrust::stable_sort(d_tmp_hsp_vec[gpu_id].begin(), d_tmp_hsp_vec[gpu_id].begin()+num_anchors, hspComp());
-            thrust::device_vector<hsp>::iterator result_end = thrust::unique_copy(d_tmp_hsp_vec[gpu_id].begin(), d_tmp_hsp_vec[gpu_id].begin()+num_anchors, d_hsp_vec[gpu_id].begin()+total_anchors,  hspEqual());
+            thrust::device_vector<segment>::iterator result_end = thrust::unique_copy(d_tmp_hsp_vec[gpu_id].begin(), d_tmp_hsp_vec[gpu_id].begin()+num_anchors, d_hsp_vec[gpu_id].begin()+total_anchors,  hspEqual());
             num_anchors = thrust::distance(d_hsp_vec[gpu_id].begin()+total_anchors, result_end), num_anchors;
             total_anchors += num_anchors;
         }

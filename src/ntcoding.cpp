@@ -1,5 +1,4 @@
 #include "ntcoding.h"
-#include "tbb/parallel_sort.h"
 
 int shape_pos[32];
 int shape_size;

@@ -24,9 +24,6 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
         kmer_size += ((shape[i] == '1') || (shape[i] == 'T'));
     }
     
-    assert(kmer_size <= 15);
-    assert(kmer_size > 3); 
-
     kmer_size_ = kmer_size;
     ref_size_ = ref_length;
 

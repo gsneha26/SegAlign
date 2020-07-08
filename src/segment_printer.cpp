@@ -1,8 +1,8 @@
-#include "graph.h"
 #include <algorithm>
 #include <iterator>
 #include <iostream>
 #include <map>
+#include "graph.h"
 
 std::mutex io_lock;
 

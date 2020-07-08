@@ -1,6 +1,5 @@
 #include "graph.h"
 #include "store.h"
-#include <atomic>
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
@@ -18,8 +17,8 @@ printer_input seeder_body::operator()(seeder_input input) {
 
     size_t token = get<1>(input);
 
-    std::vector<hsp> fw_segments;
-    std::vector<hsp> rc_segments;
+    std::vector<segment> fw_segments;
+    std::vector<segment> rc_segments;
     fw_segments.clear();
     rc_segments.clear();
 
@@ -73,7 +72,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
+                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
                     fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
@@ -108,7 +107,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<hsp> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
+                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
                     rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());

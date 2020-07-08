@@ -1,4 +1,3 @@
-#include <assert.h>
 #include "ntcoding.h"
 #include "seed_filter.h"
 

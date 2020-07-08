@@ -1,19 +1,11 @@
 #pragma once
 #define BOOST_LOCALE_NO_LIB
 #define NOMINMAX
-#include <tbb/flow_graph.h>
-#include <tbb/reader_writer_lock.h>
-#include <tbb/scalable_allocator.h>
 #include <atomic>
-#include <vector>
 #include <string>
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
+#include <tbb/flow_graph.h>
+#include <vector>
 #include "seed_pos_table.h"
-#include "parameters.h"
 
 using namespace tbb::flow;
 
@@ -84,7 +76,7 @@ struct seed_interval {
     uint32_t buffer;
 };
 
-typedef std::vector<hsp> hsp_output; 
+typedef std::vector<segment> hsp_output; 
 
 typedef tbb::flow::tuple <reader_output, seed_interval> seeder_payload;
 typedef tbb::flow::tuple <int, hsp_output, hsp_output, uint32_t, size_t, size_t, size_t, size_t, size_t, uint32_t, uint32_t> printer_payload;
