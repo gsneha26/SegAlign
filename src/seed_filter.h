@@ -33,7 +33,9 @@ struct segment {
     int score;
 };
 
-// the function initializes the variables for ungapped xdrop extension, num_gpu  
+// the function initializes the variables for ungapped xdrop extension
+// num_gpu - number of GPUs that the process will be using, a d_hsp and d_done
+// used during the extension is declared on each GPU
 typedef void(*InitializeUngappedExtension_ptr)(int num_gpu, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy);
 
 // convert input sequence from alphabet to integers
@@ -43,6 +45,12 @@ typedef void(*CompressSeq_ptr)(char* input_seq, char* output_seq, uint32_t len);
 typedef void(*CompressRevCompSeq_ptr)(char* input_seq, char* output_seq, uint32_t len);
 
 //UngappedExtension function described above
+//r_seq - compressed reference sequence (after CompressSeq() )
+//q_seq - forward/reverse complement compressed query sequence
+//r_len/q_len - length of r_seq/q_seq
+//hits - seed hits that need to be extension
+//num_hits - number of seed_hits
+//hsp_out - HSPs that whose score crossed the threshold (size of the provided vector should be the same as num_hits) 
 typedef uint32_t(*UngappedExtend_ptr)(char* r_seq, char* q_seq, uint32_t r_len, uint32_t q_len, uint32_t num_hits, seedHit* hits, segment* hsp_out);
 
 // clear the vectors used in ungapped extension
