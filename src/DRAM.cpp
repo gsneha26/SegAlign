@@ -2,7 +2,6 @@
 #include <memory>
 
 #include "tbb/scalable_allocator.h"
-//#include "tbb/tbb.h"
 
 DRAM::DRAM()
 	: size(6ull * 1024ull * 1024ull * 1024ull), // 6GB CPU memory

@@ -28,34 +28,15 @@ CURR=$PWD
 
 # linux essentials
 sudo apt update 
-
-REQUIRED_PKG="cmake"
-PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
-echo Checking for $REQUIRED_PKG: $PKG_OK
-if [ "" = "$PKG_OK" ]; then
-    sudo apt-get --yes install $REQUIRED_PKG
-fi
-
-REQUIRED_PKG="build-essential"
-PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
-echo Checking for $REQUIRED_PKG: $PKG_OK
-if [ "" = "$PKG_OK" ]; then
-    sudo apt-get --yes install $REQUIRED_PKG
-fi
-
-REQUIRED_PKG="libboost-all-dev"
-PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
-echo Checking for $REQUIRED_PKG: $PKG_OK
-if [ "" = "$PKG_OK" ]; then
-    sudo apt-get --yes install $REQUIRED_PKG
-fi
-
-REQUIRED_PKG="parallel"
-PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
-echo Checking for $REQUIRED_PKG: $PKG_OK
-if [ "" = "$PKG_OK" ]; then
-    sudo apt-get --yes install $REQUIRED_PKG
-fi
+for p in cmake build-essential libboost-all-dev parallel zlib1g-dev;
+do
+    REQUIRED_PKG=$p
+    PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
+    echo Checking for $REQUIRED_PKG: $PKG_OK
+    if [ "" = "$PKG_OK" ]; then
+        sudo apt-get --yes install $REQUIRED_PKG
+    fi
+done
 
 # NVIDIA CUDA
 cd $CURR
