@@ -10,7 +10,7 @@ RUN apt-get -qq -y update && \
 COPY . /WGA_GPU
 
 # build and install everything but cuda using the install script
-RUN cd /WGA_GPU && rm -rf build && ./installUbuntu.sh -c
+RUN cd /WGA_GPU && rm -rf build && ./scripts/installUbuntu.sh -c
 
 # Create a thinner final Docker image with only runtime dependencies
 FROM nvidia/cuda:10.2-runtime

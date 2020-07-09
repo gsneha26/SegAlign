@@ -28,7 +28,7 @@ CURR=$PWD
 
 # linux essentials
 sudo apt update 
-for p in cmake build-essential libboost-all-dev parallel zlib1g-dev;
+for p in cmake build-essential libboost-all-dev parallel zlib1g-dev wget git;
 do
     REQUIRED_PKG=$p
     PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
