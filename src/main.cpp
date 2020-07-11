@@ -456,7 +456,6 @@ int main(int argc, char** argv){
     gzclose(f_rd);
 
     total_query_intervals = interval_list.size();
-    //g_InitializeQuery (query_max_block_len);
 
     if(cfg.debug){
     	gettimeofday(&end_time, NULL);
@@ -731,24 +730,16 @@ int main(int argc, char** argv){
     
     align_graph.wait_for_all();
 
+    g_ShutdownProcessor();
+
     if(cfg.debug){
         gettimeofday(&end_time, NULL);
         seconds = end_time.tv_sec - start_time.tv_sec;
-        fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n", seconds);
-    }
-
-    gzclose(f_rd);
-    
-    if(cfg.debug){
+        fprintf(stderr, "Time elapsed (complete pipeline): %ld sec \n\n", seconds);
     	fprintf(stderr, "#seeds: %lu \n", seeder_body::num_seeds.load());
     	fprintf(stderr, "#seed hits: %lu \n", seeder_body::num_seed_hits.load());
     	fprintf(stderr, "#HSPs: %lu \n", seeder_body::num_hsps.load());
     }
-    
-//    --------------------------------------------------------------------------
-//     Shutdown and cleanup
-//    -------------------------------------------------------------------------- 
-    g_ShutdownProcessor();
 
     return 0;
 }
