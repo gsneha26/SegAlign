@@ -17,7 +17,6 @@ int SeedPosTable::GetShapeSize() {
 
 SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length, std::string shape, uint32_t step) {
 
-    int max_pos = 0;
     shape_size_ = shape.length(); 
     int kmer_size = 0;
     for (int i = 0; i < shape_size_; i++) {
@@ -76,7 +75,7 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
             }
             });
 
-    g_SendSeedPosTable(index_table_+1, index_table_size_-1, pos_table_, num_index, max_pos);
+    g_SendSeedPosTable(index_table_+1, index_table_size_-1, pos_table_, num_index);
 
     free(tmp_index_arr);
     free(tmp_off_arr);

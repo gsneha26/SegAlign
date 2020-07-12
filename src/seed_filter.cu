@@ -926,7 +926,7 @@ void InclusivePrefixScan (uint32_t* data, uint32_t len) {
     }
 }
 
-void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index, uint32_t max_pos_index){
+void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
