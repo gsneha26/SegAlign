@@ -8,6 +8,7 @@ A Scalable GPU System for Pairwise Whole Genome Alignments
 - [Dependencies](#dependencies)
 - [How to run SegAlign](#run)
     - [Running a test](#test)
+    - [API specific test](#api-test)
 
 ## <a name="overview"></a> Overview
 
@@ -73,3 +74,33 @@ For this branch, chr1.fa file is added. Running
 ```
 
 should result in 107581 HSPs.
+
+### <a name="api-test"></a> API specific test
+
+In folder api_test,
+  * example.fa consists of the input sequence
+  * example_hits.txt consists of the seed hits for the plus strand (use --strand=plus with segalign) for the sequence in example.fa, each line is an entry of the type seedHit (ref_start query_start) 
+  * example_hsps.txt consists of the output HSPs resulting after UngappedExtend(), each line is an entry of the type segment (ref_start query_start len score) 
+
+For the example,
+  * call InitializeUngappedExtension() with 
+    * num_gpu = 1
+    * sub_mat = {91, -114, -31, -123, -1000, -1000, -100, -9100, -114,  100, -125,  -31, -1000, -1000, -100, -9100, -31, -125,  100, -114, -1000, -1000, -100, -9100, -123,  -31, -114,  91, -1000, -1000, -100, -9100, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -9100, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -9100, -100, -100, -100, -100, -1000, -1000, -100, -9100, -9100, -9100, -9100, -9100, -9100, -9100, -9100, -9100}; 
+    * input_xdrop = 910
+    * input_hspthresh = 3000
+    * input_noentropy = false
+  * create a device char array (e.g. seq_tmp) with the sequence from example.fa
+  * generate compressed device char array (e.g. seq_compressed) as the output of CompressSeq() with seq_tmp as input
+  * read the hits from example_hits.txt into a device seedHit array (e.g. input_hits) 
+  * call UngappedExtend() with 
+    * r_seq = seq_compressed
+    * q_seq = seq_compressed
+    * hits = input_hits 
+    hsps in hsp_out device array should match the hsps in example_hsps.txt 
+  * call ShutdownUngappedExtension()
+
+``
+    $ cd $PROJECT_DIR/api_test
+    $ run_segalign example.fa example.fa --strand=plus --nogapped 
+```
+
