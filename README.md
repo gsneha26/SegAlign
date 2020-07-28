@@ -103,6 +103,7 @@ For the example,
     hsps in hsp_out device array should match the hsps in example_hsps.txt 
   * call `ShutdownUngappedExtension()`
 
+To run with SegAlign,
 ```
     $ cd $PROJECT_DIR/api_test
     $ run_segalign example.fa example.fa --strand=plus --nogapped 
