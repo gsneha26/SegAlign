@@ -79,8 +79,8 @@ should result in 107581 HSPs.
 
 In folder `api_test`,
   * example.fa consists of the input sequence
-  * example_hits.txt consists of the seed hits for the plus strand (use --strand=plus with segalign) for the sequence in example.fa, each line is an entry of the type seedHit (ref_start query_start) 
-  * example_hsps.txt consists of the output HSPs resulting after UngappedExtend(), each line is an entry of the type segment (ref_start query_start len score) 
+  * example_hits.txt consists of the seed hits for the plus strand (use --strand=plus with segalign) for the sequence in example.fa, each line is an entry of the type seedHit (ref_start,query_start) 
+  * example_hsps.txt consists of the output HSPs resulting after UngappedExtend(), each line is an entry of the type segment (ref_start,query_start,len,score) 
 
 For the example,
   * call `InitializeUngappedExtension()` with 
