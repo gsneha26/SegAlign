@@ -89,10 +89,67 @@ static inline void check_cuda_free(void* buf, const char* tag) {
     }
 }
 	 
+struct hspDiagEqual{
+    __host__ __device__
+        bool operator()(segment x, segment y){
+        return ( ( (x.ref_start - x.query_start) == (y.ref_start - y.query_start) ) &&  ( ( (x.ref_start >= y.ref_start) && ( (x.ref_start + x.len) <= (y.ref_start + y.len) )  ) || ( ( y.ref_start >= x.ref_start ) && ( (y.ref_start + y.len) <= (x.ref_start + x.len) ) ) ) );
+    }
+};
+
+struct hspDiagComp{
+    __host__ __device__
+        bool operator()(segment x, segment y){
+            if((x.ref_start - x.query_start) < (y.ref_start - y.query_start))
+                return true;
+            else if((x.ref_start - x.query_start) == (y.ref_start - y.query_start)){
+                if(x.ref_start < y.ref_start)
+                    return true;
+                else if(x.ref_start == y.ref_start){
+                    if(x.query_start < y.query_start)
+                        return true;
+                    else if(x.query_start == y.query_start){
+                        if(x.score > y.score)
+                            return true;
+                        else
+                            return false;
+                    }
+                    else
+                        return false;
+                }
+                else
+                    return false;
+            }
+            else 
+                return false;
+    }
+};
+
 struct hspEqual{
     __host__ __device__
         bool operator()(segment x, segment y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
+    }
+};
+
+struct hspFinalComp{
+    __host__ __device__
+        bool operator()(segment x, segment y){
+            if(x.query_start < y.query_start)
+                return true;
+            else if(x.query_start == y.query_start){
+                if(x.score > y.score)
+                    return true;
+                else if(x.score == y.score){
+                    if(x.ref_start > y.ref_start)
+                        return true;
+                    else
+                        return false;
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
     }
 };
 
@@ -249,7 +306,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     if(thread_id == 0){
         seed_offset = d_seed_offsets[block_id+start_seed_index];
         seed = (seed_offset >> 32);
-        query_loc = ((seed_offset << 32) >> 32) + seed_size - 1;
+        query_loc = ((seed_offset << 32) >> 32) + seed_size;
 
         // start and end from the seed block_id table
         end = d_index_table[seed];
@@ -265,7 +322,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
         if(id1+warp_id < end){ 
             if(lane_id == 0){ 
-                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size - 1;
+                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size;
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
 
                 d_hsp[dram_address].ref_start = ref_loc[warp_id];
@@ -292,20 +349,21 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     __shared__ int total_score[NUM_WARPS];
     __shared__ int prev_score[NUM_WARPS];
     __shared__ int prev_max_score[NUM_WARPS];
-    __shared__ uint32_t prev_max_pos[NUM_WARPS];
+    __shared__ int prev_max_pos[NUM_WARPS];
     __shared__ bool edge_found[NUM_WARPS]; 
     __shared__ bool xdrop_found[NUM_WARPS]; 
     __shared__ bool new_max_found[NUM_WARPS]; 
     __shared__ uint32_t left_extent[NUM_WARPS];
-    __shared__ uint32_t extent[NUM_WARPS];
+    __shared__ int extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
     __shared__ double entropy[NUM_WARPS];
 
     int thread_score;
     int max_thread_score;
-    uint32_t max_pos;
-    uint32_t temp_pos;
+    int max_pos;
+    int temp_pos;
     bool xdrop_done;
+    bool temp_xdrop_done;
     int temp;
     short count[4];
     short count_del[4];
@@ -313,7 +371,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     char q_chr;
     uint32_t ref_pos;
     uint32_t query_pos;
-    uint32_t pos_offset;
+    int pos_offset;
 
     __shared__ int sub_mat[NUC2];
 
@@ -353,8 +411,8 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
             new_max_found[warp_id] = false;
             entropy[warp_id] = 1.0f;
             prev_score[warp_id] = 0;
-            prev_max_score[warp_id] = -1000;
-            prev_max_pos[warp_id] = 0;
+            prev_max_score[warp_id] = 0;
+            prev_max_pos[warp_id] = -1;
             extent[warp_id] = 0;
         }
 
@@ -382,7 +440,6 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 thread_score = sub_mat[r_chr*NUC+q_chr];
             }
             __syncwarp();
-
 
 #pragma unroll
             for (int offset = 1; offset < warp_size; offset = offset << 1){
@@ -424,8 +481,32 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 
 #pragma unroll
             for (int offset = 1; offset < warp_size; offset = offset << 1){
-                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                temp_xdrop_done = __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+
+                if(lane_id >= offset){
+                    xdrop_done |= temp_xdrop_done;
+                }
             }
+
+            if(xdrop_done == 1){
+                max_thread_score = prev_max_score[warp_id];
+                max_pos = prev_max_pos[warp_id];
+            }
+            __syncwarp();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+                temp_pos = __shfl_up_sync(0xFFFFFFFF, max_pos, offset);
+
+                if(lane_id >= offset){
+                    if(temp >= max_thread_score){
+                        max_thread_score = temp;
+                        max_pos = temp_pos;
+                    }
+                }
+            }
+            __syncwarp();
 
             if(lane_id == warp_size-1){
 
@@ -488,7 +569,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
             edge_found[warp_id] = false;
             new_max_found[warp_id] = false;
             prev_score[warp_id] = 0;
-            prev_max_score[warp_id] = -1000;
+            prev_max_score[warp_id] = 0;
             prev_max_pos[warp_id] = 0;
             left_extent[warp_id] = 0;
         }
@@ -510,7 +591,6 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 r_chr = d_ref_seq[ref_pos];
                 q_chr = d_query_seq[query_pos];
                 thread_score = sub_mat[r_chr*NUC+q_chr];
-
             }
 
 #pragma unroll
@@ -551,8 +631,32 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 
 #pragma unroll
             for (int offset = 1; offset < warp_size; offset = offset << 1){
-                xdrop_done |= __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+                temp_xdrop_done = __shfl_up_sync(0xFFFFFFFF, xdrop_done, offset);
+
+                if(lane_id >= offset){
+                    xdrop_done |= temp_xdrop_done;
+                }
             }
+
+            if(xdrop_done == 1){
+                max_thread_score = prev_max_score[warp_id];
+                max_pos = prev_max_pos[warp_id];
+            }
+            __syncwarp();
+
+#pragma unroll
+            for (int offset = 1; offset < warp_size; offset = offset << 1){
+                temp = __shfl_up_sync(0xFFFFFFFF, max_thread_score, offset);
+                temp_pos = __shfl_up_sync(0xFFFFFFFF, max_pos, offset);
+
+                if(lane_id >= offset){
+                    if(temp >= max_thread_score){
+                        max_thread_score = temp;
+                        max_pos = temp_pos;
+                    }
+                }
+            }
+            __syncwarp();
 
             if(lane_id == warp_size-1){
 
