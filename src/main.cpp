@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp> 
 #include <iostream>
@@ -24,33 +25,16 @@ long useconds, seconds, mseconds;
 Configuration cfg;
 SeedPosTable *sa;
 
-DRAM *ref_DRAM = nullptr;
-DRAM *query_DRAM = nullptr;
-DRAM *query_rc_DRAM = nullptr;
+DRAM *seq_DRAM = nullptr;
+DRAM *seq_rc_DRAM = nullptr;
 
-std::vector<std::string> q_chr_name;
-std::vector<uint32_t>    q_chr_file_name;
-std::vector<size_t>      q_chr_start;
-std::vector<uint32_t>    q_chr_len;
+std::vector<std::string> chr_name;
+std::vector<size_t>      chr_start;
+std::vector<uint32_t>    chr_len;
 
-std::vector<std::string> rc_q_chr_name;
-std::vector<uint32_t>    rc_q_chr_file_name;
-std::vector<size_t>      rc_q_chr_start;
-std::vector<uint32_t>    rc_q_chr_len;
-
-std::vector<std::string> r_chr_name;
-std::vector<uint32_t>    r_chr_file_name;
-std::vector<size_t>      r_chr_start;
-std::vector<uint32_t>    r_chr_len;
-
-// query
-std::vector<uint32_t> q_buffer;
-std::vector<size_t>   query_block_start;
-std::vector<uint32_t> query_block_len;
-
-// ref 
 std::vector<size_t>   ref_block_start;
 std::vector<uint32_t> ref_block_len;
+uint32_t total_chr = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,41 +43,41 @@ void RevComp(size_t rc_start, size_t start, uint32_t len) {
     size_t r = rc_start;
     for (size_t i = start+len; i> start; i--) {
         
-        switch (query_DRAM->buffer[i-1]) {
-            case 'a': query_rc_DRAM->buffer[r++] = 't';
+        switch (seq_DRAM->buffer[i-1]) {
+            case 'a': seq_rc_DRAM->buffer[r++] = 't';
                       break;
 
-            case 'A': query_rc_DRAM->buffer[r++] = 'T';
+            case 'A': seq_rc_DRAM->buffer[r++] = 'T';
                       break;
 
-            case 'c': query_rc_DRAM->buffer[r++] = 'g';
+            case 'c': seq_rc_DRAM->buffer[r++] = 'g';
                       break;
 
-            case 'C': query_rc_DRAM->buffer[r++] = 'G';
+            case 'C': seq_rc_DRAM->buffer[r++] = 'G';
                       break;
 
-            case 'g': query_rc_DRAM->buffer[r++] = 'c';
+            case 'g': seq_rc_DRAM->buffer[r++] = 'c';
                       break;
 
-            case 'G': query_rc_DRAM->buffer[r++] = 'C';
+            case 'G': seq_rc_DRAM->buffer[r++] = 'C';
                       break;
 
-            case 't': query_rc_DRAM->buffer[r++] = 'a';
+            case 't': seq_rc_DRAM->buffer[r++] = 'a';
                       break;
 
-            case 'T': query_rc_DRAM->buffer[r++] = 'A';
+            case 'T': seq_rc_DRAM->buffer[r++] = 'A';
                       break;
 
-            case 'n': query_rc_DRAM->buffer[r++] = 'n';
+            case 'n': seq_rc_DRAM->buffer[r++] = 'n';
                       break;
 
-            case 'N': query_rc_DRAM->buffer[r++] = 'N';
+            case 'N': seq_rc_DRAM->buffer[r++] = 'N';
                       break;
 
-            case '&': query_rc_DRAM->buffer[r++] = '&';
+            case '&': seq_rc_DRAM->buffer[r++] = '&';
                       break;
 
-            default: printf("Bad Nt char! '%c' %lu\n", query_DRAM->buffer[i], i);
+            default: printf("Bad Nt char! '%c' %lu\n", seq_DRAM->buffer[i], i);
         }
     }
 }
@@ -108,13 +92,10 @@ int main(int argc, char** argv){
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern-12of19(1110100110010101111)/14of22(1110101100110010101111)/an arbitrary pattern of 1s, 0s, and Ts ")
         ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "Offset between the starting positions of successive target words considered for generating seed table")
+        ("neighbor_interval", po::value<uint32_t>(&cfg.num_neigh_interval)->default_value(0), "number of neighbouring intervals to align the query interval to")
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop value for gap-free extension")
         ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage")
-        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
-        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
-        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
-        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical")
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
         ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion")
@@ -126,9 +107,7 @@ int main(int argc, char** argv){
 
     po::options_description hidden;
     hidden.add_options()
-        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format")
-        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query sequence file in FASTA format")
-        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with sequence files in 2bit format");
+        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format");
 
     po::options_description all_options;
     all_options.add(desc);
@@ -136,8 +115,6 @@ int main(int argc, char** argv){
 
     po::positional_options_description p;
     p.add("target", 1);
-    p.add("query", 1);
-    p.add("data_folder", 1);
 
     po::variables_map vm;
     try{
@@ -146,18 +123,17 @@ int main(int argc, char** argv){
     }
     catch(std::exception &e){
         if(!vm.count("help")){
-            if(!vm.count("target") || !vm.count("query")){
-                fprintf(stderr, "You must specify a target file and a query file\n"); 
+            if(!vm.count("target")){
+                fprintf(stderr, "You must specify a target file \n"); 
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign target query [options]\n"); 
+        fprintf(stderr, "Usage: run_segalign_r target [options]\n"); 
         std::cout << desc << std::endl;
         return 1;
     }
 
     cfg.transition = !cfg.transition;
-    cfg.gapped = !cfg.gapped;
     if(cfg.seed_shape == "12of19"){
         cfg.seed = "TTT0T00TT00T0T0TTTT"; 
         cfg.seed_size = 19;
@@ -177,9 +153,6 @@ int main(int argc, char** argv){
         }
         cfg.seed_size = cfg.seed.size();
     }
-
-    if(vm.count("gappedthresh") == 0)
-        cfg.gappedthresh = cfg.hspthresh; 
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;
@@ -270,15 +243,11 @@ int main(int argc, char** argv){
 
     if(cfg.debug){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
-        fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
         fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
         fprintf(stderr, "Seed size %d\n", cfg.seed_size);
         fprintf(stderr, "Transition %d\n", cfg.transition);
-        fprintf(stderr, "Gapped %d\n",cfg.gapped);
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
-        fprintf(stderr, "ydrop %d\n", cfg.ydrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
-        fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
         fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
 
         for(int i = 0; i < NUC; i++){
@@ -293,181 +262,14 @@ int main(int argc, char** argv){
 
     cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.transition, cfg.wga_chunk_size, cfg.seed_size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
-    ref_DRAM = new DRAM;
-    query_DRAM = new DRAM;
-    query_rc_DRAM = new DRAM;
-    
-    FILE *block_name_file;
-    // Read query file
-    if(cfg.debug){
-	    gettimeofday(&start_time, NULL);
-    }
-
-    fprintf(stderr, "\nReading query file ...\n");
-
-    gzFile f_rd = gzopen(cfg.query_filename.c_str(), "r");
-    if (!f_rd) { 
-        fprintf(stderr, "cant open file: %s\n", cfg.query_filename.c_str()); 
-        exit(7); 
-    }
-        
-    kseq_t *kseq_rd = kseq_init(f_rd);
-    std::vector<seed_interval> interval_list;
-    interval_list.clear();
-    std::vector<uint32_t> block_num_intervals;
-
-    uint32_t total_q_chr = 0;
-    uint32_t total_q_blocks = 0;
-    uint32_t prev_num_intervals = 0;
-    uint32_t total_query_intervals = 0;
-
-    size_t seq_block_start = query_DRAM->bufferPosition;
-    uint32_t seq_block_len = 0;
-    uint32_t query_max_block_len = 0;
-
-    query_block_start.push_back(query_DRAM->bufferPosition);
-    std::vector<uint32_t> block_chrs;
-    block_name_file = fopen(("query_block"+std::to_string(total_q_blocks)+".name").c_str(), "w");
-
-    while (kseq_read(kseq_rd) >= 0) {
-        uint32_t seq_len = kseq_rd->seq.l;
-        std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
-        fprintf(block_name_file, "%s\n", seq_name.c_str());
-
-        q_chr_name.push_back(seq_name);
-        q_chr_file_name.push_back(total_q_chr);
-        q_chr_start.push_back(query_DRAM->bufferPosition);
-        q_chr_len.push_back(seq_len);
-        q_buffer.push_back(0);
-        block_chrs.push_back(total_q_chr);
-
-        if (query_DRAM->bufferPosition + seq_len > query_DRAM->size) {
-            fprintf(stderr, "Not enough memory in query DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
-            exit(9); 
-        }
-        
-        memcpy(query_DRAM->buffer + query_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        query_DRAM->bufferPosition += seq_len;
-
-        seq_block_len += seq_len;
-        total_q_chr++;
-
-        if(seq_block_len > SEQ_BLOCK_SIZE){
-
-            query_block_len.push_back(seq_block_len);
-            if(seq_block_len > query_max_block_len)
-                query_max_block_len = seq_block_len;
-
-            for(int i = block_chrs.size()-1; i >= 0; i--){
-                rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
-                rc_q_chr_file_name.push_back(q_chr_file_name[block_chrs[i]]);
-                rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
-                rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
-            }
-
-            if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size){
-                fprintf(stderr, "Not enough memory in query_rc DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
-                exit(9); 
-            }
-
-            RevComp(query_rc_DRAM->bufferPosition, seq_block_start, seq_block_len);
-            query_rc_DRAM->bufferPosition += seq_block_len;
-
-            uint32_t curr_pos = 0;
-            uint32_t end_pos = seq_block_len - cfg.seed_size;
-
-            while (curr_pos < end_pos) {
-                uint32_t start = curr_pos;
-                uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
-                seed_interval inter;
-                inter.start = start;
-                inter.end = end;
-                inter.num_invoked = 0;
-                inter.num_intervals = 0;
-                interval_list.push_back(inter);
-                curr_pos += cfg.lastz_interval_size;
-            }
-
-            block_num_intervals.push_back(interval_list.size()-prev_num_intervals);
-            prev_num_intervals = interval_list.size();
-
-            seq_block_start = query_DRAM->bufferPosition;
-            query_block_start.push_back(query_DRAM->bufferPosition);
-            seq_block_len = 0;
-            block_chrs.clear();
-
-            total_q_blocks += 1;
-            fclose(block_name_file);
-            block_name_file = fopen(("query_block"+std::to_string(total_q_blocks)+".name").c_str(), "w");
-        }
-        else{
-            memset(query_DRAM->buffer + query_DRAM->bufferPosition, '&', 1);
-            query_DRAM->bufferPosition += 1;
-            seq_block_len += 1;
-        }
-    }
-
-    if(seq_block_len > 0){
-        seq_block_len--;
-
-        query_block_len.push_back(seq_block_len);
-        if(seq_block_len > query_max_block_len)
-            query_max_block_len = seq_block_len;
-
-        if (query_rc_DRAM->bufferPosition + seq_block_len > query_rc_DRAM->size) {
-            fprintf(stderr, "Not enough memory in query_rc DRAM. Need to reduce input query sequence size to less than 6GB!\n"); 
-            exit(9); 
-        }
-
-        RevComp(seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len);
-        query_rc_DRAM->bufferPosition += seq_block_len;
-
-        for(int i = block_chrs.size()-1; i >= 0; i--){
-            rc_q_chr_name.push_back(q_chr_name[block_chrs[i]]);
-            rc_q_chr_file_name.push_back(q_chr_file_name[block_chrs[i]]);
-            rc_q_chr_start.push_back(2*seq_block_start+seq_block_len-q_chr_start[block_chrs[i]]-q_chr_len[block_chrs[i]]);
-            rc_q_chr_len.push_back(q_chr_len[block_chrs[i]]);
-        }
-
-        total_q_blocks += 1;
-
-        uint32_t curr_pos = 0;
-        uint32_t end_pos = seq_block_len - cfg.seed_size;
-        
-        while (curr_pos < end_pos) {
-            uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
-            seed_interval inter;
-            inter.start = start;
-            inter.end = end;
-            inter.num_invoked = 0;
-            inter.num_intervals = 0;
-            interval_list.push_back(inter);
-            curr_pos += cfg.lastz_interval_size;
-        }
-        
-        block_num_intervals.push_back(interval_list.size()-prev_num_intervals);
-        prev_num_intervals = interval_list.size();
-    }
-
-    fclose(block_name_file);
-    query_DRAM->seqSize = query_DRAM->bufferPosition;
-    query_rc_DRAM->seqSize = query_rc_DRAM->bufferPosition;
-    gzclose(f_rd);
-
-    total_query_intervals = interval_list.size();
-
-    if(cfg.debug){
-    	gettimeofday(&end_time, NULL);
-    	useconds = end_time.tv_usec - start_time.tv_usec;
-    	seconds = end_time.tv_sec - start_time.tv_sec;
-    	mseconds = ((seconds) * 1000 + useconds/1000.0) + 0.5;
-    	fprintf(stderr, "Time elapsed (loading complete query from file): %ld msec \n\n", mseconds);
-    }
-
-    fprintf(stderr, "\nReading target file ...\n");
+    seq_DRAM = new DRAM;
+    seq_rc_DRAM = new DRAM;
+    gzFile f_rd;
+    kseq_t *kseq_rd;
 
     // Read target file
+    fprintf(stderr, "\nReading target file ...\n");
+
     if(cfg.debug){
 	    gettimeofday(&start_time, NULL);
     }
@@ -479,61 +281,41 @@ int main(int argc, char** argv){
     }
         
     kseq_rd = kseq_init(f_rd);
-    uint32_t total_r_chr = 0;
-    uint32_t total_r_blocks = 0;
 
-    seq_block_start = ref_DRAM->bufferPosition;
-    seq_block_len = 0;
-    ref_block_start.push_back(ref_DRAM->bufferPosition);
+    memset(seq_DRAM->buffer + seq_DRAM->bufferPosition, '&', 1);
+    seq_DRAM->bufferPosition += 1;
 
-    block_name_file = fopen(("ref_block"+std::to_string(total_r_blocks)+".name").c_str(), "w");
     while (kseq_read(kseq_rd) >= 0) {
         uint32_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
-        fprintf(block_name_file, "%s\n", seq_name.c_str());
 
-        r_chr_name.push_back(seq_name);
-        r_chr_file_name.push_back(total_r_chr);
-        r_chr_start.push_back(ref_DRAM->bufferPosition);
-        r_chr_len.push_back(seq_len);
+        chr_name.push_back(seq_name);
+        chr_start.push_back(seq_DRAM->bufferPosition);
+        chr_len.push_back(seq_len);
 
-        if (ref_DRAM->bufferPosition + seq_len > ref_DRAM->size) {
+        if (seq_DRAM->bufferPosition + seq_len > seq_DRAM->size) {
             fprintf(stderr, "Not enough memory in ref DRAM. Need to reduce input target sequence size to less than 6GB!\n"); 
             exit(9); 
         }
         
-        memcpy(ref_DRAM->buffer + ref_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
-        ref_DRAM->bufferPosition += seq_len;
+        memcpy(seq_DRAM->buffer + seq_DRAM->bufferPosition, kseq_rd->seq.s, seq_len);
+        seq_DRAM->bufferPosition += seq_len;
 
-        seq_block_len += seq_len;
-        total_r_chr++;
+        memset(seq_DRAM->buffer + seq_DRAM->bufferPosition, '&', 1);
+        seq_DRAM->bufferPosition += 1;
 
-        if(seq_block_len > SEQ_BLOCK_SIZE){
-
-            ref_block_len.push_back(seq_block_len);
-
-            seq_block_start = ref_DRAM->bufferPosition;
-            ref_block_start.push_back(ref_DRAM->bufferPosition);
-            seq_block_len = 0;
-
-            total_r_blocks += 1;
-            fclose(block_name_file);
-            block_name_file = fopen(("ref_block"+std::to_string(total_r_blocks)+".name").c_str(), "w");
-        }
-        else{
-            memset(ref_DRAM->buffer + ref_DRAM->bufferPosition, '&', 1);
-            ref_DRAM->bufferPosition += 1;
-            seq_block_len += 1;
-        }
+        total_chr++;
     }
 
-    if(seq_block_len > 0){
-        seq_block_len--;
-        ref_block_len.push_back(seq_block_len);
-        total_r_blocks += 1;
-    }
+    cfg.ref_len = seq_DRAM->bufferPosition;
+    cfg.num_ref = total_chr;
 
-    fclose(block_name_file);
+    RevComp(seq_rc_DRAM->bufferPosition, 0, cfg.ref_len);
+
+    for(int i = 0; i < 20; i++)
+        printf("%c %c\n", seq_DRAM->buffer[i], seq_rc_DRAM->buffer[cfg.ref_len-1-i]);
+    
+
     gzclose(f_rd);
 
     if(cfg.debug){
@@ -544,8 +326,119 @@ int main(int argc, char** argv){
     	fprintf(stderr, "Time elapsed (loading complete target from file): %ld msec \n\n", mseconds);
     }
 
-    cfg.num_ref = total_r_chr;
-    cfg.num_query = total_q_chr;
+    uint32_t total_query_intervals = ceil((float) cfg.ref_len/cfg.lastz_interval_size);
+    if(cfg.num_neigh_interval == 0)
+        cfg.num_neigh_interval = ceil((float) 0.2*total_query_intervals);
+
+    uint32_t left_intervals = ceil((float) (cfg.num_neigh_interval-1)/2); 
+    uint32_t right_intervals = cfg.num_neigh_interval - 1 - left_intervals;
+    uint32_t left_overlap = left_intervals * cfg.lastz_interval_size; 
+    uint32_t right_overlap = right_intervals * cfg.lastz_interval_size; 
+    uint32_t max_interval_ref_len = left_overlap + cfg.lastz_interval_size + right_overlap;
+
+    if(cfg.debug)
+        printf("len: %u lastz_interval: %u\ntotal_intervals: %u neigh_intervals: %u\nleft_intervals: %u 1 right_intervals: %u\nleft_overlap_size: %u\nright_overlap_size: %u\n\n", cfg.ref_len, cfg.lastz_interval_size, total_query_intervals, cfg.num_neigh_interval, left_intervals, right_intervals, left_overlap, right_overlap);
+
+    uint32_t seq_block_start  = 0;
+    uint32_t seq_block_len  = 0;
+    uint32_t total_r_blocks = 0;
+
+    std::vector<seed_interval> interval_list;
+    interval_list.clear();
+    std::vector<uint32_t> block_num_intervals;
+    uint32_t prev_num_intervals = 0;
+    uint32_t curr_pos, end_pos;
+    bool left_overlap_limit = false;
+    bool right_overlap_limit = false;
+
+    for(uint32_t l = 0; l < cfg.ref_len; l+=SEQ_BLOCK_SIZE){
+
+        if(l < left_overlap) 
+            seq_block_start = l;
+        else
+            seq_block_start = l-left_overlap;
+
+        if(l+SEQ_BLOCK_SIZE+right_overlap > cfg.ref_len)
+            seq_block_len = cfg.ref_len - seq_block_start;
+        else
+            seq_block_len = (l-seq_block_start)+SEQ_BLOCK_SIZE+right_overlap;
+
+        ref_block_start.push_back(seq_block_start);
+        ref_block_len.push_back(seq_block_len);
+        total_r_blocks += 1;
+
+        curr_pos = l-seq_block_start;
+        if(seq_block_len < SEQ_BLOCK_SIZE)
+            end_pos = curr_pos + seq_block_len - (l-seq_block_start) - cfg.seed_size;
+        else
+            end_pos = curr_pos + SEQ_BLOCK_SIZE - cfg.seed_size;
+
+        if(cfg.debug)
+            printf("block l:%uM start:%uM len:%uM curr_pos:%uM end_pos:%uM\n", l/1000000, seq_block_start/1000000, seq_block_len/1000000, curr_pos/1000000, end_pos/1000000);
+
+        while (curr_pos < end_pos) {
+            uint32_t start = curr_pos;
+            uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
+            seed_interval inter;
+            inter.start = start;
+            inter.end = end;
+
+            if(start < left_overlap)
+                left_overlap_limit = true;
+            else
+                left_overlap_limit = false;
+
+
+            if((end+right_overlap) > seq_block_len)
+                right_overlap_limit = true;
+            else
+                right_overlap_limit = false;
+
+
+            if(left_overlap_limit){
+                inter.ref_start = 0;
+                if(right_overlap_limit){
+                    inter.ref_end = seq_block_len;
+                }
+                else{
+                    if(max_interval_ref_len > seq_block_len)
+                        inter.ref_end = seq_block_len;
+                    else
+                        inter.ref_end = max_interval_ref_len;
+                }
+            }
+            else{
+                if(right_overlap_limit){
+                    inter.ref_end = seq_block_len;
+                    if(seq_block_len < max_interval_ref_len)
+                        inter.ref_start = 0;
+                    else
+                        inter.ref_start =  seq_block_len - max_interval_ref_len;
+                }
+                else{
+                    inter.ref_start = start-left_overlap;
+                    inter.ref_end = end+right_overlap;
+                }
+            }
+
+            inter.num_invoked = 0;
+            inter.num_intervals = 0;
+
+            if(cfg.debug)
+                printf("%d %d | %u %u %u %u\n", left_overlap_limit, right_overlap_limit, inter.start/1000000, inter.end/1000000, inter.ref_start/1000000, inter.ref_end/1000000);
+            interval_list.push_back(inter);
+            curr_pos += cfg.lastz_interval_size;
+        }
+
+        block_num_intervals.push_back(interval_list.size()-prev_num_intervals);
+        prev_num_intervals = interval_list.size();
+    }
+
+    total_query_intervals = interval_list.size();
+
+    if(cfg.debug)
+        for(int i = 0; i < total_r_blocks; i++)
+            printf("%u %lu %u\n", i, ref_block_start[i]/1000000, ref_block_len[i]/1000000);
 
     // start alignment
     fprintf(stderr, "\nStart alignment ...\n");
@@ -571,36 +464,23 @@ int main(int argc, char** argv){
 
     tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
-    uint32_t r_chr_sent = 0;
     uint32_t send_r_len;
     size_t send_r_start;
+    uint32_t r_chr_sent = 0;
     bool send_ref_chr = true;
 
-    uint32_t q_chr_sent;
-    uint32_t send_q_len;
-    size_t send_q_start;
-    bool send_query_chr = false;
-    bool invoke_q_chr = false; 
-    uint32_t send_buffer_id;
+    uint32_t prev_intervals_invoked = 0;
+    uint32_t chr_intervals_invoked = 0;
+    uint32_t chr_intervals_num = 0;
 
-    uint32_t prev_chr_intervals[BUFFER_DEPTH];  
-    uint32_t completed_intervals;  
-    uint32_t chr_intervals_invoked;
-    uint32_t chr_intervals_num;
-
-    uint32_t q_len;
-    size_t q_start;
-    size_t rc_q_start;
-    uint32_t q_buffer_id;
-    uint32_t q_chr_invoked;
-    uint32_t q_num;
-    uint32_t r_num;
+    seeder_body::total_xdrop = 0;
 
     gettimeofday(&start_time, NULL);
     tbb::flow::source_node<seeder_payload> reader(align_graph,
         [&](seeder_payload &op) -> bool {
 
         while(true){
+//            printf("%u %u %u %u\n", chr_intervals_invoked, chr_intervals_num, seeder_body::num_seeded_regions.load(), chr_intervals_num);
             if (send_ref_chr) {
 
                 send_r_start = ref_block_start[r_chr_sent];
@@ -615,7 +495,7 @@ int main(int argc, char** argv){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                sa = new SeedPosTable (ref_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+                sa = new SeedPosTable (seq_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
                     useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
@@ -624,102 +504,38 @@ int main(int argc, char** argv){
                     fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld msec \n", mseconds);
                 }
 
-                for(int i = 0; i < BUFFER_DEPTH; i++){
-                    seeder_body::num_seeded_regions[i] = 0;
-                    prev_chr_intervals[i] = 0;
-                }
-                seeder_body::total_xdrop = 0;
-
-                q_chr_invoked = 0;
                 chr_intervals_invoked = 0;
-                chr_intervals_num = 0;
-                completed_intervals = 0;  
-                q_buffer_id = 0;
+                prev_intervals_invoked += chr_intervals_num;
+                chr_intervals_num = block_num_intervals[r_chr_sent];
+                seeder_body::num_seeded_regions = 0;
 
-                q_chr_sent = 0;
-                send_query_chr = false;
-                invoke_q_chr = true; 
-
-                while(q_chr_sent < BUFFER_DEPTH && q_chr_sent < total_q_blocks){
-
-                    send_q_start = query_block_start[q_chr_sent];
-                    send_q_len = query_block_len[q_chr_sent];
-
-                    q_buffer[q_chr_sent] = q_chr_sent;
-                    send_buffer_id = q_chr_sent;
-                    fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
-                    if(r_chr_sent > 0)
-                        g_clearQuery(send_buffer_id);
-                    g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer_id);
-                    prev_chr_intervals[q_chr_sent] = block_num_intervals[q_chr_sent];
-                    q_chr_sent++;
-                }
-
-                r_chr_sent++;
                 send_ref_chr = false;
             }
-            else{
-                if(q_chr_invoked > 0){
-                    for(int i = 0; i < BUFFER_DEPTH; i++){
-                        if(q_chr_sent < total_q_blocks && seeder_body::num_seeded_regions[i] == prev_chr_intervals[i]){
-                            send_q_start = query_block_start[q_chr_sent];
-                            send_q_len = query_block_len[q_chr_sent];
-
-                            q_buffer[q_chr_sent] = i;
-                            prev_chr_intervals[i] += block_num_intervals[q_chr_sent];
-
-                            fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
-                            g_clearQuery(i);
-                            g_SendQueryWriteRequest (send_q_start, send_q_len, i);
-
-                            q_chr_sent++;
-                        }
-                    }
-
-                    if(r_chr_sent < total_r_blocks && total_query_intervals == seeder_body::total_xdrop.load()){
-                        send_ref_chr = true; 
-                    }
-                }
+            else if(chr_intervals_invoked == chr_intervals_num && seeder_body::num_seeded_regions.load() == chr_intervals_num){
+                send_ref_chr = true;
             }
 
-            if(q_chr_invoked < q_chr_sent && invoke_q_chr) {
-
-                q_start = query_block_start[q_chr_invoked];
-                q_len   = query_block_len[q_chr_invoked];
-
-                q_buffer_id = q_buffer[q_chr_invoked];
-                completed_intervals += chr_intervals_num;
-                chr_intervals_num = block_num_intervals[q_chr_invoked];
-
-
-                chr_intervals_invoked = 0;
-                invoke_q_chr = false;
-            }
-
-            if(q_chr_invoked < total_q_blocks) {
+            if(r_chr_sent < total_r_blocks) {
                 if (chr_intervals_invoked < chr_intervals_num) {
                     seed_interval& inter = get<1>(op);
-                    seed_interval curr_inter = interval_list[completed_intervals + chr_intervals_invoked++];
+                    seed_interval curr_inter = interval_list[prev_intervals_invoked + chr_intervals_invoked++];
                     inter.start = curr_inter.start;
                     inter.end = curr_inter.end;
+                    inter.ref_start = curr_inter.ref_start;
+                    inter.ref_end = curr_inter.ref_end;
                     inter.num_invoked = chr_intervals_invoked;
                     inter.num_intervals = chr_intervals_num;
-                    inter.buffer = q_buffer_id;
                     reader_output& chrom = get<0>(op);
-                    chrom.q_start = q_start;
                     chrom.r_start = send_r_start;
                     chrom.r_len = send_r_len;
-                    chrom.q_len = q_len-cfg.seed_size;
-                    chrom.block_index = q_chr_invoked; 
                     chrom.r_block_index = r_chr_sent; 
                     if(chr_intervals_invoked == chr_intervals_num) {
-                        q_chr_invoked++;
-                        invoke_q_chr = true;
+                        r_chr_sent++;
                     }
                     return true;
                 }
             }
-            else if(r_chr_sent == total_r_blocks){
+            else {
                 return false;
             }
             }

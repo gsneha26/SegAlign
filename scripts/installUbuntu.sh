@@ -108,5 +108,5 @@ mkdir -p build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j $(nproc)
-sudo cp $CURR/build/segalign /usr/local/bin	
-sudo cp $CURR/scripts/run_segalign /usr/local/bin
+sudo cp $CURR/build/segalign_r /usr/local/bin	
+sudo cp $CURR/scripts/run_segalign_r /usr/local/bin

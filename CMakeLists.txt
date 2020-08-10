@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.8)
 
 set(CMAKE_CUDA_COMPILER nvcc)
-project(segalign LANGUAGES C CXX CUDA)
+project(segalign_r LANGUAGES C CXX CUDA)
 find_package(CUDA 9.0 REQUIRED)
 
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
@@ -21,7 +21,7 @@ include_directories(${ZLIB_INCLUDE_DIR})
 find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_executable(segalign
+add_executable(segalign_r
     src/DRAM.cpp
     src/seed_filter.cu
     src/seed_pos_table.cpp
@@ -31,24 +31,24 @@ add_executable(segalign
     src/main.cpp
     )
 
-set_property(TARGET segalign PROPERTY CUDA_STANDARD 11)
+set_property(TARGET segalign_r PROPERTY CUDA_STANDARD 11)
 
 # We need to explicitly state that we need all CUDA files in the particle
 # library to be built with -dc as the member functions could be called by
 # other libraries and executables
-set_target_properties(segalign PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(segalign_r PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
-target_compile_options(segalign PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+target_compile_options(segalign_r PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            --generate-line-info>)
-target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+target_compile_options(segalign_r PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 
 if(ZLIB_FOUND)
     include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries (segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
+    target_link_libraries (segalign_r PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
 endif()
 
 if(TARGET zlib::zlib)
-    target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
+    target_link_libraries(segalign_r PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
 endif()
 
-target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
+target_link_libraries(segalign_r PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})

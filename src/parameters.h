@@ -18,5 +18,5 @@
 #define BLOCK_SIZE 128 
 #define NUM_WARPS 4
 #define TILE_SIZE 32
-#define BUFFER_DEPTH 2
+#define BUFFER_DEPTH 1
 #define SEQ_BLOCK_SIZE 500000000
