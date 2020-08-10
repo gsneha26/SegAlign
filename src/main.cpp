@@ -312,10 +312,6 @@ int main(int argc, char** argv){
 
     RevComp(seq_rc_DRAM->bufferPosition, 0, cfg.ref_len);
 
-    for(int i = 0; i < 20; i++)
-        printf("%c %c\n", seq_DRAM->buffer[i], seq_rc_DRAM->buffer[cfg.ref_len-1-i]);
-    
-
     gzclose(f_rd);
 
     if(cfg.debug){
@@ -480,7 +476,6 @@ int main(int argc, char** argv){
         [&](seeder_payload &op) -> bool {
 
         while(true){
-//            printf("%u %u %u %u\n", chr_intervals_invoked, chr_intervals_num, seeder_body::num_seeded_regions.load(), chr_intervals_num);
             if (send_ref_chr) {
 
                 send_r_start = ref_block_start[r_chr_sent];

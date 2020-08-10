@@ -20,7 +20,7 @@ mk=0
 total_args=0
 
 args=("$@")
-for ((i=2; i < $#; i++))
+for ((i=1; i < $#; i++))
     {
         new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
         optionalArguments1="$optionalArguments1 $new_arg"
@@ -61,20 +61,17 @@ else
   1>&2 echo ""
   1>&2 echo "Executing: \"segalign_r $refPath $optionalArguments\""
   
-  time segalign_r $refPath $optionalArguments
+  segalign_r $refPath $optionalArguments
 
-  if [ $outf -eq 1 ]; then
-      touch $output_filename
-      for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
-      do 
-          sort -Vk5,6 $filename > tmp;
-          echo "#name start" > $filename
-          cat tmp >> $filename
-          if [ $mk -eq 1 ]; then
-              echo "# segalign_r end-of-file" >> $filename
-          fi
-      done 
-  fi
+  for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
+  do 
+      sort -Vk5,6 $filename > tmp;
+      echo "#name start" > $filename
+      cat tmp >> $filename
+      if [ $mk -eq 1 ]; then
+          echo "# segalign_r end-of-file" >> $filename
+      fi
+  done 
 
   rm tmp
 
