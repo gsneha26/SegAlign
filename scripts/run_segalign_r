@@ -61,17 +61,21 @@ else
   1>&2 echo ""
   1>&2 echo "Executing: \"segalign_r $refPath $optionalArguments\""
   
+  cd $OUTPUT_FOLDER
+
   segalign_r $refPath $optionalArguments
 
   for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
   do 
       sort -Vk5,6 $filename > tmp;
-      echo "#name start" > $filename
+      echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
       cat tmp >> $filename
       if [ $mk -eq 1 ]; then
           echo "# segalign_r end-of-file" >> $filename
       fi
   done 
+
+  1>&2 echo "Output generated in $OUTPUT_FOLDER"
 
   rm tmp
 
