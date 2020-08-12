@@ -392,10 +392,10 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 query_loc[warp_id] = d_hsp[hid].query_start;
                 total_score[warp_id] = 0; 
                 if(d_hsp[hid].score < 0){
-                    find_hsp = false;
+                    find_hsp[warp_id] = false;
                 }
                 else{
-                    find_hsp = true;
+                    find_hsp[warp_id] = true;
                 }
             }
         }
@@ -414,7 +414,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
         //Right extension
 
         if(lane_id ==0){
-            if(find_hsp){
+            if(find_hsp[warp_id]){
                 edge_found[warp_id] = false;
             }
             else{
@@ -578,7 +578,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
         //Left extension
 
         if(lane_id ==0){
-            if(find_hsp){
+            if(find_hsp[warp_id]){
                 edge_found[warp_id] = false;
             }
             else{

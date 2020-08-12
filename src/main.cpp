@@ -459,14 +459,15 @@ int main(int argc, char** argv){
 
     tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
-    uint32_t send_r_len;
-    size_t send_r_start;
-    uint32_t r_chr_sent = 0;
-    bool send_ref_chr = true;
+    size_t send_block_start;
+    uint32_t send_block_len;
+
+    uint32_t blocks_sent = 0;
+    bool send_block = true;
 
     uint32_t prev_intervals_invoked = 0;
-    uint32_t chr_intervals_invoked = 0;
-    uint32_t chr_intervals_num = 0;
+    uint32_t block_intervals_invoked = 0;
+    uint32_t block_intervals_num = 0;
 
     seeder_body::total_xdrop = 0;
 
@@ -475,21 +476,24 @@ int main(int argc, char** argv){
         [&](seeder_payload &op) -> bool {
 
         while(true){
-            if (send_ref_chr) {
+            if (send_block) {
 
-                send_r_start = ref_block_start[r_chr_sent];
-                send_r_len   = ref_block_len[r_chr_sent];
+                send_block_start = ref_block_start[blocks_sent];
+                send_block_len   = ref_block_len[blocks_sent];
 
-                fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
-                if(r_chr_sent > 0)
+                fprintf(stderr, "\nSending block %u ...\n", blocks_sent);
+
+                if(blocks_sent > 0)
                     g_clearRef();
-                g_SendRefWriteRequest (send_r_start, send_r_len);
+
+                g_SendRefWriteRequest (send_block_start, send_block_len);
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                sa = new SeedPosTable (seq_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+                sa = new SeedPosTable (seq_DRAM->buffer, send_block_start, send_block_len, cfg.seed, cfg.step);
+
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
                     useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
@@ -498,33 +502,36 @@ int main(int argc, char** argv){
                     fprintf(stderr, "\nTime elapsed (seed position table create and copy to GPU) : %ld msec \n", mseconds);
                 }
 
-                chr_intervals_invoked = 0;
-                prev_intervals_invoked += chr_intervals_num;
-                chr_intervals_num = block_num_intervals[r_chr_sent];
                 seeder_body::num_seeded_regions = 0;
 
-                send_ref_chr = false;
+                send_block = false;
+
+                prev_intervals_invoked += block_intervals_num;
+                block_intervals_invoked = 0;
+                block_intervals_num = block_num_intervals[blocks_sent];
             }
-            else if(chr_intervals_invoked == chr_intervals_num && seeder_body::num_seeded_regions.load() == chr_intervals_num){
-                send_ref_chr = true;
+            else if(block_intervals_invoked == block_intervals_num && seeder_body::num_seeded_regions.load() == block_intervals_num){
+                send_block = true;
             }
 
-            if(r_chr_sent < total_r_blocks) {
-                if (chr_intervals_invoked < chr_intervals_num) {
+            if(blocks_sent < total_r_blocks) {
+                if (block_intervals_invoked < block_intervals_num) {
+                    seq_block& curr_block = get<0>(op);
+                    curr_block.start = send_block_start;
+                    curr_block.len = send_block_len;
+                    curr_block.block_index = blocks_sent; 
+
                     seed_interval& inter = get<1>(op);
-                    seed_interval curr_inter = interval_list[prev_intervals_invoked + chr_intervals_invoked++];
-                    inter.start = curr_inter.start;
-                    inter.end = curr_inter.end;
-                    inter.ref_start = curr_inter.ref_start;
-                    inter.ref_end = curr_inter.ref_end;
-                    inter.num_invoked = chr_intervals_invoked;
-                    inter.num_intervals = chr_intervals_num;
-                    reader_output& chrom = get<0>(op);
-                    chrom.r_start = send_r_start;
-                    chrom.r_len = send_r_len;
-                    chrom.r_block_index = r_chr_sent; 
-                    if(chr_intervals_invoked == chr_intervals_num) {
-                        r_chr_sent++;
+                    seed_interval curr_inter = interval_list[prev_intervals_invoked + block_intervals_invoked++];
+                    curr_inter.start     = inter.start;
+                    curr_inter.end       = inter.end;
+                    curr_inter.ref_start = inter.ref_start;
+                    curr_inter.ref_end   = inter.ref_end;
+                    curr_inter.num_invoked   = block_intervals_invoked;
+                    curr_inter.num_intervals = block_intervals_num;
+
+                    if(block_intervals_invoked == block_intervals_num) {
+                        blocks_sent++;
                     }
                     return true;
                 }

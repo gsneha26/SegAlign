@@ -52,10 +52,10 @@ struct Configuration {
 extern Configuration cfg;
 extern SeedPosTable *sa;
 
-struct reader_output {
-  size_t r_start;
-  uint32_t r_len;
-  uint32_t r_block_index;
+struct seq_block {
+  uint32_t block_index;
+  size_t start;
+  uint32_t len;
 };
 
 struct seed_interval {
@@ -69,8 +69,8 @@ struct seed_interval {
 
 typedef std::vector<segment> hsp_output; 
 
-typedef tbb::flow::tuple <reader_output, seed_interval> seeder_payload;
-typedef tbb::flow::tuple <reader_output, int, hsp_output, hsp_output> printer_payload;
+typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
+typedef tbb::flow::tuple <seq_block, int, hsp_output, hsp_output> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
 typedef tbb::flow::tuple <printer_payload, size_t> printer_input;
 

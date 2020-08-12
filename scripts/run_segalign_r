@@ -63,6 +63,7 @@ else
   
   cd $OUTPUT_FOLDER
 
+  time {
   segalign_r $refPath $optionalArguments
 
   for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
@@ -74,6 +75,7 @@ else
           echo "# segalign_r end-of-file" >> $filename
       fi
   done 
+  }
 
   1>&2 echo "Output generated in $OUTPUT_FOLDER"
 

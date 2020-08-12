@@ -4,21 +4,19 @@
 #include <map>
 #include "graph.h"
 
-std::mutex io_lock;
-
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
 
     auto &payload = get<0>(input); 
     size_t token  = get<1>(input);
-
-    auto &chrom = get<0>(payload);
-    auto &index = get<1>(payload);
+ 
+    auto &block_data  = get<0>(payload);
+    auto &index       = get<1>(payload);
     auto &fw_segments = get<2>(payload);
     auto &rc_segments = get<3>(payload);
 
-    uint32_t block_index = chrom.r_block_index;
-    size_t block_start   = chrom.r_start;
-    uint32_t block_len   = chrom.r_len;
+    uint32_t block_index = block_data.block_index;
+    size_t block_start   = block_data.start;
+    uint32_t block_len   = block_data.len;
     size_t block_end     = block_start + block_len;
 
     uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len -1);
@@ -26,8 +24,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string segment_filename;
     std::string cmd;
     
-    uint32_t fw_hsps = fw_segments.size();
-    uint32_t rc_hsps = rc_segments.size();
+    uint32_t fw_hsps  = fw_segments.size();
+    uint32_t rc_hsps  = rc_segments.size();
     uint32_t num_hsps = fw_hsps + rc_hsps;
 
     size_t r_index;
@@ -98,6 +96,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             }
 
         }
+
         fclose(segmentFile);
     }
 

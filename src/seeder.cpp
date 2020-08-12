@@ -9,34 +9,35 @@ std::atomic<uint32_t> seeder_body::num_seeded_regions(0);
 
 printer_input seeder_body::operator()(seeder_input input) {
 
-    seeder_payload &payload = get<0>(input);
+    auto &payload = get<0>(input);
+    size_t token  = get<1>(input);
 
-    auto &chrom = get<0>(payload);
-    
-    auto &data = get<1>(payload);
+    auto &block_data    = get<0>(payload);
+    auto &interval_data = get<1>(payload);
 
-    size_t token = get<1>(input);
+    size_t block_start   = block_data.start;
+    uint32_t block_len   = block_data.len;
+    uint32_t block_index = block_data.block_index;
+
+    uint32_t start_pos = interval_data.start;
+    uint32_t end_pos   = interval_data.end;
+    uint32_t ref_start = interval_data.ref_start;
+    uint32_t ref_end   = interval_data.ref_end;
+    uint32_t num_invoked   = interval_data.num_invoked;
+    uint32_t num_intervals = interval_data.num_intervals;
+
+    uint32_t start_pos_rc   = block_len - 1 - end_pos;
+    uint32_t end_pos_rc     = block_len - 1 - start_pos;
+    uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len - 1);
+
+    uint64_t kmer_index;
+    uint64_t transition_index;
+    uint64_t seed_offset;
 
     std::vector<segment> fw_segments;
     std::vector<segment> rc_segments;
     fw_segments.clear();
     rc_segments.clear();
-
-    uint64_t index = 0;
-    uint64_t transition_index = 0;
-    uint64_t seed_offset;
-    size_t block_start = chrom.r_start;
-    uint32_t block_len = chrom.r_len;
-    uint32_t block_index = chrom.r_block_index;
-    uint32_t start_pos = data.start;
-    uint32_t end_pos = data.end;
-    uint32_t ref_start = data.ref_start;
-    uint32_t ref_end = data.ref_end;
-    uint32_t num_invoked = data.num_invoked;
-    uint32_t num_intervals = data.num_intervals;
-    uint32_t start_pos_rc = block_len - 1 - end_pos;
-    uint32_t end_pos_rc = block_len - 1 - start_pos;
-    uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len - 1);
 
     fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with ref (%u:%u) rc (%u:%u)\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc);
 
@@ -52,15 +53,15 @@ printer_input seeder_body::operator()(seeder_input input) {
             //start to end position in the chunk
             for (uint32_t j = i; j < e; j++) {
 
-                index = GetKmerIndexAtPos(seq_DRAM->buffer, block_start+j, cfg.seed_size);
-                if (index != ((uint32_t) 1 << 31)) {
-                    seed_offset = (index << 32) + j;
+                kmer_index = GetKmerIndexAtPos(seq_DRAM->buffer, block_start+j, cfg.seed_size);
+                if (kmer_index != ((uint32_t) 1 << 31)) {
+                    seed_offset = (kmer_index << 32) + j;
                     seed_offset_vector.push_back(seed_offset); 
 
                     if (cfg.transition) {
                         for (int t=0; t < sa->GetKmerSize(); t++) {
                             if (IsTransitionAtPos(t) == 1) {
-                                transition_index = (index ^ (TRANSITION_MASK << (2*t)));
+                                transition_index = (kmer_index ^ (TRANSITION_MASK << (2*t)));
                                 seed_offset = (transition_index << 32) + j;
                                 seed_offset_vector.push_back(seed_offset); 
                             }
@@ -88,14 +89,14 @@ printer_input seeder_body::operator()(seeder_input input) {
             std::vector<uint64_t> seed_offset_vector;
             seed_offset_vector.clear();
             for (uint32_t j = i; j < e; j++) {
-                index = GetKmerIndexAtPos(seq_rc_DRAM->buffer, (rc_block_start+j), cfg.seed_size);
-                if (index != ((uint32_t) 1 << 31)) {
-                    seed_offset = (index << 32) + j;
+                kmer_index = GetKmerIndexAtPos(seq_rc_DRAM->buffer, (rc_block_start+j), cfg.seed_size);
+                if (kmer_index != ((uint32_t) 1 << 31)) {
+                    seed_offset = (kmer_index << 32) + j;
                     seed_offset_vector.push_back(seed_offset); 
                     if (cfg.transition) {
                         for (int t=0; t < sa->GetKmerSize(); t++) {
                             if (IsTransitionAtPos(t) == 1) {
-                                transition_index = (index ^ (TRANSITION_MASK << (2*t)));
+                                transition_index = (kmer_index ^ (TRANSITION_MASK << (2*t)));
                                 seed_offset = (transition_index << 32) + j;
                                 seed_offset_vector.push_back(seed_offset); 
                             }
@@ -119,5 +120,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(chrom, num_invoked, fw_segments, rc_segments), token);
+    return printer_input(printer_payload(block_data, num_invoked, fw_segments, rc_segments), token);
 }
