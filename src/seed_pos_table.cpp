@@ -1,8 +1,5 @@
 #include "tbb/parallel_sort.h"
-#include <tbb/mutex.h>
 #include "seed_pos_table.h"
-
-tbb::mutex l1;
 
 SeedPosTable::SeedPosTable(){
     ref_size_ = 0;
