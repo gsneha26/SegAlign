@@ -15,9 +15,9 @@ printer_input seeder_body::operator()(seeder_input input) {
     auto &block_data    = get<0>(payload);
     auto &interval_data = get<1>(payload);
 
-    size_t block_start   = block_data.start;
-    uint32_t block_len   = block_data.len;
-    uint32_t block_index = block_data.block_index;
+    size_t block_start = block_data.start;
+    uint32_t block_len = block_data.len;
+    int block_index    = block_data.index;
 
     uint32_t start_pos = interval_data.start;
     uint32_t end_pos   = interval_data.end;

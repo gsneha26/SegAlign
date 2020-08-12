@@ -14,10 +14,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     auto &fw_segments = get<2>(payload);
     auto &rc_segments = get<3>(payload);
 
-    uint32_t block_index = block_data.block_index;
-    size_t block_start   = block_data.start;
-    uint32_t block_len   = block_data.len;
-    size_t block_end     = block_start + block_len;
+    int block_index    = block_data.index;
+    size_t block_start = block_data.start;
+    uint32_t block_len = block_data.len;
+    size_t block_end   = block_start + block_len;
 
     uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len -1);
 
