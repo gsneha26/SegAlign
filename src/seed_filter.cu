@@ -284,7 +284,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segment* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index, uint32_t ref_start, uint32_t ref_end, uint32_t* d_done){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segment* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index, uint32_t ref_start, uint32_t ref_end){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -319,24 +319,18 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
         if(id1+warp_id < end){ 
             if(lane_id == 0){ 
-                ref_loc[warp_id]   = d_pos_table[id1+warp_id];
+                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size;
                 int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
 
+                d_hsp[dram_address].ref_start = ref_loc[warp_id];
+                d_hsp[dram_address].query_start = query_loc; 
+                d_hsp[dram_address].len = 0;
                 if(ref_loc[warp_id] >= ref_start && ref_loc[warp_id] <= ref_end){
-                    ref_loc[warp_id] += seed_size;
-
-                    d_hsp[dram_address].ref_start = ref_loc[warp_id];
-                    d_hsp[dram_address].query_start = query_loc; 
-                    d_done[dram_address] = 1;
+                    d_hsp[dram_address].score = 0;
                 }
                 else{
-                    d_hsp[dram_address].ref_start = 0;
-                    d_hsp[dram_address].query_start = 0;
-                    d_done[dram_address] = 0;
+                    d_hsp[dram_address].score = -1;
                 }
-
-                d_hsp[dram_address].len = 0;
-                d_hsp[dram_address].score = 0;
             }
         }
     }
@@ -358,6 +352,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     __shared__ int prev_score[NUM_WARPS];
     __shared__ int prev_max_score[NUM_WARPS];
     __shared__ int prev_max_pos[NUM_WARPS];
+    __shared__ bool find_hsp[NUM_WARPS]; 
     __shared__ bool edge_found[NUM_WARPS]; 
     __shared__ bool xdrop_found[NUM_WARPS]; 
     __shared__ bool new_max_found[NUM_WARPS]; 
@@ -396,6 +391,12 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 ref_loc[warp_id] = d_hsp[hid].ref_start;
                 query_loc[warp_id] = d_hsp[hid].query_start;
                 total_score[warp_id] = 0; 
+                if(d_hsp[hid].score < 0){
+                    find_hsp = false;
+                }
+                else{
+                    find_hsp = true;
+                }
             }
         }
         else{
@@ -413,11 +414,11 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
         //Right extension
 
         if(lane_id ==0){
-            if(ref_loc[warp_id] == 0 && query_loc[warp_id] == 0){
-                edge_found[warp_id] = true;
+            if(find_hsp){
+                edge_found[warp_id] = false;
             }
             else{
-                edge_found[warp_id] = false;
+                edge_found[warp_id] = true;
             }
             tile[warp_id] = 0;
             xdrop_found[warp_id] = false;
@@ -577,11 +578,11 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
         //Left extension
 
         if(lane_id ==0){
-            if(ref_loc[warp_id] == 0 && query_loc[warp_id] == 0){
-                edge_found[warp_id] = true;
+            if(find_hsp){
+                edge_found[warp_id] = false;
             }
             else{
-                edge_found[warp_id] = false;
+                edge_found[warp_id] = true;
             }
             tile[warp_id] = 0;
             xdrop_found[warp_id] = false;
@@ -862,7 +863,7 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
             iter_num_seeds = limit_pos[i] + 1 - start_seed_index;
             iter_num_hits  = d_hit_num_vec[g][limit_pos[i]] - start_hit_val;
 
-            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end, d_done[g]);
+            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end);
 
             if(rev){
                 find_hsps <<<1024, BLOCK_SIZE>>> (d_seq[g], d_seq_rc[g], seq_len, seq_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
@@ -875,7 +876,6 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
             check_cuda_memcpy((void*)&num_anchors[i], (void*)(d_done[g]+iter_num_hits-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_anchors");
 
-
             if(num_anchors[i] > 0){
                 compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits);
 
@@ -884,12 +884,6 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
                 thrust::device_vector<segment>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
-
-//                total_anchors += num_anchors[i];
-//
-//                h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
-//
-//                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(segment), cudaMemcpyDeviceToHost, "hsp_output");
 
                 thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspDiagComp());
                 
@@ -905,7 +899,6 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
                 check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp_reduced[g], num_anchors[i]*sizeof(segment), cudaMemcpyDeviceToHost, "hsp_output");
             }
-            
 
             start_seed_index = limit_pos[i] + 1;
             start_hit_val = d_hit_num_vec[g][limit_pos[i]];
