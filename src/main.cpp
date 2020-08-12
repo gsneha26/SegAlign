@@ -571,51 +571,54 @@ int main(int argc, char** argv){
 
     tbb::flow::make_edge(ticketer, tbb::flow::input_port<1>(gatekeeper));
 
-    uint32_t r_chr_sent = 0;
-    uint32_t send_r_len;
-    size_t send_r_start;
-    bool send_ref_chr = true;
+    bool send_r_block = true;
+    uint32_t r_blocks_sent = 0;
 
-    uint32_t q_chr_sent;
-    uint32_t send_q_len;
-    size_t send_q_start;
-    bool send_query_chr = false;
-    bool invoke_q_chr = false; 
-    uint32_t send_buffer_id;
+    uint32_t send_r_block_len;
+    size_t send_r_block_start;
 
-    uint32_t prev_chr_intervals[BUFFER_DEPTH];  
+    bool send_q_block = false;
+    uint32_t q_blocks_sent = 0;
+
+    uint32_t send_q_block_len;
+    size_t send_q_block_start;
+    uint32_t send_q_buffer_id;
+
+    bool invoke_q_block = false; 
+    uint32_t q_blocks_invoked = 0;;
+
+    uint32_t invoke_q_len;
+    size_t invoke_q_start;
+    uint32_t invoke_q_buffer_id;
+
     uint32_t completed_intervals;  
-    uint32_t chr_intervals_invoked;
-    uint32_t chr_intervals_num;
-
-    uint32_t q_len;
-    size_t q_start;
-    size_t rc_q_start;
-    uint32_t q_buffer_id;
-    uint32_t q_chr_invoked;
-    uint32_t q_num;
-    uint32_t r_num;
+    uint32_t prev_block_intervals[BUFFER_DEPTH];  
+    uint32_t block_intervals_invoked;
+    uint32_t block_intervals_num;
 
     gettimeofday(&start_time, NULL);
     tbb::flow::source_node<seeder_payload> reader(align_graph,
         [&](seeder_payload &op) -> bool {
 
         while(true){
-            if (send_ref_chr) {
+            if (send_r_block) {
 
-                send_r_start = ref_block_start[r_chr_sent];
-                send_r_len   = ref_block_len[r_chr_sent];
+                send_r_block_start = ref_block_start[r_blocks_sent];
+                send_r_block_len   = ref_block_len[r_blocks_sent];
 
-                fprintf(stderr, "\nSending reference block %u ...\n", r_chr_sent);
-                if(r_chr_sent > 0)
+                fprintf(stderr, "\nSending reference block %u ...\n", r_blocks_sent);
+
+                if(r_blocks_sent > 0)
                     g_clearRef();
-                g_SendRefWriteRequest (send_r_start, send_r_len);
+
+                g_SendRefWriteRequest (send_r_block_start, send_r_block_len);
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                sa = new SeedPosTable (ref_DRAM->buffer, send_r_start, send_r_len, cfg.seed, cfg.step);
+                sa = new SeedPosTable (ref_DRAM->buffer, send_r_block_start, send_r_block_len, cfg.seed, cfg.step);
+
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
                     useconds = end_time_complete.tv_usec - start_time_complete.tv_usec;
@@ -626,100 +629,106 @@ int main(int argc, char** argv){
 
                 for(int i = 0; i < BUFFER_DEPTH; i++){
                     seeder_body::num_seeded_regions[i] = 0;
-                    prev_chr_intervals[i] = 0;
+                    prev_block_intervals[i] = 0;
                 }
                 seeder_body::total_xdrop = 0;
 
-                q_chr_invoked = 0;
-                chr_intervals_invoked = 0;
-                chr_intervals_num = 0;
+                send_q_block = false;
+                q_blocks_sent = 0;
+
+                invoke_q_block = true; 
+                q_blocks_invoked = 0;
+
+                invoke_q_buffer_id = 0;
+
                 completed_intervals = 0;  
-                q_buffer_id = 0;
+                block_intervals_invoked = 0;
+                block_intervals_num = 0;
 
-                q_chr_sent = 0;
-                send_query_chr = false;
-                invoke_q_chr = true; 
+                while(q_blocks_sent < BUFFER_DEPTH && q_blocks_sent < total_q_blocks){
 
-                while(q_chr_sent < BUFFER_DEPTH && q_chr_sent < total_q_blocks){
+                    send_q_block_start = query_block_start[q_blocks_sent];
+                    send_q_block_len = query_block_len[q_blocks_sent];
+                    q_buffer[q_blocks_sent] = q_blocks_sent;
+                    send_q_buffer_id = q_blocks_sent;
 
-                    send_q_start = query_block_start[q_chr_sent];
-                    send_q_len = query_block_len[q_chr_sent];
+                    fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_blocks_sent, send_q_buffer_id);
 
-                    q_buffer[q_chr_sent] = q_chr_sent;
-                    send_buffer_id = q_chr_sent;
-                    fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, send_buffer_id);
-                    if(r_chr_sent > 0)
-                        g_clearQuery(send_buffer_id);
-                    g_SendQueryWriteRequest (send_q_start, send_q_len, send_buffer_id);
-                    prev_chr_intervals[q_chr_sent] = block_num_intervals[q_chr_sent];
-                    q_chr_sent++;
+                    if(r_blocks_sent > 0)
+                        g_clearQuery(send_q_buffer_id);
+
+                    g_SendQueryWriteRequest (send_q_block_start, send_q_block_len, send_q_buffer_id);
+                    prev_block_intervals[q_blocks_sent] = block_num_intervals[q_blocks_sent];
+                    q_blocks_sent++;
                 }
 
-                r_chr_sent++;
-                send_ref_chr = false;
+                r_blocks_sent++;
+                send_r_block = false;
             }
             else{
-                if(q_chr_invoked > 0){
+                if(q_blocks_invoked > 0){
                     for(int i = 0; i < BUFFER_DEPTH; i++){
-                        if(q_chr_sent < total_q_blocks && seeder_body::num_seeded_regions[i] == prev_chr_intervals[i]){
-                            send_q_start = query_block_start[q_chr_sent];
-                            send_q_len = query_block_len[q_chr_sent];
+                        if(q_blocks_sent < total_q_blocks && seeder_body::num_seeded_regions[i] == prev_block_intervals[i]){
+                            send_q_block_start = query_block_start[q_blocks_sent];
+                            send_q_block_len = query_block_len[q_blocks_sent];
+                            q_buffer[q_blocks_sent] = i;
 
-                            q_buffer[q_chr_sent] = i;
-                            prev_chr_intervals[i] += block_num_intervals[q_chr_sent];
+                            prev_block_intervals[i] += block_num_intervals[q_blocks_sent];
 
-                            fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_chr_sent, i);
+                            fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_blocks_sent, i);
                             g_clearQuery(i);
-                            g_SendQueryWriteRequest (send_q_start, send_q_len, i);
+                            g_SendQueryWriteRequest (send_q_block_start, send_q_block_len, i);
 
-                            q_chr_sent++;
+                            q_blocks_sent++;
                         }
                     }
 
-                    if(r_chr_sent < total_r_blocks && total_query_intervals == seeder_body::total_xdrop.load()){
-                        send_ref_chr = true; 
+                    if(r_blocks_sent < total_r_blocks && total_query_intervals == seeder_body::total_xdrop.load()){
+                        send_r_block = true; 
                     }
                 }
             }
 
-            if(q_chr_invoked < q_chr_sent && invoke_q_chr) {
+            if(q_blocks_invoked < q_blocks_sent && invoke_q_block) {
 
-                q_start = query_block_start[q_chr_invoked];
-                q_len   = query_block_len[q_chr_invoked];
+                invoke_q_start = query_block_start[q_blocks_invoked];
+                invoke_q_len   = query_block_len[q_blocks_invoked];
+                invoke_q_buffer_id = q_buffer[q_blocks_invoked];
 
-                q_buffer_id = q_buffer[q_chr_invoked];
-                completed_intervals += chr_intervals_num;
-                chr_intervals_num = block_num_intervals[q_chr_invoked];
+                completed_intervals += block_intervals_num;
+                block_intervals_num = block_num_intervals[q_blocks_invoked];
 
-
-                chr_intervals_invoked = 0;
-                invoke_q_chr = false;
+                block_intervals_invoked = 0;
+                invoke_q_block = false;
             }
 
-            if(q_chr_invoked < total_q_blocks) {
-                if (chr_intervals_invoked < chr_intervals_num) {
-                    seed_interval& inter = get<1>(op);
-                    seed_interval curr_inter = interval_list[completed_intervals + chr_intervals_invoked++];
-                    inter.start = curr_inter.start;
-                    inter.end = curr_inter.end;
-                    inter.num_invoked = chr_intervals_invoked;
-                    inter.num_intervals = chr_intervals_num;
-                    inter.buffer = q_buffer_id;
-                    reader_output& chrom = get<0>(op);
-                    chrom.q_start = q_start;
-                    chrom.r_start = send_r_start;
-                    chrom.r_len = send_r_len;
-                    chrom.q_len = q_len-cfg.seed_size;
-                    chrom.block_index = q_chr_invoked; 
-                    chrom.r_block_index = r_chr_sent; 
-                    if(chr_intervals_invoked == chr_intervals_num) {
-                        q_chr_invoked++;
-                        invoke_q_chr = true;
+            if(q_blocks_invoked < total_q_blocks) {
+                if (block_intervals_invoked < block_intervals_num) {
+                    seq_block& curr_block = get<0>(op);
+                    curr_block.r_index  = r_blocks_sent; 
+                    curr_block.q_index  = q_blocks_invoked; 
+                    curr_block.r_start  = send_r_block_start;
+                    curr_block.q_start  = invoke_q_start;
+                    curr_block.r_len    = send_r_block_len;
+                    curr_block.q_len    = invoke_q_len-cfg.seed_size;
+
+                    seed_interval& curr_inter = get<1>(op);
+                    seed_interval inter = interval_list[completed_intervals + block_intervals_invoked++];
+                    curr_inter.start = inter.start;
+                    curr_inter.end   = inter.end;
+                    curr_inter.num_invoked   = block_intervals_invoked;
+                    curr_inter.num_intervals = block_intervals_num;
+                    curr_inter.buffer        = invoke_q_buffer_id;
+
+                    if(block_intervals_invoked == block_intervals_num) {
+                        q_blocks_invoked++;
+                        invoke_q_block = true;
                     }
+
                     return true;
                 }
             }
-            else if(r_chr_sent == total_r_blocks){
+            else if(r_blocks_sent == total_r_blocks){
                 return false;
             }
             }
