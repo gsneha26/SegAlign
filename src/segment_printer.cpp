@@ -7,6 +7,7 @@
 std::mutex io_lock;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
+    printf("in printer\n\n");
 
     auto &payload = get<0>(input); 
     size_t token  = get<1>(input);
@@ -25,8 +26,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
     std::string segment_filename;
     std::string cmd;
-
-    uint32_t num_hsps = fw_segments.size() + rc_segments.size();
+    
+    uint32_t fw_hsps = fw_segments.size();
+    uint32_t rc_hsps = rc_segments.size();
+    uint32_t num_hsps = fw_hsps + rc_hsps;
 
     size_t r_index;
     size_t seg_r_start;
@@ -49,8 +52,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         segment_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".segments"; 
         segmentFile = fopen(segment_filename.c_str(), "w");
 
-        if(fw_segments.size() > 0){
-
+        if(fw_hsps > 0){
 
             for (auto e: fw_segments) {
                 seg_r_start = block_start + e.ref_start;
@@ -75,7 +77,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         curr_q_chr_start    = chr_start[start_chr]; 
         curr_q_chr_end      = curr_q_chr_start + chr_len[start_chr];
 
-        if(rc_segments.size() > 0){
+        if(rc_hsps > 0){
 
             for(int r = rc_segments.size()-1; r >= 0; r--){
                 auto e =  rc_segments[r];

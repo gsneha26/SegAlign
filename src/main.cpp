@@ -282,9 +282,6 @@ int main(int argc, char** argv){
         
     kseq_rd = kseq_init(f_rd);
 
-    memset(seq_DRAM->buffer + seq_DRAM->bufferPosition, '&', 1);
-    seq_DRAM->bufferPosition += 1;
-
     while (kseq_read(kseq_rd) >= 0) {
         uint32_t seq_len = kseq_rd->seq.l;
         std::string seq_name = std::string(kseq_rd->name.s, kseq_rd->name.l);
@@ -306,6 +303,8 @@ int main(int argc, char** argv){
 
         total_chr++;
     }
+
+    seq_DRAM->bufferPosition -= 1;
 
     cfg.ref_len = seq_DRAM->bufferPosition;
     cfg.num_ref = total_chr;

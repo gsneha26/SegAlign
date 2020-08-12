@@ -48,16 +48,9 @@ SeedPosTable::SeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length
                 uint32_t index = GetKmerIndexAtPos(ref_str, start_addr+start_offset+(i*step), shape_size_); 
                 tmp_index_arr[i] = index;
 
-//                l1.lock();
-//                if(i==101)
-//                fprintf(stderr, "here %u %04X\n", (step+18+i*step), index);
-//                l1.unlock();
                 // valid index
                 if (index != INVALID_KMER) {
                     tmp_off_arr[i] = __sync_fetch_and_add( &index_table_[index+1], 1);
-//                    l1.lock();
-//                    printf("aa %u %04X\n", (start_offset+shape_size_+1+i*step), index);
-//                    l1.unlock();
                 }
             }
         });

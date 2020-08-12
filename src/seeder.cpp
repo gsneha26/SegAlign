@@ -39,7 +39,6 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len - 1);
 
     fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with ref (%u:%u) rc (%u:%u)\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc);
-//    fprintf (stderr, "Chromosome block %u interval %u/%u (%u:%u) with ref (%u:%u) rc (%u:%u)\n%u %u %u %u %u %u %u\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc, block_start, block_len, start_pos, end_pos, start_pos_rc, end_pos_rc, rc_block_start);
 
     if(cfg.strand == "plus" || cfg.strand == "both"){
         for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
