@@ -7,7 +7,6 @@
 std::mutex io_lock;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
-    printf("in printer\n\n");
 
     auto &payload = get<0>(input); 
     size_t token  = get<1>(input);
