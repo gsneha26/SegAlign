@@ -40,6 +40,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         size_t end_r_chr = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), r_block_end) - r_chr_start.cbegin() - 1; 
         size_t start_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_start) - q_chr_start.cbegin() - 1; 
         size_t end_q_chr = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), q_block_start+q_inter_end) - q_chr_start.cbegin() - 1; 
+        printf("%u %u \n", start_r_chr, start_q_chr);
 
         uint32_t curr_q_chr_index = start_q_chr;
         std::string curr_q_chr = q_chr_name[start_q_chr];
