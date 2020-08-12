@@ -10,29 +10,29 @@ std::atomic<uint32_t> seeder_body::num_seeded_regions[BUFFER_DEPTH]={};
 printer_input seeder_body::operator()(seeder_input input) {
 
     auto &payload = get<0>(input);
-    size_t token = get<1>(input);
+    size_t token  = get<1>(input);
 
-    auto &block_data = get<0>(payload);
+    auto &block_data    = get<0>(payload);
     auto &interval_data = get<1>(payload);
 
-    uint32_t r_block_index = block_data.r_index;
-    uint32_t q_block_index = block_data.q_index;
+    int r_block_index    = block_data.r_index;
+    int q_block_index    = block_data.q_index;
     size_t r_block_start = block_data.r_start;
     size_t q_block_start = block_data.q_start;
     uint32_t r_block_len = block_data.r_len;
     uint32_t q_block_len = block_data.q_len;
 
     uint32_t q_inter_start = interval_data.start;
-    uint32_t q_inter_end = interval_data.end;
-    uint32_t num_invoked = interval_data.num_invoked;
+    uint32_t q_inter_end   = interval_data.end;
+    uint32_t buffer        = interval_data.buffer;
+    uint32_t num_invoked   = interval_data.num_invoked;
     uint32_t num_intervals = interval_data.num_intervals;
-    uint32_t buffer = interval_data.buffer;
 
     uint32_t rc_q_inter_start = q_block_len - q_inter_end;
-    uint32_t rc_q_inter_end = q_block_len - q_inter_start;
+    uint32_t rc_q_inter_end   = q_block_len - q_inter_start;
 
-    uint64_t kmer_index = 0;
-    uint64_t transition_index = 0;
+    uint64_t kmer_index;
+    uint64_t transition_index;
     uint64_t seed_offset;
 
     std::vector<segment> fw_segments;

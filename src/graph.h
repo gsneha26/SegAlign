@@ -10,30 +10,34 @@
 using namespace tbb::flow;
 
 struct Configuration {
-    //FASTA files
+    //Input files/folder name
     std::string reference_filename;
     std::string query_filename;
     std::string data_folder;
-    std::string strand;
 
-    //Scoring
+    // Sequence parameters
+    std::string strand;
+    uint32_t num_ref;
+    uint32_t num_query;
+
+    // Scoring
     std::string scoring_file;
     std::string ambiguous;
     int sub_mat[NUC2];
 
-    //Seed parameters
+    // Seed parameters
     std::string seed_shape;
     bool transition;
     uint32_t step;
     std::string seed;
     uint32_t seed_size;
     
-    //Filter parameters
+    // Filter parameters
     int xdrop; 
     int hspthresh;
     bool noentropy;
 
-    //Extension parameters
+    // Extension parameters
     bool gapped;
     int ydrop;
     int gappedthresh;
@@ -44,24 +48,21 @@ struct Configuration {
     std::string output;
     bool markend;
 
-    //System parameters
+    // System parameters
     uint32_t wga_chunk_size;
     uint32_t lastz_interval_size;
+    uint32_t seq_block_size;
     int num_gpu;
+    int num_threads;
     bool debug;
-
-    uint32_t num_threads;
-    uint32_t num_ref;
-    uint32_t num_query;
-
 };
 
 extern Configuration cfg;
 extern SeedPosTable *sa;
 
 struct seq_block {
-  uint32_t r_index;
-  uint32_t q_index;
+  int r_index;
+  int q_index;
   size_t r_start;
   size_t q_start;
   uint32_t r_len;

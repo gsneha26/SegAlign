@@ -12,22 +12,22 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     size_t token  = get<1>(input);
 
     auto &seeder_payload = get<0>(payload);
-    auto &fw_segments = get<1>(payload);
-    auto &rc_segments = get<2>(payload);
+    auto &fw_segments    = get<1>(payload);
+    auto &rc_segments    = get<2>(payload);
 
-    auto &block_data = get<0>(seeder_payload);
+    auto &block_data    = get<0>(seeder_payload);
     auto &interval_data = get<1>(seeder_payload);
 
-    uint32_t r_block_index = block_data.r_index - 1;
-    uint32_t q_block_index = block_data.q_index;
+    int r_block_index = block_data.r_index - 1;
+    int q_block_index = block_data.q_index;
     size_t r_block_start = block_data.r_start;
     size_t q_block_start = block_data.q_start;
     uint32_t r_block_len = block_data.r_len;
     uint32_t q_block_len = block_data.q_len;
 
     uint32_t q_inter_start = interval_data.start;
-    uint32_t q_inter_end = interval_data.end;
-    uint32_t num_invoked = interval_data.num_invoked;
+    uint32_t q_inter_end   = interval_data.end;
+    uint32_t num_invoked   = interval_data.num_invoked;
 
     uint32_t index = num_invoked;
     size_t r_block_end = r_block_start + r_block_len - 1;

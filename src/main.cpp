@@ -100,26 +100,45 @@ void RevComp(size_t rc_start, size_t start, uint32_t len) {
 
 int main(int argc, char** argv){
 
-    po::options_description desc{"Options"};
+    po::options_description desc{"Sequence Options"};
     desc.add_options()
-        ("strand", po::value<std::string>(&cfg.strand)->default_value("both"), "strand to search - plus/minus/both")
+        ("strand", po::value<std::string>(&cfg.strand)->default_value("both"), "strand to search - plus/minus/both");
+
+    po::options_description scoring_desc{"Scoring Options"};
+    scoring_desc.add_options()
         ("scoring", po::value<std::string>(&cfg.scoring_file), "Scoring file in LASTZ format")
-        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "ambiguous nucleotides - n/iupac")
+        ("ambiguous", po::value<std::string>(&cfg.ambiguous), "ambiguous nucleotides - n/iupac");
+
+    po::options_description seeding_desc{"Seeding Options"};
+    seeding_desc.add_options()
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern-12of19(1110100110010101111)/14of22(1110101100110010101111)/an arbitrary pattern of 1s, 0s, and Ts ")
-        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "Offset between the starting positions of successive target words considered for generating seed table")
+        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit");
+
+    po::options_description ungapped_desc{"Ungapped Extension Options"};
+    ungapped_desc.add_options()
         ("xdrop", po::value<int>(&cfg.xdrop)->default_value(910), "x-drop value for gap-free extension")
         ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
-        ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage")
+        ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage");
+
+    po::options_description gapped_desc{"Gapped Extension Options"};
+    gapped_desc.add_options()
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
         ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
         ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
-        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical")
+        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical");
+
+    po::options_description output_desc{"Output Options"};
+    output_desc.add_options()
         ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
-        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion")
-        ("wga_chunk", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
-        ("lastz_interval", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
+        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
+
+    po::options_description system_desc{"System Options"};
+    system_desc.add_options()
+        ("wga_chunk_size", po::value<uint32_t>(&cfg.wga_chunk_size)->default_value(DEFAULT_WGA_CHUNK), "chunk sizes for GPU calls for Xdrop - change only if you are a developer")
+        ("lastz_interval_size", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
+        ("seq_block_size", po::value<uint32_t>(&cfg.seq_block_size)->default_value(DEFAULT_SEQ_BLOCK_SIZE), "LASTZ interval for ydrop - change only if you are a developer")
         ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "Specify number of GPUs to use - -1 if all the GPUs should be used")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
@@ -132,6 +151,12 @@ int main(int argc, char** argv){
 
     po::options_description all_options;
     all_options.add(desc);
+    all_options.add(scoring_desc);
+    all_options.add(seeding_desc);
+    all_options.add(ungapped_desc);
+    all_options.add(gapped_desc);
+    all_options.add(output_desc);
+    all_options.add(system_desc);
     all_options.add(hidden);
 
     po::positional_options_description p;
@@ -271,15 +296,15 @@ int main(int argc, char** argv){
     if(cfg.debug){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
         fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
+        fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
         fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
         fprintf(stderr, "Seed size %d\n", cfg.seed_size);
         fprintf(stderr, "Transition %d\n", cfg.transition);
-        fprintf(stderr, "Gapped %d\n",cfg.gapped);
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
-        fprintf(stderr, "ydrop %d\n", cfg.ydrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
+        fprintf(stderr, "Gapped %d\n",cfg.gapped);
+        fprintf(stderr, "ydrop %d\n", cfg.ydrop);
         fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
-        fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
 
         for(int i = 0; i < NUC; i++){
             for(int j = 0; j < NUC; j++){
@@ -352,7 +377,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_q_chr++;
 
-        if(seq_block_len > SEQ_BLOCK_SIZE){
+        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
 
             query_block_len.push_back(seq_block_len);
             if(seq_block_len > query_max_block_len)
@@ -508,7 +533,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_r_chr++;
 
-        if(seq_block_len > SEQ_BLOCK_SIZE){
+        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
 
             ref_block_len.push_back(seq_block_len);
 
