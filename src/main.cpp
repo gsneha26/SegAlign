@@ -133,6 +133,7 @@ int main(int argc, char** argv){
         ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format");
 
     po::options_description all_options;
+    all_options.add(hidden);
     all_options.add(desc);
     all_options.add(scoring_desc);
     all_options.add(seeding_desc);
@@ -140,7 +141,6 @@ int main(int argc, char** argv){
     all_options.add(gapped_desc);
     all_options.add(output_desc);
     all_options.add(system_desc);
-    all_options.add(hidden);
 
     po::positional_options_description p;
     p.add("target", 1);
