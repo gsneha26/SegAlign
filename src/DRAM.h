@@ -1,18 +1,12 @@
 #pragma once
 #include <cstddef>
 
-#define WORD_SIZE 128
-
-class DRAM
-{
-public:
-	char* buffer;
-	std::size_t size;
-
-	std::size_t seqSize;
-	std::size_t bufferPosition;
-public:
-	DRAM();
-	~DRAM();
+class DRAM{
+    public:
+        char* buffer;
+        std::size_t size;
+        std::size_t seqSize;
+        std::size_t bufferPosition;
+        DRAM();
+        ~DRAM();
 };
-

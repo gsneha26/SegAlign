@@ -3,6 +3,7 @@
 #include <iostream>
 #include <map>
 #include "graph.h"
+#include "store.h"
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
 
@@ -19,7 +20,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     uint32_t block_len = block_data.len;
     size_t block_end   = block_start + block_len;
 
-    uint32_t rc_block_start = cfg.ref_len - 1 - block_start - (block_len -1);
+    uint32_t rc_block_start = cfg.seq_len - 1 - block_start - (block_len -1);
 
     std::string segment_filename;
     std::string cmd;
@@ -79,7 +80,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             for(int r = rc_segments.size()-1; r >= 0; r--){
                 auto e =  rc_segments[r];
                 seg_r_start = block_start + e.ref_start;
-                seg_q_start = cfg.ref_len - 1 - (block_start + e.query_start + e.len);
+                seg_q_start = cfg.seq_len - 1 - (block_start + e.query_start + e.len);
                 r_index = std::upper_bound(chr_start.cbegin(), chr_start.cend(), seg_r_start) - chr_start.cbegin() - 1;
 
                 if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){

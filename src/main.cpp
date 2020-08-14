@@ -11,6 +11,7 @@
 #include "kseq.h"
 #include "zlib.h"
 #include "graph.h"
+#include "ntcoding.h"
 #include "parameters.h"
 #include "store.h"
 
@@ -23,7 +24,6 @@ struct timeval start_time, end_time, start_time_complete, end_time_complete;
 long useconds, seconds, mseconds;
 
 Configuration cfg;
-SeedPosTable *sa;
 
 DRAM *seq_DRAM = nullptr;
 DRAM *seq_rc_DRAM = nullptr;
@@ -32,57 +32,17 @@ std::vector<std::string> chr_name;
 std::vector<size_t>      chr_start;
 std::vector<uint32_t>    chr_len;
 
-std::vector<size_t>   ref_block_start;
-std::vector<uint32_t> ref_block_len;
+std::vector<size_t>   block_start;
+std::vector<uint32_t> block_len;
 uint32_t total_chr = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RevComp(size_t rc_start, size_t start, uint32_t len) {
-
-    size_t r = rc_start;
-    for (size_t i = start+len; i> start; i--) {
-        
-        switch (seq_DRAM->buffer[i-1]) {
-            case 'a': seq_rc_DRAM->buffer[r++] = 't';
-                      break;
-
-            case 'A': seq_rc_DRAM->buffer[r++] = 'T';
-                      break;
-
-            case 'c': seq_rc_DRAM->buffer[r++] = 'g';
-                      break;
-
-            case 'C': seq_rc_DRAM->buffer[r++] = 'G';
-                      break;
-
-            case 'g': seq_rc_DRAM->buffer[r++] = 'c';
-                      break;
-
-            case 'G': seq_rc_DRAM->buffer[r++] = 'C';
-                      break;
-
-            case 't': seq_rc_DRAM->buffer[r++] = 'a';
-                      break;
-
-            case 'T': seq_rc_DRAM->buffer[r++] = 'A';
-                      break;
-
-            case 'n': seq_rc_DRAM->buffer[r++] = 'n';
-                      break;
-
-            case 'N': seq_rc_DRAM->buffer[r++] = 'N';
-                      break;
-
-            case '&': seq_rc_DRAM->buffer[r++] = '&';
-                      break;
-
-            default: printf("Bad Nt char! '%c' %lu\n", seq_DRAM->buffer[i], i);
-        }
-    }
-}
-
 int main(int argc, char** argv){
+
+    po::options_description hidden;
+    hidden.add_options()
+        ("seq_file", po::value<std::string>(&cfg.seq_filename)->required(), "sequence file in FASTA format");
 
     po::options_description desc{"Sequence Options"};
     desc.add_options()
@@ -98,7 +58,7 @@ int main(int argc, char** argv){
     seeding_desc.add_options()
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern-12of19(1110100110010101111)/14of22(1110101100110010101111)/an arbitrary pattern of 1s, 0s, and Ts ")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "Offset between the starting positions of successive target words considered for generating seed table")
-        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit");
+        ("notransition", po::bool_switch(&cfg.seed.transition)->default_value(false), "don't allow one transition in a seed hit");
 
     po::options_description ungapped_desc{"Ungapped Extension Options"};
     ungapped_desc.add_options()
@@ -128,10 +88,6 @@ int main(int argc, char** argv){
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
-    po::options_description hidden;
-    hidden.add_options()
-        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format");
-
     po::options_description all_options;
     all_options.add(hidden);
     all_options.add(desc);
@@ -143,7 +99,7 @@ int main(int argc, char** argv){
     all_options.add(system_desc);
 
     po::positional_options_description p;
-    p.add("target", 1);
+    p.add("seq_file", 1);
 
     po::variables_map vm;
     try{
@@ -152,12 +108,13 @@ int main(int argc, char** argv){
     }
     catch(std::exception &e){
         if(!vm.count("help")){
-            if(!vm.count("target")){
-                fprintf(stderr, "You must specify a target file \n"); 
+            if(!vm.count("seq_file")){
+                fprintf(stderr, "You must specify a sequence file \n"); 
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign_r target [options]\n"); 
+        fprintf(stderr, "Usage: run_segalign_r seq_file [options]\n"); 
+        std::cout << hidden << std::endl;
         std::cout << desc << std::endl;
         std::cout << scoring_desc << std::endl;
         std::cout << seeding_desc << std::endl;
@@ -168,26 +125,33 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    cfg.transition = !cfg.transition;
+    cfg.seed.transition = !cfg.seed.transition;
     if(cfg.seed_shape == "12of19"){
-        cfg.seed = "TTT0T00TT00T0T0TTTT"; 
-        cfg.seed_size = 19;
+        cfg.seed.shape = "TTT0T00TT00T0T0TTTT"; 
+        cfg.seed.size = 19;
     }
     else if(cfg.seed_shape == "14of22"){
-        cfg.seed = "TTT0T0TT00TT00T0T0TTTT";
-        cfg.seed_size = 22;
+        cfg.seed.shape = "TTT0T0TT00TT00T0T0TTTT";
+        cfg.seed.size = 22;
     }
     else{
         int seed_len = cfg.seed_shape.size();
-        cfg.seed = cfg.seed_shape;
+        cfg.seed.shape = cfg.seed_shape;
         for(int i = 0; i< seed_len; i++){
             if(cfg.seed_shape[i] == '1')
-                cfg.seed[i] = 'T';
+                cfg.seed.shape[i] = 'T';
             else
-                cfg.seed[i] = '0';
+                cfg.seed.shape[i] = '0';
         }
-        cfg.seed_size = cfg.seed.size();
+        cfg.seed.size = seed_len;
     }
+
+    cfg.seed.kmer_size = GenerateShapePos(cfg.seed.shape);
+
+    if(vm.count("gappedthresh") == 0)
+        cfg.gappedthresh = cfg.hspthresh; 
+
+    cfg.gapped = !cfg.gapped;
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;
@@ -277,11 +241,10 @@ int main(int argc, char** argv){
     tbb::task_scheduler_init init(cfg.num_threads);
 
     if(cfg.debug){
-        fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
+        fprintf(stderr, "seq_file %s\n", cfg.seq_filename.c_str());
         fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
-        fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
-        fprintf(stderr, "Seed size %d\n", cfg.seed_size);
-        fprintf(stderr, "Transition %d\n", cfg.transition);
+        fprintf(stderr, "Seed %s\n", cfg.seed.shape.c_str());
+        fprintf(stderr, "Transition %d\n", cfg.seed.transition);
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
         fprintf(stderr, "Gapped %d\n",cfg.gapped);
@@ -298,10 +261,11 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.transition, cfg.wga_chunk_size, cfg.seed_size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
+    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
     seq_DRAM = new DRAM;
     seq_rc_DRAM = new DRAM;
+    
     gzFile f_rd;
     kseq_t *kseq_rd;
 
@@ -312,9 +276,9 @@ int main(int argc, char** argv){
 	    gettimeofday(&start_time, NULL);
     }
 
-    f_rd = gzopen(cfg.reference_filename.c_str(), "r");
+    f_rd = gzopen(cfg.seq_filename.c_str(), "r");
     if (!f_rd) { 
-        fprintf(stderr, "cant open file: %s\n", cfg.reference_filename.c_str()); 
+        fprintf(stderr, "cant open file: %s\n", cfg.seq_filename.c_str()); 
         exit(7); 
     }
         
@@ -344,10 +308,10 @@ int main(int argc, char** argv){
 
     seq_DRAM->bufferPosition -= 1;
 
-    cfg.ref_len = seq_DRAM->bufferPosition;
-    cfg.num_ref = total_chr;
+    cfg.seq_len = seq_DRAM->bufferPosition;
+    cfg.num_chr = total_chr;
 
-    RevComp(seq_rc_DRAM->bufferPosition, 0, cfg.ref_len);
+    RevComp(seq_rc_DRAM->buffer, seq_DRAM->buffer, seq_rc_DRAM->bufferPosition, 0, cfg.seq_len);
 
     gzclose(f_rd);
 
@@ -359,7 +323,7 @@ int main(int argc, char** argv){
     	fprintf(stderr, "Time elapsed (loading complete target from file): %ld msec \n\n", mseconds);
     }
 
-    uint32_t total_query_intervals = ceil((float) cfg.ref_len/cfg.lastz_interval_size);
+    uint32_t total_query_intervals = ceil((float) cfg.seq_len/cfg.lastz_interval_size);
     if(cfg.num_neigh_interval == 0)
         cfg.num_neigh_interval = ceil((float) 0.2*total_query_intervals);
 
@@ -367,12 +331,12 @@ int main(int argc, char** argv){
     uint32_t right_intervals = cfg.num_neigh_interval - 1 - left_intervals;
     uint32_t left_overlap = left_intervals * cfg.lastz_interval_size; 
     uint32_t right_overlap = right_intervals * cfg.lastz_interval_size; 
-    uint32_t max_interval_ref_len = left_overlap + cfg.lastz_interval_size + right_overlap;
+    uint32_t max_interval_seq_len = left_overlap + cfg.lastz_interval_size + right_overlap;
 
     if(cfg.debug)
-        printf("len: %u lastz_interval: %u\ntotal_intervals: %u neigh_intervals: %u\nleft_intervals: %u 1 right_intervals: %u\nleft_overlap_size: %u\nright_overlap_size: %u\n\n", cfg.ref_len, cfg.lastz_interval_size, total_query_intervals, cfg.num_neigh_interval, left_intervals, right_intervals, left_overlap, right_overlap);
+        fprintf(stderr, "len: %lu lastz_interval: %u\ntotal_intervals: %u neigh_intervals: %u\nleft_intervals: %u 1 right_intervals: %u\nleft_overlap_size: %u\nright_overlap_size: %u\n\n", cfg.seq_len, cfg.lastz_interval_size, total_query_intervals, cfg.num_neigh_interval, left_intervals, right_intervals, left_overlap, right_overlap);
 
-    uint32_t seq_block_start  = 0;
+    size_t seq_block_start  = 0;
     uint32_t seq_block_len  = 0;
     uint32_t total_r_blocks = 0;
 
@@ -380,49 +344,50 @@ int main(int argc, char** argv){
     interval_list.clear();
     std::vector<uint32_t> block_num_intervals;
     uint32_t prev_num_intervals = 0;
-    uint32_t curr_pos, end_pos;
+    uint32_t start_pos, end_pos;
+    uint32_t interval_start, interval_end;
     bool left_overlap_limit = false;
     bool right_overlap_limit = false;
 
-    for(uint32_t l = 0; l < cfg.ref_len; l+=DEFAULT_SEQ_BLOCK_SIZE){
+    for(size_t l = 0; l < cfg.seq_len; l+=DEFAULT_SEQ_BLOCK_SIZE){
 
         if(l < left_overlap) 
             seq_block_start = l;
         else
             seq_block_start = l-left_overlap;
 
-        if(l+DEFAULT_SEQ_BLOCK_SIZE+right_overlap > cfg.ref_len)
-            seq_block_len = cfg.ref_len - seq_block_start;
+        if(l+DEFAULT_SEQ_BLOCK_SIZE+right_overlap > cfg.seq_len)
+            seq_block_len = static_cast<unsigned int>(cfg.seq_len - seq_block_start);
         else
-            seq_block_len = (l-seq_block_start)+DEFAULT_SEQ_BLOCK_SIZE+right_overlap;
+            seq_block_len = static_cast<unsigned int>(l-seq_block_start+DEFAULT_SEQ_BLOCK_SIZE)+right_overlap;
 
-        ref_block_start.push_back(seq_block_start);
-        ref_block_len.push_back(seq_block_len);
+        block_start.push_back(seq_block_start);
+        block_len.push_back(seq_block_len);
         total_r_blocks += 1;
 
-        curr_pos = l-seq_block_start;
+        start_pos = static_cast<unsigned int>(l-seq_block_start);
         if(seq_block_len < DEFAULT_SEQ_BLOCK_SIZE)
-            end_pos = curr_pos + seq_block_len - (l-seq_block_start) - cfg.seed_size;
+            end_pos = start_pos + seq_block_len - static_cast<unsigned int>(l-seq_block_start) - cfg.seed.size;
         else
-            end_pos = curr_pos + DEFAULT_SEQ_BLOCK_SIZE - cfg.seed_size;
+            end_pos = start_pos + static_cast<unsigned int>(DEFAULT_SEQ_BLOCK_SIZE) - cfg.seed.size;
 
         if(cfg.debug)
-            printf("block l:%uM start:%uM len:%uM curr_pos:%uM end_pos:%uM\n", l/1000000, seq_block_start/1000000, seq_block_len/1000000, curr_pos/1000000, end_pos/1000000);
+            fprintf(stderr, "block l:%luM start:%luM len:%uM start_pos:%uM end_pos:%uM\n", l/1000000, seq_block_start/1000000, seq_block_len/1000000, start_pos/1000000, end_pos/1000000);
 
-        while (curr_pos < end_pos) {
-            uint32_t start = curr_pos;
-            uint32_t end = std::min(end_pos, start + cfg.lastz_interval_size);
+        while (start_pos < end_pos) {
+            interval_start = start_pos;
+            interval_end = std::min(end_pos, interval_start + cfg.lastz_interval_size);
             seed_interval inter;
-            inter.start = start;
-            inter.end = end;
+            inter.start = interval_start;
+            inter.end = interval_end;
 
-            if(start < left_overlap)
+            if(interval_start < left_overlap)
                 left_overlap_limit = true;
             else
                 left_overlap_limit = false;
 
 
-            if((end+right_overlap) > seq_block_len)
+            if((interval_end+right_overlap) > seq_block_len)
                 right_overlap_limit = true;
             else
                 right_overlap_limit = false;
@@ -434,23 +399,23 @@ int main(int argc, char** argv){
                     inter.ref_end = seq_block_len;
                 }
                 else{
-                    if(max_interval_ref_len > seq_block_len)
+                    if(max_interval_seq_len > seq_block_len)
                         inter.ref_end = seq_block_len;
                     else
-                        inter.ref_end = max_interval_ref_len;
+                        inter.ref_end = max_interval_seq_len;
                 }
             }
             else{
                 if(right_overlap_limit){
                     inter.ref_end = seq_block_len;
-                    if(seq_block_len < max_interval_ref_len)
+                    if(seq_block_len < max_interval_seq_len)
                         inter.ref_start = 0;
                     else
-                        inter.ref_start =  seq_block_len - max_interval_ref_len;
+                        inter.ref_start =  seq_block_len - max_interval_seq_len;
                 }
                 else{
-                    inter.ref_start = start-left_overlap;
-                    inter.ref_end = end+right_overlap;
+                    inter.ref_start = interval_start-left_overlap;
+                    inter.ref_end = interval_end+right_overlap;
                 }
             }
 
@@ -458,9 +423,9 @@ int main(int argc, char** argv){
             inter.num_intervals = 0;
 
             if(cfg.debug)
-                printf("%d %d | %u %u %u %u\n", left_overlap_limit, right_overlap_limit, inter.start/1000000, inter.end/1000000, inter.ref_start/1000000, inter.ref_end/1000000);
+                fprintf(stderr, "%d %d | %u %u %u %u\n", left_overlap_limit, right_overlap_limit, inter.start/1000000, inter.end/1000000, inter.ref_start/1000000, inter.ref_end/1000000);
             interval_list.push_back(inter);
-            curr_pos += cfg.lastz_interval_size;
+            start_pos += cfg.lastz_interval_size;
         }
 
         block_num_intervals.push_back(interval_list.size()-prev_num_intervals);
@@ -469,9 +434,14 @@ int main(int argc, char** argv){
 
     total_query_intervals = interval_list.size();
 
+    for(int i = 0; i < 20; i++){
+        printf("%c %c\n", seq_DRAM->buffer[i], seq_rc_DRAM->buffer[cfg.seq_len-1-i]); 
+    }
+
+
     if(cfg.debug)
         for(int i = 0; i < total_r_blocks; i++)
-            printf("%u %lu %u\n", i, ref_block_start[i]/1000000, ref_block_len[i]/1000000);
+            fprintf(stderr, "%u %lu %u\n", i, block_start[i]/1000000, block_len[i]/1000000);
 
     // start alignment
     fprintf(stderr, "\nStart alignment ...\n");
@@ -516,21 +486,21 @@ int main(int argc, char** argv){
         while(true){
             if (send_block) {
 
-                send_block_start = ref_block_start[blocks_sent];
-                send_block_len   = ref_block_len[blocks_sent];
+                send_block_start = block_start[blocks_sent];
+                send_block_len   = block_len[blocks_sent];
 
                 fprintf(stderr, "\nSending block %u ...\n", blocks_sent);
 
                 if(blocks_sent > 0)
                     g_clearRef();
 
-                g_SendRefWriteRequest (send_block_start, send_block_len);
+                g_SendWriteRequest (seq_DRAM->buffer, send_block_start, send_block_len);
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                sa = new SeedPosTable (seq_DRAM->buffer, send_block_start, send_block_len, cfg.seed, cfg.step);
+                GenerateSeedPosTable (seq_DRAM->buffer, send_block_start, send_block_len, cfg.step, cfg.seed.size, cfg.seed.kmer_size);
 
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
@@ -561,12 +531,14 @@ int main(int argc, char** argv){
 
                     seed_interval& inter = get<1>(op);
                     seed_interval curr_inter = interval_list[prev_intervals_invoked + block_intervals_invoked++];
-                    curr_inter.start     = inter.start;
-                    curr_inter.end       = inter.end;
-                    curr_inter.ref_start = inter.ref_start;
-                    curr_inter.ref_end   = inter.ref_end;
-                    curr_inter.num_invoked   = block_intervals_invoked;
-                    curr_inter.num_intervals = block_intervals_num;
+                    inter.start     = curr_inter.start;
+                    inter.end       = curr_inter.end;
+                    inter.ref_start = curr_inter.ref_start;
+                    inter.ref_end   = curr_inter.ref_end;
+                    inter.num_invoked   = block_intervals_invoked;
+                    inter.num_intervals = block_intervals_num;
+
+                    fprintf(stderr, "%u %u\n", inter.start, inter.end);
 
                     if(block_intervals_invoked == block_intervals_num) {
                         blocks_sent++;

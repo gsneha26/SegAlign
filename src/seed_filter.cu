@@ -5,7 +5,6 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
-#include "parameters.h"
 #include "seed_filter.h"
 
 // Each segment is 16B
@@ -1072,7 +1071,7 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
     }
 }
 
-void SendRefWriteRequest (size_t start_addr, uint32_t len){
+void SendWriteRequest (char* seq, size_t start_addr, uint32_t len){
 
     seq_len = len;
     
@@ -1083,7 +1082,7 @@ void SendRefWriteRequest (size_t start_addr, uint32_t len){
         char* d_seq_tmp;
         check_cuda_malloc((void**)&d_seq_tmp, len*sizeof(char), "d_seq_tmp"); 
 
-        check_cuda_memcpy((void*)d_seq_tmp, (void*)(seq_DRAM->buffer + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "seq");
+        check_cuda_memcpy((void*)d_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "seq");
 
         check_cuda_malloc((void**)&d_seq[g], len*sizeof(char), "seq"); 
         check_cuda_malloc((void**)&d_seq_rc[g], len*sizeof(char), "seq_rc"); 
@@ -1120,7 +1119,7 @@ void ShutdownProcessor(){
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
 InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;
 SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
-SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
+SendWriteRequest_ptr g_SendWriteRequest = SendWriteRequest;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 clearRef_ptr g_clearRef = clearRef;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;

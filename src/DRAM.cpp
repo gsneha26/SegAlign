@@ -1,6 +1,5 @@
 #include "DRAM.h"
 #include <memory>
-
 #include "tbb/scalable_allocator.h"
 
 DRAM::DRAM()
@@ -12,8 +11,6 @@ DRAM::DRAM()
 	buffer = (char*)scalable_aligned_malloc(size, 64);
 }
 
-
-DRAM::~DRAM()
-{
+DRAM::~DRAM(){
     scalable_aligned_free(buffer);
 }
