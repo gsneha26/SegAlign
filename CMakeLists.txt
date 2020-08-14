@@ -24,7 +24,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_executable(segalign
     src/DRAM.cpp
     src/seed_filter.cu
-    src/seed_pos_table.cpp
     src/ntcoding.cpp
     src/seeder.cpp
     src/segment_printer.cpp
