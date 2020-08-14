@@ -30,7 +30,6 @@ struct Configuration {
     // Sequence parameters
     std::string strand;
     size_t seq_len;
-    uint32_t num_chr;
     uint32_t num_neigh_interval;
 
     // Scoring

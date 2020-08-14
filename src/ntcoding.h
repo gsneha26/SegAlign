@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <iostream>
 #include "parameters.h"
 #include "seed_filter.h"

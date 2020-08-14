@@ -162,4 +162,3 @@ void GenerateSeedPosTable(char* ref_str, size_t start_addr, uint32_t ref_length,
     free(index_table);
     free(pos_table);
 }
-

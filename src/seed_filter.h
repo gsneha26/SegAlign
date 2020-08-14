@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <condition_variable>
 #include <vector>
 #include "graph.h"

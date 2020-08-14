@@ -309,7 +309,6 @@ int main(int argc, char** argv){
     seq_DRAM->bufferPosition -= 1;
 
     cfg.seq_len = seq_DRAM->bufferPosition;
-    cfg.num_chr = total_chr;
 
     RevComp(seq_rc_DRAM->buffer, seq_DRAM->buffer, seq_rc_DRAM->bufferPosition, 0, cfg.seq_len);
 
