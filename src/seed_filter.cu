@@ -5,7 +5,6 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
-#include "parameters.h"
 #include "seed_filter.h"
 
 // Each segment is 16B

@@ -2,7 +2,9 @@
 #include <iterator>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include "graph.h"
+#include "store.h"
 
 std::mutex io_lock;
 

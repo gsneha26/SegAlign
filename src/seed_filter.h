@@ -1,13 +1,9 @@
 #include <condition_variable>
 #include <vector>
+#include "graph.h"
+#include "parameters.h"
 #include "store.h"
-
-struct segment {
-    uint32_t ref_start;
-    uint32_t query_start;
-    uint32_t len;
-    int score;
-};
+#include "tbb/parallel_sort.h"
 
 typedef int(*InitializeProcessor_ptr)(int num_gpu, bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy);
 typedef void(*InclusivePrefixScan_ptr)(uint32_t* data, uint32_t len);

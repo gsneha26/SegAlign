@@ -5,9 +5,23 @@
 #include <string>
 #include <tbb/flow_graph.h>
 #include <vector>
-#include "seed_pos_table.h"
+#include "parameters.h"
 
 using namespace tbb::flow;
+
+struct Seed_config {
+    std::string shape;
+    int size;
+    int kmer_size;
+    bool transition;
+};
+
+struct segment {
+    uint32_t ref_start;
+    uint32_t query_start;
+    uint32_t len;
+    int score;
+};
 
 struct Configuration {
     //Input files/folder name
@@ -17,8 +31,6 @@ struct Configuration {
 
     // Sequence parameters
     std::string strand;
-    uint32_t num_ref;
-    uint32_t num_query;
 
     // Scoring
     std::string scoring_file;
@@ -26,11 +38,9 @@ struct Configuration {
     int sub_mat[NUC2];
 
     // Seed parameters
+    Seed_config seed;
     std::string seed_shape;
-    bool transition;
     uint32_t step;
-    std::string seed;
-    uint32_t seed_size;
     
     // Filter parameters
     int xdrop; 
@@ -58,7 +68,6 @@ struct Configuration {
 };
 
 extern Configuration cfg;
-extern SeedPosTable *sa;
 
 struct seq_block {
   int r_index;

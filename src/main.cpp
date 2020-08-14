@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp> 
 #include <iostream>
@@ -10,6 +11,7 @@
 #include "kseq.h"
 #include "zlib.h"
 #include "graph.h"
+#include "ntcoding.h"
 #include "parameters.h"
 #include "store.h"
 
@@ -22,7 +24,6 @@ struct timeval start_time, end_time, start_time_complete, end_time_complete;
 long useconds, seconds, mseconds;
 
 Configuration cfg;
-SeedPosTable *sa;
 
 DRAM *ref_DRAM = nullptr;
 DRAM *query_DRAM = nullptr;
@@ -54,51 +55,14 @@ std::vector<uint32_t> ref_block_len;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RevComp(size_t rc_start, size_t start, uint32_t len) {
-
-    size_t r = rc_start;
-    for (size_t i = start+len; i> start; i--) {
-        
-        switch (query_DRAM->buffer[i-1]) {
-            case 'a': query_rc_DRAM->buffer[r++] = 't';
-                      break;
-
-            case 'A': query_rc_DRAM->buffer[r++] = 'T';
-                      break;
-
-            case 'c': query_rc_DRAM->buffer[r++] = 'g';
-                      break;
-
-            case 'C': query_rc_DRAM->buffer[r++] = 'G';
-                      break;
-
-            case 'g': query_rc_DRAM->buffer[r++] = 'c';
-                      break;
-
-            case 'G': query_rc_DRAM->buffer[r++] = 'C';
-                      break;
-
-            case 't': query_rc_DRAM->buffer[r++] = 'a';
-                      break;
-
-            case 'T': query_rc_DRAM->buffer[r++] = 'A';
-                      break;
-
-            case 'n': query_rc_DRAM->buffer[r++] = 'n';
-                      break;
-
-            case 'N': query_rc_DRAM->buffer[r++] = 'N';
-                      break;
-
-            case '&': query_rc_DRAM->buffer[r++] = '&';
-                      break;
-
-            default: printf("Bad Nt char! '%c' %lu\n", query_DRAM->buffer[i], i);
-        }
-    }
-}
 
 int main(int argc, char** argv){
+
+    po::options_description hidden;
+    hidden.add_options()
+        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format")
+        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query sequence file in FASTA format")
+        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with sequence files in 2bit format");
 
     po::options_description desc{"Sequence Options"};
     desc.add_options()
@@ -113,7 +77,7 @@ int main(int argc, char** argv){
     seeding_desc.add_options()
         ("seed", po::value<std::string>(&cfg.seed_shape)->default_value("12of19"), "seed pattern-12of19(1110100110010101111)/14of22(1110101100110010101111)/an arbitrary pattern of 1s, 0s, and Ts ")
         ("step", po::value<uint32_t>(&cfg.step)->default_value(1), "Offset between the starting positions of successive target words considered for generating seed table")
-        ("notransition", po::bool_switch(&cfg.transition)->default_value(false), "don't allow one transition in a seed hit");
+        ("notransition", po::bool_switch(&cfg.seed.transition)->default_value(false), "don't allow one transition in a seed hit");
 
     po::options_description ungapped_desc{"Ungapped Extension Options"};
     ungapped_desc.add_options()
@@ -143,13 +107,8 @@ int main(int argc, char** argv){
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("help", "Print help messages");
 
-    po::options_description hidden;
-    hidden.add_options()
-        ("target", po::value<std::string>(&cfg.reference_filename)->required(), "target sequence file in FASTA format")
-        ("query", po::value<std::string>(&cfg.query_filename)->required(), "query sequence file in FASTA format")
-        ("data_folder", po::value<std::string>(&cfg.data_folder)->required(), "folder with sequence files in 2bit format");
-
     po::options_description all_options;
+    all_options.add(hidden);
     all_options.add(desc);
     all_options.add(scoring_desc);
     all_options.add(seeding_desc);
@@ -157,7 +116,6 @@ int main(int argc, char** argv){
     all_options.add(gapped_desc);
     all_options.add(output_desc);
     all_options.add(system_desc);
-    all_options.add(hidden);
 
     po::positional_options_description p;
     p.add("target", 1);
@@ -177,34 +135,44 @@ int main(int argc, char** argv){
         }
 
         fprintf(stderr, "Usage: run_segalign target query [options]\n"); 
+        std::cout << hidden << std::endl;
         std::cout << desc << std::endl;
+        std::cout << scoring_desc << std::endl;
+        std::cout << seeding_desc << std::endl;
+        std::cout << ungapped_desc << std::endl;
+        std::cout << gapped_desc << std::endl;
+        std::cout << output_desc << std::endl;
+        std::cout << system_desc << std::endl;
         return 1;
     }
 
-    cfg.transition = !cfg.transition;
-    cfg.gapped = !cfg.gapped;
+    cfg.seed.transition = !cfg.seed.transition;
     if(cfg.seed_shape == "12of19"){
-        cfg.seed = "TTT0T00TT00T0T0TTTT"; 
-        cfg.seed_size = 19;
+        cfg.seed.shape = "TTT0T00TT00T0T0TTTT"; 
+        cfg.seed.size = 19;
     }
     else if(cfg.seed_shape == "14of22"){
-        cfg.seed = "TTT0T0TT00TT00T0T0TTTT";
-        cfg.seed_size = 22;
+        cfg.seed.shape = "TTT0T0TT00TT00T0T0TTTT";
+        cfg.seed.size = 22;
     }
     else{
         int seed_len = cfg.seed_shape.size();
-        cfg.seed = cfg.seed_shape;
+        cfg.seed.shape = cfg.seed_shape;
         for(int i = 0; i< seed_len; i++){
             if(cfg.seed_shape[i] == '1')
-                cfg.seed[i] = 'T';
+                cfg.seed.shape[i] = 'T';
             else
-                cfg.seed[i] = '0';
+                cfg.seed.shape[i] = '0';
         }
-        cfg.seed_size = cfg.seed.size();
+        cfg.seed.size = seed_len;
     }
+
+    cfg.seed.kmer_size = GenerateShapePos(cfg.seed.shape);
 
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
+
+    cfg.gapped = !cfg.gapped;
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;
@@ -297,9 +265,9 @@ int main(int argc, char** argv){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
         fprintf(stderr, "Query %s\n", cfg.query_filename.c_str());
         fprintf(stderr, "ambiguous %s\n", cfg.ambiguous.c_str());
-        fprintf(stderr, "Seed %s\n", cfg.seed.c_str());
-        fprintf(stderr, "Seed size %d\n", cfg.seed_size);
-        fprintf(stderr, "Transition %d\n", cfg.transition);
+        fprintf(stderr, "Seed %s\n", cfg.seed.shape.c_str());
+        fprintf(stderr, "Seed size %d\n", cfg.seed.size);
+        fprintf(stderr, "Transition %d\n", cfg.seed.transition);
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
         fprintf(stderr, "Gapped %d\n",cfg.gapped);
@@ -316,7 +284,7 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.transition, cfg.wga_chunk_size, cfg.seed_size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
+    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
     ref_DRAM = new DRAM;
     query_DRAM = new DRAM;
@@ -395,11 +363,11 @@ int main(int argc, char** argv){
                 exit(9); 
             }
 
-            RevComp(query_rc_DRAM->bufferPosition, seq_block_start, seq_block_len);
+            RevComp(query_rc_DRAM->buffer, query_DRAM->buffer, query_rc_DRAM->bufferPosition, seq_block_start, seq_block_len);
             query_rc_DRAM->bufferPosition += seq_block_len;
 
             uint32_t curr_pos = 0;
-            uint32_t end_pos = seq_block_len - cfg.seed_size;
+            uint32_t end_pos = seq_block_len - cfg.seed.size;
 
             while (curr_pos < end_pos) {
                 uint32_t start = curr_pos;
@@ -444,7 +412,7 @@ int main(int argc, char** argv){
             exit(9); 
         }
 
-        RevComp(seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len);
+        RevComp(query_rc_DRAM->buffer, query_DRAM->buffer, seq_block_start, query_rc_DRAM->bufferPosition, seq_block_len);
         query_rc_DRAM->bufferPosition += seq_block_len;
 
         for(int i = block_chrs.size()-1; i >= 0; i--){
@@ -457,7 +425,7 @@ int main(int argc, char** argv){
         total_q_blocks += 1;
 
         uint32_t curr_pos = 0;
-        uint32_t end_pos = seq_block_len - cfg.seed_size;
+        uint32_t end_pos = seq_block_len - cfg.seed.size;
         
         while (curr_pos < end_pos) {
             uint32_t start = curr_pos;
@@ -569,9 +537,6 @@ int main(int argc, char** argv){
     	fprintf(stderr, "Time elapsed (loading complete target from file): %ld msec \n\n", mseconds);
     }
 
-    cfg.num_ref = total_r_chr;
-    cfg.num_query = total_q_chr;
-
     // start alignment
     fprintf(stderr, "\nStart alignment ...\n");
     tbb::flow::graph align_graph;
@@ -642,7 +607,7 @@ int main(int argc, char** argv){
                     gettimeofday(&start_time_complete, NULL);
                 }
 
-                sa = new SeedPosTable (ref_DRAM->buffer, send_r_block_start, send_r_block_len, cfg.seed, cfg.step);
+                GenerateSeedPosTable (ref_DRAM->buffer, send_r_block_start, send_r_block_len, cfg.step, cfg.seed.size, cfg.seed.kmer_size);
 
                 if(cfg.debug){
                     gettimeofday(&end_time_complete, NULL);
@@ -735,7 +700,7 @@ int main(int argc, char** argv){
                     curr_block.r_start  = send_r_block_start;
                     curr_block.q_start  = invoke_q_start;
                     curr_block.r_len    = send_r_block_len;
-                    curr_block.q_len    = invoke_q_len-cfg.seed_size;
+                    curr_block.q_len    = invoke_q_len-cfg.seed.size;
 
                     seed_interval& curr_inter = get<1>(op);
                     seed_interval inter = interval_list[completed_intervals + block_intervals_invoked++];

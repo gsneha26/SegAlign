@@ -1,5 +1,6 @@
 #include "graph.h"
 #include "store.h"
+#include "ntcoding.h"
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
@@ -54,13 +55,13 @@ printer_input seeder_body::operator()(seeder_input input) {
             //start to end position in the chunk
             for (uint32_t j = i; j < e; j++) {
 
-                kmer_index = GetKmerIndexAtPos(query_DRAM->buffer, q_block_start+j, cfg.seed_size);
+                kmer_index = GetKmerIndexAtPos(query_DRAM->buffer, q_block_start+j, cfg.seed.size);
                 if (kmer_index != ((uint32_t) 1 << 31)) {
                     seed_offset = (kmer_index << 32) + j;
                     seed_offset_vector.push_back(seed_offset); 
 
-                    if (cfg.transition) {
-                        for (int t=0; t < sa->GetKmerSize(); t++) {
+                    if (cfg.seed.transition) {
+                        for (int t=0; t < cfg.seed.kmer_size; t++) {
                             if (IsTransitionAtPos(t) == 1) {
                                 transition_index = (kmer_index ^ (TRANSITION_MASK << (2*t)));
                                 seed_offset = (transition_index << 32) + j;
@@ -90,12 +91,12 @@ printer_input seeder_body::operator()(seeder_input input) {
             std::vector<uint64_t> seed_offset_vector;
             seed_offset_vector.clear();
             for (uint32_t j = i; j < e; j++) {
-                kmer_index = GetKmerIndexAtPos(query_rc_DRAM->buffer, q_block_start+j, cfg.seed_size);
+                kmer_index = GetKmerIndexAtPos(query_rc_DRAM->buffer, q_block_start+j, cfg.seed.size);
                 if (kmer_index != ((uint32_t) 1 << 31)) {
                     seed_offset = (kmer_index << 32) + j;
                     seed_offset_vector.push_back(seed_offset); 
-                    if (cfg.transition) {
-                        for (int t=0; t < sa->GetKmerSize(); t++) {
+                    if (cfg.seed.transition) {
+                        for (int t=0; t < cfg.seed.kmer_size; t++) {
                             if (IsTransitionAtPos(t) == 1) {
                                 transition_index = (kmer_index ^ (TRANSITION_MASK << (2*t)));
                                 seed_offset = (transition_index << 32) + j;
