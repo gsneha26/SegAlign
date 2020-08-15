@@ -43,8 +43,6 @@ add_executable(segalign_repeat_masker
 
 set(LIBS rt stdc++ ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${ZLIB_LIBRARIES})
 
-#set_property(TARGET segalign PROPERTY CUDA_STANDARD 11)
-
 set_target_properties(
     segalign 
     segalign_repeat_masker
@@ -58,7 +56,3 @@ target_compile_options(segalign_repeat_masker PRIVATE -DTBB_SUPPRESS_DEPRECATED_
 
 target_link_libraries(segalign PRIVATE ${LIBS})
 target_link_libraries(segalign_repeat_masker PRIVATE ${LIBS})
-
-#set_property(TARGET segalign_repeat_masker PROPERTY CUDA_STANDARD 11)
-#
-#set_target_properties(segalign_repeat_masker PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
