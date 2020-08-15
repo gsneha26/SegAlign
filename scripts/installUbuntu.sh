@@ -65,7 +65,7 @@ fi
 
 # LASTZ
 cd $CURR
-if ! [ -z "$(command -v lastz)" ]; then
+if [ -z "$(command -v lastz)" ]; then
     mkdir bin
     wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
     gunzip lastz-1.04.03.tar.gz
@@ -78,7 +78,7 @@ fi
 
 # kentUtils - faToTwoBit
 cd $CURR
-if ! [ -z "$(command -v faToTwoBit)" ]; then
+if [ -z "$(command -v faToTwoBit)" ]; then
     cd $CURR/bin/
     wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/faToTwoBit
     chmod +x faToTwoBit
@@ -87,7 +87,7 @@ fi
 
 # kentUtils - twoBitToFa
 cd $CURR
-if ! [ -z "$(command -v twoBitToFa)" ]; then
+if [ -z "$(command -v twoBitToFa)" ]; then
     wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa
     chmod +x twoBitToFa
     sudo mv twoBitToFa /usr/local/bin/
@@ -113,3 +113,4 @@ cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
 make -j $(nproc)
 sudo cp $CURR/build/segalign* /usr/local/bin	
 sudo cp $CURR/scripts/run_segalign* /usr/local/bin
+rm -rf $CURR/bin
