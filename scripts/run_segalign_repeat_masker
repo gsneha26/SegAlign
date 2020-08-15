@@ -1,0 +1,84 @@
+#!/bin/bash
+
+#custom error code
+#4 - file not found
+#5 - no permissions to create directory
+#6 - error with LASTZ gapped extension
+#7 - unable to open file
+#9 - not enopugh allocated CPU DRAM
+#10 - Requested GPUs greater than available GPUs
+#11 - Error with cudaSetDevice in GPU part
+#12 - Error with cudaMalloc in GPU part
+#13 - Error with cudaMemcpy in GPU part
+#14 - Error with cudaFree in GPU part
+
+set -e
+
+optionalArguments=""
+optionalArguments1=""
+mk=0
+total_args=0
+
+args=("$@")
+for ((i=1; i < $#; i++))
+    {
+        new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
+        optionalArguments1="$optionalArguments1 $new_arg"
+        optionalArguments="$optionalArguments ${args[$i]}"
+    }
+
+split_args=( $optionalArguments1 )
+total_args=${#split_args[@]}
+
+for ((i=0; i < $total_args; i++))
+    {
+        if [[ "${split_args[$i]}" == *"--markend"* ]]; then
+            mk=1
+        fi
+    }
+
+if [ $# -eq 0 ] 
+then
+	segalign_r
+else
+	refPath=$(readlink -f $1)
+
+  if [ ! -f "$refPath" ]; then
+      1>&2 echo "target file $refPath does not exist"
+      (exit 4)
+  fi
+
+	refChr=$(grep ">" $refPath | wc -l)
+	
+  if [ ! -w $PWD ]; then
+      1>&2 echo "Cannot create output directory in $PWD because of permissions"
+      (exit 5)
+  fi
+
+  OUTPUT_FOLDER=$PWD/output_$RANDOM
+  mkdir -p $OUTPUT_FOLDER
+
+  1>&2 echo ""
+  1>&2 echo "Executing: \"segalign_r $refPath $optionalArguments\""
+  
+  cd $OUTPUT_FOLDER
+
+  time {
+  segalign_r $refPath $optionalArguments
+
+  for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
+  do 
+      sort -Vk5,6 $filename > tmp;
+      echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
+      cat tmp >> $filename
+      if [ $mk -eq 1 ]; then
+          echo "# segalign_r end-of-file" >> $filename
+      fi
+  done 
+  }
+
+  1>&2 echo "Output generated in $OUTPUT_FOLDER"
+
+  rm tmp
+
+fi

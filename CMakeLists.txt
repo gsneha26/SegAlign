@@ -1,7 +1,9 @@
 cmake_minimum_required (VERSION 3.8)
 
+project(segalign LANGUAGES CXX CUDA)
+project(segalign_repeat_masker LANGUAGES C CXX CUDA)
+
 set(CMAKE_CUDA_COMPILER nvcc)
-project(segalign LANGUAGES C CXX CUDA)
 find_package(CUDA 9.0 REQUIRED)
 
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
@@ -30,24 +32,46 @@ add_executable(segalign
     src/main.cpp
     )
 
+add_executable(segalign_repeat_masker
+    repeat_masker_src/DRAM.cpp
+    repeat_masker_src/seed_filter.cu
+    repeat_masker_src/ntcoding.cpp
+    repeat_masker_src/seeder.cpp
+    repeat_masker_src/segment_printer.cpp
+    repeat_masker_src/main.cpp
+    )
+
+set(LIBS rt stdc++ ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${ZLIB_LIBRARIES})
+
 set_property(TARGET segalign PROPERTY CUDA_STANDARD 11)
 
-# We need to explicitly state that we need all CUDA files in the particle
-# library to be built with -dc as the member functions could be called by
-# other libraries and executables
 set_target_properties(segalign PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
-target_compile_options(segalign PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-                           --generate-line-info>)
 target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
 
-if(ZLIB_FOUND)
-    include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries (segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
-endif()
+target_link_libraries(segalign PRIVATE ${LIBS})
 
-if(TARGET zlib::zlib)
-    target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} zlib::zlib ${CUDA_LIBRARIES})
-endif()
+set_property(TARGET segalign_repeat_masker PROPERTY CUDA_STANDARD 11)
 
-target_link_libraries(segalign PRIVATE rt stdc++  ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES})
+set_target_properties(segalign_repeat_masker PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+target_compile_options(segalign_repeat_masker PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
+
+target_link_libraries(segalign_repeat_masker PRIVATE ${LIBS})
+
+#if(ZLIB_FOUND)
+#    target_link_libraries (segalign PRIVATE ${ZLIB_LIBRARIES})
+#    target_link_libraries (segalign_repeat_masker PRIVATE ${ZLIB_LIBRARIES})
+#endif()
+#
+#if(TARGET zlib::zlib)
+#    target_link_libraries(segalign PRIVATE zlib::zlib )
+#    target_link_libraries(segalign_repeat_masker PRIVATE zlib::zlib )
+#endif()
+#
+#message(${ZLIB_LIBRARIES})
+#message(${Boost_LIBRARIES})
+#message(${CUDA_LIBRARIES})
+#message(${TBB_IMPORTED_TARGETS})
+#message(zlib::zlib)
+#message(${LIBS})
