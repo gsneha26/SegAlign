@@ -27,8 +27,8 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint32_t num_invoked   = interval_data.num_invoked;
     uint32_t num_intervals = interval_data.num_intervals;
 
-    uint32_t start_pos_rc   = block_len - 1 - end_pos;
-    uint32_t end_pos_rc     = block_len - 1 - start_pos;
+    uint32_t start_pos_rc = block_len - 1 - end_pos;
+    uint32_t end_pos_rc   = block_len - 1 - start_pos;
     size_t rc_block_start = cfg.seq_len - 1 - block_start - (block_len - 1);
 
     uint64_t kmer_index;

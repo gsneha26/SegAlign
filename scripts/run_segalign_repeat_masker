@@ -39,7 +39,7 @@ for ((i=0; i < $total_args; i++))
 
 if [ $# -eq 0 ] 
 then
-	segalign_r
+	segalign_repeat_masker
 else
 	refPath=$(readlink -f $1)
 
@@ -59,12 +59,12 @@ else
   mkdir -p $OUTPUT_FOLDER
 
   1>&2 echo ""
-  1>&2 echo "Executing: \"segalign_r $refPath $optionalArguments\""
+  1>&2 echo "Executing: \"segalign_repeat_masker $refPath $optionalArguments\""
   
   cd $OUTPUT_FOLDER
 
   time {
-  segalign_r $refPath $optionalArguments
+  segalign_repeat_masker $refPath $optionalArguments
 
   for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
   do 
@@ -72,7 +72,7 @@ else
       echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
       cat tmp >> $filename
       if [ $mk -eq 1 ]; then
-          echo "# segalign_r end-of-file" >> $filename
+          echo "# segalign_repeat_masker end-of-file" >> $filename
       fi
   done 
   }

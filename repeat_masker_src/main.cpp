@@ -113,7 +113,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign_r seq_file [options]\n"); 
+        fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n"); 
         std::cout << hidden << std::endl;
         std::cout << desc << std::endl;
         std::cout << scoring_desc << std::endl;
@@ -433,9 +433,9 @@ int main(int argc, char** argv){
 
     total_query_intervals = interval_list.size();
 
-    for(int i = 0; i < 20; i++){
-        printf("%c %c\n", seq_DRAM->buffer[i], seq_rc_DRAM->buffer[cfg.seq_len-1-i]); 
-    }
+//    for(int i = 0; i < 20; i++){
+//        printf("%c %c\n", seq_DRAM->buffer[i], seq_rc_DRAM->buffer[cfg.seq_len-1-i]); 
+//    }
 
 
     if(cfg.debug)
@@ -536,8 +536,6 @@ int main(int argc, char** argv){
                     inter.ref_end   = curr_inter.ref_end;
                     inter.num_invoked   = block_intervals_invoked;
                     inter.num_intervals = block_intervals_num;
-
-                    fprintf(stderr, "%u %u\n", inter.start, inter.end);
 
                     if(block_intervals_invoked == block_intervals_num) {
                         blocks_sent++;

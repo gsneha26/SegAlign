@@ -65,7 +65,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                     curr_q_chr_end   = curr_q_chr_start + chr_len[curr_q_chr_index];
                 }
 
-                out_str = chr_name[r_index] + '\t' + std::to_string(seg_r_start-chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\n";
+                out_str = chr_name[r_index] + '\t' + std::to_string(seg_r_start-chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\n";
                 fprintf(segmentFile, "%s", out_str.c_str());
             }
         }
@@ -80,7 +80,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             for(int r = rc_segments.size()-1; r >= 0; r--){
                 auto e =  rc_segments[r];
                 seg_r_start = block_start + e.ref_start;
-                seg_q_start = cfg.seq_len - 1 - (block_start + e.query_start + e.len);
+                seg_q_start = block_start + (block_len -1 - (e.query_start + e.len));
                 r_index = std::upper_bound(chr_start.cbegin(), chr_start.cend(), seg_r_start) - chr_start.cbegin() - 1;
 
                 if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
@@ -91,7 +91,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                     curr_q_chr_end = curr_q_chr_start + chr_len[curr_q_chr_index];
                 }
 
-                out_str = chr_name[r_index] + '\t' + std::to_string(seg_r_start-chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\n";
+                out_str = chr_name[r_index] + '\t' + std::to_string(seg_r_start-chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\n";
 
                 fprintf(segmentFile, "%s", out_str.c_str());
             }
