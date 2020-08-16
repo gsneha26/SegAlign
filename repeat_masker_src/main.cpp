@@ -263,6 +263,11 @@ int main(int argc, char** argv){
 
     cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
+    if(cfg.seq_block_size == DEFAULT_SEQ_BLOCK_SIZE){
+        uint32_t offset = cfg.seq_block_size%cfg.lastz_interval_size;
+        cfg.seq_block_size -= offset;
+    }
+
     seq_DRAM = new DRAM;
     seq_rc_DRAM = new DRAM;
     
@@ -348,27 +353,27 @@ int main(int argc, char** argv){
     bool left_overlap_limit = false;
     bool right_overlap_limit = false;
 
-    for(size_t l = 0; l < cfg.seq_len; l+=DEFAULT_SEQ_BLOCK_SIZE){
+    for(size_t l = 0; l < cfg.seq_len; l+=cfg.seq_block_size){
 
         if(l < left_overlap) 
             seq_block_start = l;
         else
             seq_block_start = l-left_overlap;
 
-        if(l+DEFAULT_SEQ_BLOCK_SIZE+right_overlap > cfg.seq_len)
+        if(l+cfg.seq_block_size+right_overlap > cfg.seq_len)
             seq_block_len = static_cast<unsigned int>(cfg.seq_len - seq_block_start);
         else
-            seq_block_len = static_cast<unsigned int>(l-seq_block_start+DEFAULT_SEQ_BLOCK_SIZE)+right_overlap;
+            seq_block_len = static_cast<unsigned int>(l-seq_block_start+cfg.seq_block_size)+right_overlap;
 
         block_start.push_back(seq_block_start);
         block_len.push_back(seq_block_len);
         total_r_blocks += 1;
 
         start_pos = static_cast<unsigned int>(l-seq_block_start);
-        if(seq_block_len < DEFAULT_SEQ_BLOCK_SIZE)
+        if(seq_block_len < cfg.seq_block_size)
             end_pos = start_pos + seq_block_len - static_cast<unsigned int>(l-seq_block_start) - cfg.seed.size;
         else
-            end_pos = start_pos + static_cast<unsigned int>(DEFAULT_SEQ_BLOCK_SIZE) - cfg.seed.size;
+            end_pos = start_pos + static_cast<unsigned int>(cfg.seq_block_size) - cfg.seed.size;
 
         if(cfg.debug)
             fprintf(stderr, "block l:%luM start:%luM len:%uM start_pos:%uM end_pos:%uM\n", l/1000000, seq_block_start/1000000, seq_block_len/1000000, start_pos/1000000, end_pos/1000000);
@@ -421,8 +426,11 @@ int main(int argc, char** argv){
             inter.num_invoked = 0;
             inter.num_intervals = 0;
 
-            if(cfg.debug)
-                fprintf(stderr, "%d %d | %u %u %u %u\n", left_overlap_limit, right_overlap_limit, inter.start/1000000, inter.end/1000000, inter.ref_start/1000000, inter.ref_end/1000000);
+            if(cfg.debug){
+                float f1 = inter.start/1000000;
+                float f2 = inter.end/1000000;
+                fprintf(stderr, "%d %d | %u %u %u %u\n", left_overlap_limit, right_overlap_limit, inter.start, inter.end, inter.ref_start/1000000, inter.ref_end/1000000);
+            }
             interval_list.push_back(inter);
             start_pos += cfg.lastz_interval_size;
         }
