@@ -1,0 +1,45 @@
+language: cpp
+
+sudo: enabled
+
+compiler:
+  - nvcc
+
+matrix:
+  include:
+    - name: CUDA 10
+      env:
+      - CUDA=10.10.2.89
+      - CUDA_SHORT=10.2
+      - UBUNTU_VERSION=ubuntu1804
+      dist: bionic
+
+before_install:
+  - INSTALLER=cuda-repo-${UBUNTU_VERSION}_${CUDA}_amd64.deb
+  - wget http://developer.download.nvidia.com/compute/cuda/repos/${UBUNTU_VERSION}/x86_64/${INSTALLER}
+  - sudo dpkg -i ${INSTALLER}
+  - wget https://developer.download.nvidia.com/compute/cuda/repos/${UBUNTU_VERSION}/x86_64/7fa2af80.pub
+  - sudo apt-key add 7fa2af80.pub
+  - sudo apt update -qq
+  - sudo apt install -y cuda-core-${CUDA_SHORT/./-} cuda-cudart-dev-${CUDA_SHORT/./-} cuda-cufft-dev-${CUDA_SHORT/./-}
+  - sudo apt clean
+  - CUDA_HOME=/usr/local/cuda-${CUDA_SHORT}
+  - LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+  - PATH=${CUDA_HOME}/bin:${PATH}
+  - CURR=$PWD
+  - mkdir bin
+  - wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
+  - gunzip lastz-1.04.03.tar.gz
+  - tar -xvf lastz-1.04.03.tar 
+  - cd $CURR/bin/lastz-distrib-1.04.03/src
+  - make -j $(nproc)
+  - PATH=$CURR/bin/lastz-distrib-1.04.03/src/:${PATH}
+  - cd $CURR
+  - git clone https://github.com/01org/tbb
+
+before_script:
+    - mkdir build
+    - cd build
+    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
+
+script: segalign
