@@ -1,3 +1,6 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 # SegAlign 
 
 A Scalable GPU System for Pairwise Whole Genome Alignments
