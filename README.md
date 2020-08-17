@@ -1,5 +1,11 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://opensource.org/licenses/MIT
 
+[travis-badge]: https://img.shields.io/travis/jeremad/cuda-travis/master.svg?label=Build
+[travis-link]: https://travis-ci.org/jeremad/cuda-travis
+
+[![License][license-badge]][license-link]
+[![Build][travis-badge]][travis-link]
 
 # SegAlign 
 
