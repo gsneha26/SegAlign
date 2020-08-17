@@ -8,6 +8,8 @@ A Scalable GPU System for Pairwise Whole Genome Alignments
 - [Dependencies](#dependencies)
 - [How to run SegAlign](#run)
     - [Running a test](#test)
+- [How to run SegAlign repeat masker](#run_rm)
+    - [Running a test](#test_rm)
 
 ## <a name="overview"></a> Overview
 
@@ -62,4 +64,28 @@ The dependencies can be installed with the given script as follows, which might 
     $ twoBitToFa ce11.2bit ce11.fa
     $ twoBitToFa cb4.2bit cb4.fa
     $ run_segalign ce11.fa cb4.fa > ce11.cb4.maf
+```
+
+## <a name="run_rm"></a> How to run SegAlign repeat masker
+* Run SegAlign repeat masker
+
+```
+    $ run_segalign_repeat_masker sequence [options]
+```
+
+* For a list of options 
+
+```
+    $ run_segalign_repeat_masker --help
+```
+
+### <a name="test_rm"></a> Running a test
+
+```
+    $ cd $PROJECT_DIR
+    $ mkdir test_rm
+    $ cd test_rm
+    $ wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+    $ twoBitToFa ce11.2bit ce11.fa
+    $ run_segalign_repeat_masker ce11.fa
 ```
