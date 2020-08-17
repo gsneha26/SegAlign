@@ -45,7 +45,7 @@ struct Configuration {
     // Filter parameters
     int xdrop; 
     int hspthresh;
-    bool noentropy;
+    //bool noentropy;
 
     // Extension parameters
     bool gapped;
