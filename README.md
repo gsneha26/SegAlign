@@ -2,7 +2,7 @@
 [license-link]: https://opensource.org/licenses/MIT
 
 [travis-badge]: https://img.shields.io/travis/jeremad/cuda-travis/master.svg?label=Build
-[travis-link]: https://travis-ci.org/gsneha26/SegAlign
+[travis-link]: https://travis-ci.org/github/gsneha26/SegAlign
 
 [![License][license-badge]][license-link]
 [![Build][travis-badge]][travis-link]
