@@ -68,14 +68,14 @@ int main(int argc, char** argv){
 
     po::options_description gapped_desc{"Gapped Extension Options"};
     gapped_desc.add_options()
-        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage")
-        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
-        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
-        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical");
+        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage");
+//        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
+//        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
+//        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical");
 
     po::options_description output_desc{"Output Options"};
     output_desc.add_options()
-        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
+//        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
         ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
 
@@ -89,7 +89,6 @@ int main(int argc, char** argv){
         ("help", "Print help messages");
 
     po::options_description all_options;
-    all_options.add(hidden);
     all_options.add(desc);
     all_options.add(scoring_desc);
     all_options.add(seeding_desc);
@@ -97,6 +96,7 @@ int main(int argc, char** argv){
     all_options.add(gapped_desc);
     all_options.add(output_desc);
     all_options.add(system_desc);
+    all_options.add(hidden);
 
     po::positional_options_description p;
     p.add("seq_file", 1);
@@ -113,8 +113,22 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n"); 
-        std::cerr << hidden << std::endl;
+        fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n\n"); 
+//        std::string last = "";
+//        int rep = 0;
+//        for(int i = 0; i < p.max_total_count(); i++){
+//            const std::string &n = p.name_for_position(i);
+//            if(n == last){
+//                if(!rep) std::cerr << " ...";
+//                if(rep++ > 1000) break;
+//            }
+//            else{
+//                std::cerr << " " << n;
+//                last = n;
+//                rep = 0;
+//            }
+//        }
+//        std::cerr << std::endl;
         std::cerr << desc << std::endl;
         std::cerr << scoring_desc << std::endl;
         std::cerr << seeding_desc << std::endl;

@@ -108,7 +108,6 @@ int main(int argc, char** argv){
         ("help", "Print help messages");
 
     po::options_description all_options;
-    all_options.add(hidden);
     all_options.add(desc);
     all_options.add(scoring_desc);
     all_options.add(seeding_desc);
@@ -116,6 +115,7 @@ int main(int argc, char** argv){
     all_options.add(gapped_desc);
     all_options.add(output_desc);
     all_options.add(system_desc);
+    all_options.add(hidden);
 
     po::positional_options_description p;
     p.add("target", 1);
@@ -134,9 +134,8 @@ int main(int argc, char** argv){
             }
         }
 	
-	fprintf(stderr, "Usage: run_segalign target query [options]\n"); 
-	std::cerr << hidden << std::endl;
-       	std::cerr << desc << std::endl;
+        fprintf(stderr, "Usage: run_segalign target query [options]\n\n"); 
+        std::cerr << desc << std::endl;
         std::cerr << scoring_desc << std::endl;
         std::cerr << seeding_desc << std::endl;
         std::cerr << ungapped_desc << std::endl;
@@ -144,10 +143,10 @@ int main(int argc, char** argv){
         std::cerr << output_desc << std::endl;
         std::cerr << system_desc << std::endl;
 	    
-	if(vm.count("help"))
-	    return 0;
-	else
-	    return 1;
+        if(vm.count("help"))
+            return 0;
+        else
+            return 1;
     }
 
     cfg.seed.transition = !cfg.seed.transition;

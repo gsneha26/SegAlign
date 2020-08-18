@@ -3,7 +3,7 @@
 #custom error code
 #4 - file not found
 #5 - no permissions to create directory
-#6 - error with LASTZ gapped extension
+#6 - error with sort 
 #7 - unable to open file
 #9 - not enopugh allocated CPU DRAM
 #10 - Requested GPUs greater than available GPUs
@@ -16,23 +16,37 @@ set -e
 
 optionalArguments=""
 optionalArguments1=""
+outf=0
+output_filename=""
 mk=0
-total_args=0
 hp=0
+total_args=0
 
 args=("$@")
-for ((i=0; i < $#; i++))
-{
+
+for ((i=0; i < $#; i++)){
   new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
   optionalArguments1="$optionalArguments1 $new_arg"
-  optionalArguments="$optionalArguments ${args[$i]}"
 }
 
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
 
+for ((i=1; i < $#; i++)){
+  optionalArguments="$optionalArguments ${args[$i]}"
+}
+
 for ((i=0; i < $total_args; i++))
 {
+  if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
+    ng=1
+  fi
+
+  if [[ "${split_args[$i]}" == *"--output"* ]]; then
+    outf=1
+    output_filename=$(readlink -f ${split_args[$(($i+1))]})
+  fi
+
   if [[ "${split_args[$i]}" == *"--markend"* ]]; then
     mk=1
   fi
@@ -42,10 +56,10 @@ for ((i=0; i < $total_args; i++))
   fi
 }
 
-if [ $# -eq 0 ]; then
-  segalign_repeat_masker
-elif [ $hp -eq 1 ]; then
+if [ $hp -eq 1 ]; then
   segalign_repeat_masker --help
+elif [ $# -eq 0 ]; then
+  segalign_repeat_masker
 else
   refPath=$(readlink -f $1)
 
@@ -54,7 +68,6 @@ else
     (exit 4)
   fi
 
-  refChr=$(grep ">" $refPath | wc -l)
 
   if [ ! -w $PWD ]; then
     1>&2 echo "Cannot create output directory in $PWD because of permissions"
@@ -67,25 +80,41 @@ else
   1>&2 echo ""
   1>&2 echo "Executing: \"segalign_repeat_masker $refPath $optionalArguments\""
 
+  pids=""
+  FAIL=0
+
   cd $OUTPUT_FOLDER
 
-  time 
-  {
-    segalign_repeat_masker $refPath $optionalArguments
+  time {
+    count=0
 
-    for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
-    do 
-      sort -Vk5,6 $filename > tmp;
-      echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
-      cat tmp >> $filename
-      if [ $mk -eq 1 ]; then
-        echo "# segalign_repeat_masker end-of-file" >> $filename
-      fi
-    done 
+    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign_repeat_masker $refPath $optionalArguments )
+    wait $pids || let "FAIL+=1"
   }
 
-  1>&2 echo "Output generated in $OUTPUT_FOLDER"
+  if [ $FAIL -gt 0 ]; then
 
-  rm tmp
+      1>&2 echo ""
+      1>&2 echo "Error in sort!"
+      (exit 6)
+  fi
+
+  if [ $outf -eq 1 ]; then
+    touch $output_filename
+
+    echo "#name1  zstart1 end1  name2 zstart2+  end2+" >> $output_filename
+    for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done 
+    if [ $mk -eq 1 ]; then
+      echo "# segalign_repeat_masker end-of-file" >> $output_filename
+    fi
+  else
+    echo "#name1  zstart1 end1  name2 zstart2+  end2+"
+    for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename; done 
+    if [ $mk -eq 1 ]; then
+      echo "# segalign_repeat_masker end-of-file" 
+    fi
+  fi
+
+  rm -rf $OUTPUT_FOLDER
 
 fi

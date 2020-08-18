@@ -18,20 +18,24 @@ optionalArguments=""
 optionalArguments1=""
 ng=0
 outf=0
+output_filename=""
 mk=0
 hp=0
-output_filename=""
 total_args=0
 
-for ((i=0; i < $#; i++))
-{
+args=("$@")
+
+for ((i=0; i < $#; i++)){
   new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
   optionalArguments1="$optionalArguments1 $new_arg"
-  optionalArguments="$optionalArguments ${args[$i]}"
 }
 
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
+
+for ((i=2; i < $#; i++)){
+  optionalArguments="$optionalArguments ${args[$i]}"
+}
 
 for ((i=0; i < $total_args; i++))
 {
@@ -71,8 +75,6 @@ else
     (exit 4)
   fi
 
-  refChr=$(grep ">" $refPath | wc -l)
-  queryChr=$(grep ">" $queryPath | wc -l)
 
   if [ ! -w $PWD ]; then
     1>&2 echo "Cannot create output directory in $PWD because of permissions"
@@ -90,21 +92,24 @@ else
   DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
   mkdir -p $DATA_FOLDER
 
-  cd $DATA_FOLDER
-  1>&2 echo ""
-  1>&2 echo "Converting fasta files to 2bit format"
-  faToTwoBit $refPath ref.2bit
-  faToTwoBit $queryPath query.2bit
-
-  pids=""
-  FAIL=0
+  if [ $ng -eq 0 ]; then
+    cd $DATA_FOLDER
+    1>&2 echo ""
+    1>&2 echo "Converting fasta files to 2bit format"
+    faToTwoBit $refPath ref.2bit
+    faToTwoBit $queryPath query.2bit
+  fi
 
   1>&2 echo ""
   1>&2 echo "Executing: \"segalign $refPath $queryPath $DATA_FOLDER $optionalArguments\""
 
+  pids=""
+  FAIL=0
+
+  cd $OUTPUT_FOLDER
+
   time {
     count=0
-    cd $OUTPUT_FOLDER
 
     while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
     wait $pids || let "FAIL+=1"

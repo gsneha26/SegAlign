@@ -2,8 +2,11 @@
 #include <iterator>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include "graph.h"
 #include "store.h"
+
+std::mutex io_lock;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
 
@@ -99,6 +102,12 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         }
 
         fclose(segmentFile);
+
+        cmd = "sort -Vk5,6 "+segment_filename+" -o "+segment_filename;
+
+        io_lock.lock();
+        printf("%s\n", cmd.c_str());
+        io_lock.unlock();
     }
 
     get<0>(op).try_put(token);
