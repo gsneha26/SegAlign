@@ -145,9 +145,9 @@ int main(int argc, char** argv){
         std::cerr << system_desc << std::endl;
 	    
 	if(vm.count("help"))
-		return 0;
+	    return 0;
 	else
-		return 1;
+	    return 1;
     }
 
     cfg.seed.transition = !cfg.seed.transition;
