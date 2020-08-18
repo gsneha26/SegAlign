@@ -114,15 +114,19 @@ int main(int argc, char** argv){
         }
 
         fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n"); 
-        std::cout << hidden << std::endl;
-        std::cout << desc << std::endl;
-        std::cout << scoring_desc << std::endl;
-        std::cout << seeding_desc << std::endl;
-        std::cout << ungapped_desc << std::endl;
-        std::cout << gapped_desc << std::endl;
-        std::cout << output_desc << std::endl;
-        std::cout << system_desc << std::endl;
-        return 1;
+        std::cerr << hidden << std::endl;
+        std::cerr << desc << std::endl;
+        std::cerr << scoring_desc << std::endl;
+        std::cerr << seeding_desc << std::endl;
+        std::cerr << ungapped_desc << std::endl;
+        std::cerr << gapped_desc << std::endl;
+        std::cerr << output_desc << std::endl;
+        std::cerr << system_desc << std::endl;
+	
+	if(vm.count("help"))
+            return 0;
+	else
+	    return 1;
     }
 
     cfg.seed.transition = !cfg.seed.transition;
