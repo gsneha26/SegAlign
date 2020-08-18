@@ -56,7 +56,7 @@ for ((i=0; i < $total_args; i++))
 
 if [ $hp -eq 1 ]
 then
-	segalign --help
+  segalign --help
 elif [ $# -eq 1 ] || [ $# -eq 0 ] 
 then
 	segalign $1
