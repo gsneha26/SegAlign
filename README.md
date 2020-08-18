@@ -69,7 +69,7 @@ The dependencies can be installed with the given script as follows, which might 
     $ wget https://hgdownload-test.gi.ucsc.edu/goldenPath/cb4/bigZips/cb4.2bit 
     $ twoBitToFa ce11.2bit ce11.fa
     $ twoBitToFa cb4.2bit cb4.fa
-    $ run_segalign ce11.fa cb4.fa > ce11.cb4.maf
+    $ run_segalign ce11.fa cb4.fa --output=ce11.cb4.maf
 ```
 
 ## <a name="run_rm"></a> How to run SegAlign repeat masker
@@ -93,5 +93,5 @@ The dependencies can be installed with the given script as follows, which might 
     $ cd test_rm
     $ wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
     $ twoBitToFa ce11.2bit ce11.fa
-    $ run_segalign_repeat_masker ce11.fa
+    $ run_segalign_repeat_masker ce11.fa --output=ce11.seg
 ```
