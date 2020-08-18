@@ -44,6 +44,7 @@ for ((i=0; i < $total_args; i++))
 echo "help"
 echo "$hp"
 echo "$#"
+echo "$total_args"
 
 if [ $# -eq 0 ] 
 then
