@@ -24,7 +24,7 @@ output_filename=""
 total_args=0
 
 args=("$@")
-for ((i=2; i < $#; i++))
+for ((i=1; i < $#; i++))
     {
         new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
         optionalArguments1="$optionalArguments1 $new_arg"
