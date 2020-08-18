@@ -36,6 +36,9 @@ for ((i=1; i < $#; i++))
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
 
+echo "${split_args[0]}"
+echo "${total_args}"
+
 for ((i=0; i < $total_args; i++))
     {
         if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
