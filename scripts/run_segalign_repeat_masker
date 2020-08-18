@@ -21,11 +21,6 @@ total_args=0
 hp=0
 
 args=("$@")
-echo "${args}"
-echo "${args[1]}"
-echo "${args[0]}"
-echo "$#"
-
 for ((i=0; i < $#; i++))
     {
     	echo "${args[$i]}"
