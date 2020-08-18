@@ -39,4 +39,6 @@ before_script:
     - PATH=${CURR}/build/:${PATH}
     - PATH=${CURR}/scripts/:${PATH}
     
-script: segalign
+script: 
+  - segalign
+  - segalign_repeat_masker
