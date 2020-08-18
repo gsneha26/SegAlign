@@ -1,5 +1,8 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://opensource.org/licenses/MIT
 
+[![License][license-badge]][license-link]
+[![Build Status](https://travis-ci.com/gsneha26/SegAlign.svg?branch=travis_ci)](https://travis-ci.com/gsneha26/SegAlign)
 
 # SegAlign 
 

@@ -1,0 +1,44 @@
+language: cpp
+
+os: linux
+dist: bionic
+
+before_install:
+  - sudo apt update 
+  - sudo apt-get --yes install build-essential
+  - sudo apt-get --yes install libboost-all-dev
+  - sudo apt-get --yes install zlib1g-dev
+  - wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
+  - sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
+  - wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
+  - sudo dpkg -i cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
+  - sudo apt-key add /var/cuda-repo-10-2-local-10.2.89-440.33.01/7fa2af80.pub
+  - sudo apt-get update
+  - sudo apt-get -y install cuda
+  - rm cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
+  - CUDA_HOME=/usr/local/cuda-10.2
+  - LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+  - PATH=${CUDA_HOME}/bin:${PATH}
+  - CURR=${PWD}
+  - wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
+  - gunzip lastz-1.04.03.tar.gz
+  - tar -xvf lastz-1.04.03.tar 
+  - cd ${CURR}/lastz-distrib-1.04.03/src
+  - make -j $(nproc)
+  - PATH=${CURR}/bin/lastz-distrib-1.04.03/src/:${PATH}
+  - cd ${CURR}
+  - git clone https://github.com/01org/tbb
+
+compiler: nvcc
+
+before_script:
+    - mkdir build
+    - cd build
+    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${CURR}/tbb ..
+    - make -j $(nproc)
+    - PATH=${CURR}/build/:${PATH}
+    - PATH=${CURR}/scripts/:${PATH}
+    
+script: 
+  - segalign --help
+  - segalign_repeat_masker --help
