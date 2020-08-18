@@ -18,6 +18,7 @@ optionalArguments=""
 optionalArguments1=""
 mk=0
 total_args=0
+hp=0
 
 args=("$@")
 for ((i=1; i < $#; i++))
@@ -35,50 +36,56 @@ for ((i=0; i < $total_args; i++))
         if [[ "${split_args[$i]}" == *"--markend"* ]]; then
             mk=1
         fi
+	if [[ "${split_args[$i]}" == *"--help"* ]]; then
+            hp=1
+        fi
     }
 
 if [ $# -eq 0 ] 
 then
 	segalign_repeat_masker
+elif [ hp -eq 1 ]
+then
+	segalign_repeat_masker --help
 else
 	refPath=$(readlink -f $1)
 
-  if [ ! -f "$refPath" ]; then
-      1>&2 echo "target file $refPath does not exist"
-      (exit 4)
-  fi
+  	if [ ! -f "$refPath" ]; then
+      		1>&2 echo "target file $refPath does not exist"
+      		(exit 4)
+  	fi
 
 	refChr=$(grep ">" $refPath | wc -l)
 	
-  if [ ! -w $PWD ]; then
-      1>&2 echo "Cannot create output directory in $PWD because of permissions"
-      (exit 5)
-  fi
+  	if [ ! -w $PWD ]; then
+      		1>&2 echo "Cannot create output directory in $PWD because of permissions"
+      		(exit 5)
+  	fi
 
-  OUTPUT_FOLDER=$PWD/output_$RANDOM
-  mkdir -p $OUTPUT_FOLDER
+  	OUTPUT_FOLDER=$PWD/output_$RANDOM
+  	mkdir -p $OUTPUT_FOLDER
 
-  1>&2 echo ""
-  1>&2 echo "Executing: \"segalign_repeat_masker $refPath $optionalArguments\""
+  	1>&2 echo ""
+  	1>&2 echo "Executing: \"segalign_repeat_masker $refPath $optionalArguments\""
   
-  cd $OUTPUT_FOLDER
+  	cd $OUTPUT_FOLDER
 
-  time {
-  segalign_repeat_masker $refPath $optionalArguments
+  	time {
+  	segalign_repeat_masker $refPath $optionalArguments
 
-  for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
-  do 
-      sort -Vk5,6 $filename > tmp;
-      echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
-      cat tmp >> $filename
-      if [ $mk -eq 1 ]; then
-          echo "# segalign_repeat_masker end-of-file" >> $filename
-      fi
-  done 
-  }
+  	for filename in `for i in tmp*.*; do echo $i; done | sort -V`; 
+  	do 
+      		sort -Vk5,6 $filename > tmp;
+      		echo "#name1  zstart1 end1  name2 zstart2+  end2+" > $filename
+      		cat tmp >> $filename
+      		if [ $mk -eq 1 ]; then
+          		echo "# segalign_repeat_masker end-of-file" >> $filename
+      		fi
+  	done 
+  	}
 
-  1>&2 echo "Output generated in $OUTPUT_FOLDER"
+  	1>&2 echo "Output generated in $OUTPUT_FOLDER"
 
-  rm tmp
+  	rm tmp
 
 fi
