@@ -19,11 +19,11 @@ optionalArguments1=""
 ng=0
 outf=0
 mk=0
+hp=0
 output_filename=""
 total_args=0
 
-args=("$@")
-for ((i=2; i < $#; i++))
+for ((i=0; i < $#; i++))
     {
         new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
         optionalArguments1="$optionalArguments1 $new_arg"
@@ -47,9 +47,16 @@ for ((i=0; i < $total_args; i++))
         if [[ "${split_args[$i]}" == *"--markend"* ]]; then
             mk=1
         fi
+	
+        if [[ "${split_args[$i]}" == *"--help"* ]]; then
+            hp=1
+        fi
     }
 
-if [ $# -eq 1 ] || [ $# -eq 0 ] 
+if [ $hp -eq 1 ]
+then
+  segalign --help
+elif [ $# -eq 1 ] || [ $# -eq 0 ] 
 then
 	segalign $1
 else
