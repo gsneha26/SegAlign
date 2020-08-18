@@ -35,6 +35,7 @@ before_script:
     - mkdir build
     - cd build
     - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${CURR}/tbb ..
-    - PATH=${CURR}/build/segalign*:${PATH}
+    - PATH=${CURR}/build/:${PATH}
+    - PATH=${CURR}/scripts/:${PATH}
 
 script: segalign
