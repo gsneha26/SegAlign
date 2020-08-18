@@ -44,7 +44,7 @@ for ((i=0; i < $total_args; i++))
 if [ $# -eq 0 ] 
 then
 	segalign_repeat_masker
-elif [ hp -eq 1 ]
+elif [ $hp -eq 1 ]
 then
 	segalign_repeat_masker --help
 else
