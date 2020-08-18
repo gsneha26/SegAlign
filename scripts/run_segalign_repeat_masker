@@ -21,8 +21,12 @@ total_args=0
 hp=0
 
 args=("$@")
+echo "${args}"
+echo "$#"
+
 for ((i=1; i < $#; i++))
     {
+    	echo "${args[$i]}"
         new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
         optionalArguments1="$optionalArguments1 $new_arg"
         optionalArguments="$optionalArguments ${args[$i]}"
