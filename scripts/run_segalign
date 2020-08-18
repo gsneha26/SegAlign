@@ -24,75 +24,73 @@ output_filename=""
 total_args=0
 
 for ((i=0; i < $#; i++))
-    {
-        new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
-        optionalArguments1="$optionalArguments1 $new_arg"
-        optionalArguments="$optionalArguments ${args[$i]}"
-    }
+{
+  new_arg=`echo "${args[$i]}" | sed 's/=/ /'`
+  optionalArguments1="$optionalArguments1 $new_arg"
+  optionalArguments="$optionalArguments ${args[$i]}"
+}
 
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
 
 for ((i=0; i < $total_args; i++))
-    {
-        if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
-            ng=1
-        fi
+{
+  if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
+    ng=1
+  fi
 
-        if [[ "${split_args[$i]}" == *"--output"* ]]; then
-            outf=1
-            output_filename=$(readlink -f ${split_args[$(($i+1))]})
-        fi
+  if [[ "${split_args[$i]}" == *"--output"* ]]; then
+    outf=1
+    output_filename=$(readlink -f ${split_args[$(($i+1))]})
+  fi
 
-        if [[ "${split_args[$i]}" == *"--markend"* ]]; then
-            mk=1
-        fi
-	
-        if [[ "${split_args[$i]}" == *"--help"* ]]; then
-            hp=1
-        fi
-    }
+  if [[ "${split_args[$i]}" == *"--markend"* ]]; then
+    mk=1
+  fi
 
-if [ $hp -eq 1 ]
-then
+  if [[ "${split_args[$i]}" == *"--help"* ]]; then
+    hp=1
+  fi
+}
+
+if [ $hp -eq 1 ]; then
   segalign --help
-elif [ $# -eq 1 ] || [ $# -eq 0 ] 
-then
-	segalign $1
+elif [ $# -eq 1 ] || [ $# -eq 0 ]; then
+  segalign $1
 else
-	refPath=$(readlink -f $1)
-	queryPath=$(readlink -f $2)
+  refPath=$(readlink -f $1)
+  queryPath=$(readlink -f $2)
 
   if [ ! -f "$refPath" ]; then
-      1>&2 echo "target file $refPath does not exist"
-      (exit 4)
+    1>&2 echo "target file $refPath does not exist"
+    (exit 4)
   fi
 
   if [ ! -f "$queryPath" ]; then
-      1>&2 echo "query file $queryPath does not exist"
-      (exit 4)
+    1>&2 echo "query file $queryPath does not exist"
+    (exit 4)
   fi
 
-	refChr=$(grep ">" $refPath | wc -l)
-	queryChr=$(grep ">" $queryPath | wc -l)
-	
+  refChr=$(grep ">" $refPath | wc -l)
+  queryChr=$(grep ">" $queryPath | wc -l)
+
   if [ ! -w $PWD ]; then
-      1>&2 echo "Cannot create output directory in $PWD because of permissions"
-      (exit 5)
+    1>&2 echo "Cannot create output directory in $PWD because of permissions"
+    (exit 5)
   fi
 
   OUTPUT_FOLDER=$PWD/output_$RANDOM
   mkdir -p $OUTPUT_FOLDER
 
   if [ ! -w $OUTPUT_FOLDER ]; then
-      1>&2 echo "Cannot create data directory in $OUTPUT_FOLDER because of permissions"
-      (exit 5)
+    1>&2 echo "Cannot create data directory in $OUTPUT_FOLDER because of permissions"
+    (exit 5)
   fi
 
-	DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
-	mkdir -p $DATA_FOLDER
-	
-	cd $DATA_FOLDER
+  DATA_FOLDER=$OUTPUT_FOLDER/data_$RANDOM/
+  mkdir -p $DATA_FOLDER
+
+  cd $DATA_FOLDER
   1>&2 echo ""
   1>&2 echo "Converting fasta files to 2bit format"
   faToTwoBit $refPath ref.2bit
@@ -103,45 +101,49 @@ else
 
   1>&2 echo ""
   1>&2 echo "Executing: \"segalign $refPath $queryPath $DATA_FOLDER $optionalArguments\""
-  
-  time {
-  count=0
-  cd $OUTPUT_FOLDER
 
-  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
-      wait $pids || let "FAIL+=1"
+  time {
+    count=0
+    cd $OUTPUT_FOLDER
+
+    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
+    wait $pids || let "FAIL+=1"
   }
 
   rm -rf $DATA_FOLDER
 
   if [ $ng -eq 0 ]; then
-      err_lines=$(grep FAILURE *.err | wc -l)
+    err_lines=$(grep FAILURE *.err | wc -l)
 
-      if [ $err_lines -gt 0 ] || [ $FAIL -gt 0 ]; then
-          1>&2 echo ""
-          1>&2 echo "Error in LASTZ process!"
-          1>&2 cat *.err
-          (exit 6)
-      fi
+    if [ $err_lines -gt 0 ] || [ $FAIL -gt 0 ]; then
+      1>&2 echo ""
+      1>&2 echo "Error in LASTZ process!"
+      1>&2 cat *.err
+      (exit 6)
+    fi
   fi
 
   if [ $ng -eq 0 ]; then
-      for i in *.segments *.err; do rm $i; done
+    for i in *.segments *.err; 
+    do 
+      rm $i; 
+    done
   fi
 
   if [ $outf -eq 1 ]; then
-      touch $output_filename
-      for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done 
-      for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename; done 
-      if [ $mk -eq 1 ]; then
-          echo "# segalign end-of-file" >> $output_filename
-      fi
+    touch $output_filename
+
+    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done 
+    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename; done 
+    if [ $mk -eq 1 ]; then
+      echo "# segalign end-of-file" >> $output_filename
+    fi
   else
-      for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done 
-      for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done 
-      if [ $mk -eq 1 ]; then
-          echo "# segalign end-of-file" 
-      fi
+    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename; done 
+    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename; done 
+    if [ $mk -eq 1 ]; then
+      echo "# segalign end-of-file" 
+    fi
   fi
 
   rm -rf $OUTPUT_FOLDER
