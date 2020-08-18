@@ -41,11 +41,6 @@ for ((i=0; i < $total_args; i++))
         fi
     }
 
-echo "help"
-echo "$hp"
-echo "$#"
-echo "$total_args"
-
 if [ $# -eq 0 ] 
 then
 	segalign_repeat_masker
