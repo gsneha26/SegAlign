@@ -40,5 +40,5 @@ before_script:
     - PATH=${CURR}/scripts/:${PATH}
     
 script: 
-  - segalign
-  - segalign_repeat_masker
+  - segalign --help
+  - segalign_repeat_masker --help
