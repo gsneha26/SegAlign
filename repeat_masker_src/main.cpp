@@ -47,7 +47,7 @@ int main(int argc, char** argv){
     po::options_description desc{"Sequence Options"};
     desc.add_options()
         ("strand", po::value<std::string>(&cfg.strand)->default_value("both"), "strand to search - plus/minus/both")
-        ("neighbor_interval", po::value<uint32_t>(&cfg.num_neigh_interval)->default_value(0), "number of neighbouring intervals to align the query interval to");
+        ("neighbor_proportion", po::value<float>(&cfg.prop_neigh_interval)->default_value(0.2), "proportion of neighbouring intervals to align the query interval to");
 
     po::options_description scoring_desc{"Scoring Options"};
     scoring_desc.add_options()
@@ -77,7 +77,8 @@ int main(int argc, char** argv){
     output_desc.add_options()
 //        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
-        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
+        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion")
+        ("postprocessing_cmd", po::value<std::string>(&cfg.cmd), "command to run on each file for post-processing");
 
     po::options_description system_desc{"System Options"};
     system_desc.add_options()
@@ -168,6 +169,11 @@ int main(int argc, char** argv){
 
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
+
+    if(vm.count("postprocessing_cmd") == 0)
+        cfg.input_cmd = false;
+    else
+        cfg.input_cmd = true;
 
     cfg.gapped = !cfg.gapped;
 
@@ -346,8 +352,7 @@ int main(int argc, char** argv){
     }
 
     uint32_t total_query_intervals = ceil((float) cfg.seq_len/cfg.lastz_interval_size);
-    if(cfg.num_neigh_interval == 0)
-        cfg.num_neigh_interval = ceil((float) 0.2*total_query_intervals);
+    cfg.num_neigh_interval = ceil((float) cfg.prop_neigh_interval*total_query_intervals);
 
     uint32_t left_intervals = ceil((float) (cfg.num_neigh_interval-1)/2); 
     uint32_t right_intervals = cfg.num_neigh_interval - 1 - left_intervals;

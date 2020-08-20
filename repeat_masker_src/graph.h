@@ -30,6 +30,7 @@ struct Configuration {
     // Sequence parameters
     std::string strand;
     size_t seq_len;
+    float prop_neigh_interval;
     uint32_t num_neigh_interval;
 
     // Scoring
@@ -57,6 +58,8 @@ struct Configuration {
     std::string output_format;
     std::string output;
     bool markend;
+    std::string cmd;
+    bool input_cmd;
 
     // System parameters
     uint32_t wga_chunk_size;
