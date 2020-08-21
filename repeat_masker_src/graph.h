@@ -58,8 +58,6 @@ struct Configuration {
     std::string output_format;
     std::string output;
     bool markend;
-    std::string cmd;
-    bool input_cmd;
 
     // System parameters
     uint32_t wga_chunk_size;
