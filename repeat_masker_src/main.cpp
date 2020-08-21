@@ -77,8 +77,7 @@ int main(int argc, char** argv){
     output_desc.add_options()
 //        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
-        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion")
-        ("postprocessing_cmd", po::value<std::string>(&cfg.cmd), "command to run on each file for post-processing");
+        ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
 
     po::options_description system_desc{"System Options"};
     system_desc.add_options()
@@ -169,11 +168,6 @@ int main(int argc, char** argv){
 
     if(vm.count("gappedthresh") == 0)
         cfg.gappedthresh = cfg.hspthresh; 
-
-    if(vm.count("postprocessing_cmd") == 0)
-        cfg.input_cmd = false;
-    else
-        cfg.input_cmd = true;
 
     cfg.gapped = !cfg.gapped;
 
