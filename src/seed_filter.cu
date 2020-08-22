@@ -1,4 +1,3 @@
-#include <condition_variable>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -7,6 +6,8 @@
 #include <thrust/unique.h>
 #include "parameters.h"
 #include "seed_filter.h"
+#include "seed_pos_table.h"
+#include "cuda_utils.h"
 #include "store.h"
 
 // Each segment is 16B
@@ -54,41 +55,6 @@ std::vector<thrust::device_vector<segment> > d_hsp_vec;
 segment** d_hsp_reduced;
 std::vector<thrust::device_vector<segment> > d_hsp_reduced_vec;
 
-// wrap of cudaSetDevice error checking in one place.  
-static inline void check_cuda_setDevice(int device_id, const char* tag) {
-    cudaError_t err = cudaSetDevice(device_id);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaSetDevice failed for device %d in %s failed with error \" %s \" \n", device_id, tag, cudaGetErrorString(err));
-        exit(11);
-    }
-}
-
-// wrap of cudaMalloc error checking in one place.  
-static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag) {
-    cudaError_t err = cudaMalloc(buf, bytes);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMalloc of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(12);
-    }
-}
-	 
-// wrap of cudaMemcpy error checking in one place.  
-static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes, cudaMemcpyKind kind, const char* tag) {
-    cudaError_t err = cudaMemcpy(dst_buf, src_buf, bytes, kind);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaMemcpy of %lu bytes for %s failed with error \" %s \" \n", bytes, tag, cudaGetErrorString(err));
-        exit(13);
-    }
-}
-	 
-// wrap of cudaFree error checking in one place.  
-static inline void check_cuda_free(void* buf, const char* tag) {
-    cudaError_t err = cudaFree(buf);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: cudaFree for %s failed with error \" %s \" \n", tag, cudaGetErrorString(err));
-        exit(14);
-    }
-}
 	 
 struct hspDiagEqual{
     __host__ __device__
@@ -1006,47 +972,6 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     return NUM_DEVICES;
 }
 
-void InclusivePrefixScan (uint32_t* data, uint32_t len) {
-    int g;
-    
-    {
-        std::unique_lock<std::mutex> locker(mu);
-        if (available_gpus.empty()) {
-            cv.wait(locker, [](){return !available_gpus.empty();});
-        }
-        g = available_gpus.back();
-        available_gpus.pop_back();
-        locker.unlock();
-
-        check_cuda_setDevice(g, "InclusivePrefixScan");
-    }
-
-    thrust::inclusive_scan(thrust::host, data, data + len, data); 
-
-    {
-        std::unique_lock<std::mutex> locker(mu);
-        available_gpus.push_back(g);
-        locker.unlock();
-        cv.notify_one();
-    }
-}
-
-void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_t* pos_table, uint32_t num_index){
-
-    for(int g = 0; g < NUM_DEVICES; g++){
-
-        check_cuda_setDevice(g, "SendSeedPosTable");
-
-        check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
-
-        check_cuda_memcpy((void*)d_index_table[g], (void*)index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice, "index_table");
-
-        check_cuda_malloc((void**)&d_pos_table[g], num_index*sizeof(uint32_t), "pos_table"); 
-
-        check_cuda_memcpy((void*)d_pos_table[g], (void*)pos_table, num_index*sizeof(uint32_t), cudaMemcpyHostToDevice, "pos_table");
-    }
-}
-
 void SendRefWriteRequest (size_t start_addr, uint32_t len){
 
     ref_len = len;
@@ -1124,8 +1049,6 @@ void ShutdownProcessor(){
 }
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
-InclusivePrefixScan_ptr g_InclusivePrefixScan = InclusivePrefixScan;
-SendSeedPosTable_ptr g_SendSeedPosTable = SendSeedPosTable;
 SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;

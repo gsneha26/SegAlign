@@ -27,6 +27,7 @@ add_executable(segalign
     common/DRAM.cpp
     src/seed_filter.cu
     common/ntcoding.cpp
+    common/seed_pos_table.cu
     src/seeder.cpp
     src/segment_printer.cpp
     src/main.cpp
@@ -36,6 +37,7 @@ add_executable(segalign_repeat_masker
     common/DRAM.cpp
     repeat_masker_src/seed_filter.cu
     common/ntcoding.cpp
+    common/seed_pos_table.cu
     repeat_masker_src/seeder.cpp
     repeat_masker_src/segment_printer.cpp
     repeat_masker_src/main.cpp
