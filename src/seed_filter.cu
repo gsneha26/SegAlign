@@ -1,11 +1,13 @@
-#include <iostream>
+#include <condition_variable>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include "parameters.h"
 #include "seed_filter.h"
+#include "store.h"
 
 // Each segment is 16B
 // With 64MB for the HSPs array per 1GB GPU memory

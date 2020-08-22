@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp> 
 #include <iostream>
@@ -12,7 +11,7 @@
 #include "zlib.h"
 #include "graph.h"
 #include "ntcoding.h"
-#include "parameters.h"
+#include "seed_filter.h"
 #include "store.h"
 
 namespace po = boost::program_options;

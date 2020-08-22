@@ -1,6 +1,7 @@
 #include "graph.h"
 #include "store.h"
 #include "ntcoding.h"
+#include "seed_filter.h"
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);

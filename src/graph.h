@@ -7,6 +7,12 @@
 #include <vector>
 #include "parameters.h"
 
+#define DEFAULT_SEQ_BLOCK_SIZE 500000000
+#define DEFAULT_LASTZ_INTERVAL 10000000
+#define DEFAULT_WGA_CHUNK 250000
+
+#define BUFFER_DEPTH 2
+
 using namespace tbb::flow;
 
 struct Seed_config {

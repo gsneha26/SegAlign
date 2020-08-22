@@ -1,8 +1,3 @@
-#include <assert.h>
-#include <iostream>
-#include "parameters.h"
-#include "seed_filter.h"
-
 #define INVALID_KMER (1 << 31)
 #define GRAIN_SIZE (1 << 18)
 

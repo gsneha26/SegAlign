@@ -1,4 +1,9 @@
+#include <assert.h>
+#include <string>
 #include "ntcoding.h"
+#include "parameters.h"
+#include "seed_filter.h"
+#include "tbb/parallel_sort.h"
 
 int shape_pos[32];
 int shape_size;
