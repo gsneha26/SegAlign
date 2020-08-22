@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
 #include "DRAM.h"
+#include "graph.h"
 
 extern DRAM *ref_DRAM;
 extern DRAM *query_DRAM;

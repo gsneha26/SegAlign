@@ -11,6 +11,7 @@
 #include "zlib.h"
 #include "graph.h"
 #include "ntcoding.h"
+#include "seed_filter_interface.h"
 #include "seed_filter.h"
 #include "store.h"
 
@@ -278,7 +279,8 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
+    cfg.num_gpu = g_InitializeInterface (cfg.num_gpu);
+    g_InitializeProcessor (cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
     if(cfg.seq_block_size == DEFAULT_SEQ_BLOCK_SIZE){
         uint32_t offset = cfg.seq_block_size%cfg.lastz_interval_size;
@@ -514,10 +516,13 @@ int main(int argc, char** argv){
 
                 fprintf(stderr, "\nSending block %u ...\n", blocks_sent);
 
-                if(blocks_sent > 0)
-                    g_clearRef();
+                if(blocks_sent > 0){
+                    g_ClearRef();
+                    g_ClearQuery();
+                }
 
                 g_SendRefWriteRequest (seq_DRAM->buffer, send_block_start, send_block_len);
+                g_SendQueryWriteRequest ();
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);

@@ -11,6 +11,7 @@
 #include "zlib.h"
 #include "graph.h"
 #include "ntcoding.h"
+#include "seed_filter_interface.h"
 #include "seed_filter.h"
 #include "store.h"
 
@@ -286,7 +287,8 @@ int main(int argc, char** argv){
 
     fprintf(stderr, "Using %d threads\n", cfg.num_threads);
 
-    cfg.num_gpu = g_InitializeProcessor (cfg.num_gpu, cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
+    cfg.num_gpu = g_InitializeInterface (cfg.num_gpu);
+    g_InitializeProcessor (cfg.seed.transition, cfg.wga_chunk_size, cfg.seed.size, cfg.sub_mat, cfg.xdrop, cfg.hspthresh, cfg.noentropy);
 
     ref_DRAM = new DRAM;
     query_DRAM = new DRAM;
@@ -601,9 +603,9 @@ int main(int argc, char** argv){
                 fprintf(stderr, "\nSending reference block %u ...\n", r_blocks_sent);
 
                 if(r_blocks_sent > 0)
-                    g_clearRef();
+                    g_ClearRef();
 
-                g_SendRefWriteRequest (send_r_block_start, send_r_block_len);
+                g_SendRefWriteRequest (ref_DRAM->buffer, send_r_block_start, send_r_block_len);
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);
@@ -647,7 +649,7 @@ int main(int argc, char** argv){
                     fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_blocks_sent, send_q_buffer_id);
 
                     if(r_blocks_sent > 0)
-                        g_clearQuery(send_q_buffer_id);
+                        g_ClearQuery(send_q_buffer_id);
 
                     g_SendQueryWriteRequest (send_q_block_start, send_q_block_len, send_q_buffer_id);
                     prev_block_intervals[q_blocks_sent] = block_num_intervals[q_blocks_sent];
@@ -668,7 +670,7 @@ int main(int argc, char** argv){
                             prev_block_intervals[i] += block_num_intervals[q_blocks_sent];
 
                             fprintf(stderr, "\nSending query block %u with buffer %d ...\n", q_blocks_sent, i);
-                            g_clearQuery(i);
+                            g_ClearQuery(i);
                             g_SendQueryWriteRequest (send_q_block_start, send_q_block_len, i);
 
                             q_blocks_sent++;

@@ -1,7 +1,8 @@
-#include "seed_pos_table.h"
+#include "seed_filter_interface.h"
 #include "cuda_utils.h"
 #include "tbb/parallel_sort.h"
 #include "ntcoding.h"
+#include "store_gpu.h"
 #include <thrust/scan.h>
 
 void InclusivePrefixScan (uint32_t* data, uint32_t len) {

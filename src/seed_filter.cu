@@ -7,8 +7,9 @@
 #include "cuda_utils.h"
 #include "parameters.h"
 #include "seed_filter.h"
-#include "seed_pos_table.h"
+#include "seed_filter_interface.h"
 #include "store.h"
+#include "store_gpu.h"
 
 // Each segment is 16B
 // With 64MB for the HSPs array per 1GB GPU memory
@@ -16,12 +17,6 @@
 
 #define MAX_HITS_PER_GB 4194304
 
-// Control Variables
-std::mutex mu;
-std::condition_variable cv;
-std::vector<int> available_gpus;
-
-int NUM_DEVICES;
 int MAX_SEEDS;
 int MAX_HITS;
 
@@ -31,15 +26,9 @@ int xdrop;
 int hspthresh;
 bool noentropy;
 
-char** d_ref_seq;
-uint32_t ref_len;
-
 char** d_query_seq;
 char** d_query_rc_seq;
 uint32_t query_length[BUFFER_DEPTH];
-
-uint32_t** d_index_table;
-uint32_t** d_pos_table;
 
 uint64_t** d_seed_offsets;
 
@@ -146,37 +135,6 @@ struct hspComp{
                 return false;
     }
 };
-
-__global__
-void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
-    int thread_id = threadIdx.x;
-    int block_dim = blockDim.x;
-    int grid_dim = gridDim.x;
-    int block_id = blockIdx.x;
-
-    int stride = block_dim * grid_dim;
-    uint32_t start = block_dim * block_id + thread_id;
-
-    for (uint32_t i = start; i < len; i += stride) {
-        char ch = src_seq[i];
-        char dst = X_NT;
-        if (ch == 'A')
-            dst = A_NT;
-        else if (ch == 'C')
-            dst = C_NT;
-        else if (ch == 'G')
-            dst = G_NT;
-        else if (ch == 'T')
-            dst = T_NT;
-        else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
-            dst = L_NT;
-        else if ((ch == 'n') || (ch == 'N'))
-            dst = N_NT;
-        else if (ch == '&')
-            dst = E_NT;
-        dst_seq[i] = dst;
-    }
-}
 
 __global__
 void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char* dst_seq_rc){ 
@@ -832,6 +790,14 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
+                thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspDiagComp());
+                
+                thrust::device_vector<segment>::iterator result_end2 = thrust::unique_copy(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], d_hsp_reduced_vec[g].begin(),  hspDiagEqual());
+
+                num_anchors[i] = thrust::distance(d_hsp_reduced_vec[g].begin(), result_end2), num_anchors[i];
+
+                thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspFinalComp());
+
                 total_anchors += num_anchors[i];
 
                 h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
@@ -873,30 +839,7 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
     return gpu_filter_output;
 }
 
-int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
-
-    int nDevices;
-
-    cudaError_t err = cudaGetDeviceCount(&nDevices);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error: No GPU device found!\n");
-        exit(1);
-    }
-
-    if(num_gpu == -1){
-        NUM_DEVICES = nDevices; 
-    }
-    else{
-        if(num_gpu <= nDevices){
-            NUM_DEVICES = num_gpu;
-        }
-        else{
-            fprintf(stderr, "Requested GPUs greater than available GPUs\n");
-            exit(10);
-        }
-    }
-
-    fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
+void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_seed_size, int* sub_mat, int input_xdrop, int input_hspthresh, bool input_noentropy){
 
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, 0);
@@ -916,12 +859,8 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
 
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
 
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
     d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    
-    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
 
@@ -967,29 +906,6 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
 
         available_gpus.push_back(g);
     }
-    
-    return NUM_DEVICES;
-}
-
-void SendRefWriteRequest (size_t start_addr, uint32_t len){
-
-    ref_len = len;
-    
-    for(int g = 0; g < NUM_DEVICES; g++){
-
-        check_cuda_setDevice(g, "SendRefWriteRequest");
-
-        char* d_ref_seq_tmp;
-        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp ref_seq"); 
-
-        check_cuda_memcpy((void*)d_ref_seq_tmp, (void*)(ref_DRAM->buffer + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "ref_seq");
-
-        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
-
-        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
-
-        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
-    }
 }
 
 void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
@@ -1014,23 +930,11 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
     }
 }
 
-void clearRef(){
+void ClearQuery(uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
-        check_cuda_setDevice(g, "clearRef");
-
-        check_cuda_free((void*)d_ref_seq[g], "d_ref_seq");
-        check_cuda_free((void*)d_index_table[g], "d_index_table");
-        check_cuda_free((void*)d_pos_table[g], "d_pos_table");
-    }
-}
-
-void clearQuery(uint32_t buffer){
-
-    for(int g = 0; g < NUM_DEVICES; g++){
-
-        check_cuda_setDevice(g, "clearQuery");
+        check_cuda_setDevice(g, "ClearQuery");
 
         check_cuda_free((void*)d_query_seq[buffer*NUM_DEVICES+g], "d_query_seq");
         check_cuda_free((void*)d_query_rc_seq[buffer*NUM_DEVICES+g], "d_query_rc_seq");
@@ -1048,9 +952,7 @@ void ShutdownProcessor(){
 }
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
-SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SendQueryWriteRequest_ptr g_SendQueryWriteRequest = SendQueryWriteRequest;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
-clearRef_ptr g_clearRef = clearRef;
-clearQuery_ptr g_clearQuery = clearQuery;
+ClearQuery_ptr g_ClearQuery = ClearQuery;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;

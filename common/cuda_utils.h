@@ -1,15 +1,4 @@
-//
-//// wrap of cudaSetDevice error checking in one place.  
-//static inline void check_cuda_setDevice(int device_id, const char* tag);
-//
-//// wrap of cudaMalloc error checking in one place.  
-//static inline void check_cuda_malloc(void** buf, size_t bytes, const char* tag);
-//	 
-//// wrap of cudaMemcpy error checking in one place.  
-//static inline void check_cuda_memcpy(void* dst_buf, void* src_buf, size_t bytes, cudaMemcpyKind kind, const char* tag);
-//	 
-//// wrap of cudaFree error checking in one place.  
-//static inline void check_cuda_free(void* buf, const char* tag);
+#include <stdio.h>
 
 // wrap of cudaSetDevice error checking in one place.  
 static inline void check_cuda_setDevice(int device_id, const char* tag) {
