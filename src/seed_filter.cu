@@ -4,10 +4,10 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include "cuda_utils.h"
 #include "parameters.h"
 #include "seed_filter.h"
 #include "seed_pos_table.h"
-#include "cuda_utils.h"
 #include "store.h"
 
 // Each segment is 16B
@@ -54,7 +54,6 @@ std::vector<thrust::device_vector<segment> > d_hsp_vec;
 
 segment** d_hsp_reduced;
 std::vector<thrust::device_vector<segment> > d_hsp_reduced_vec;
-
 	 
 struct hspDiagEqual{
     __host__ __device__

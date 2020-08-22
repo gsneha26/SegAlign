@@ -1,4 +1,3 @@
-//#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp> 
 #include <iostream>
@@ -518,7 +517,7 @@ int main(int argc, char** argv){
                 if(blocks_sent > 0)
                     g_clearRef();
 
-                g_SendWriteRequest (seq_DRAM->buffer, send_block_start, send_block_len);
+                g_SendRefWriteRequest (seq_DRAM->buffer, send_block_start, send_block_len);
 
                 if(cfg.debug){
                     gettimeofday(&start_time_complete, NULL);

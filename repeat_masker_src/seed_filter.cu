@@ -1,14 +1,13 @@
-#include <condition_variable>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include "cuda_utils.h"
 #include "parameters.h"
 #include "seed_filter.h"
 #include "seed_pos_table.h"
-#include "cuda_utils.h"
 #include "store.h"
 
 // Each segment is 16B
@@ -32,9 +31,9 @@ int xdrop;
 int hspthresh;
 bool noentropy;
 
-char** d_seq;
+char** d_ref_seq;
 char** d_seq_rc;
-uint32_t seq_len;
+uint32_t ref_len;
 
 uint32_t** d_index_table;
 uint32_t** d_pos_table;
@@ -833,10 +832,10 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
             find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end);
 
             if(rev){
-                find_hsps <<<1024, BLOCK_SIZE>>> (d_seq[g], d_seq_rc[g], seq_len, seq_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
+                find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_seq_rc[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
             }
             else{
-                find_hsps <<<1024, BLOCK_SIZE>>> (d_seq[g], d_seq[g], seq_len, seq_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
+                find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_ref_seq[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
             }
 
             thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
@@ -944,7 +943,7 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
 
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
 
-    d_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
     d_seq_rc = (char**) malloc(NUM_DEVICES*sizeof(char*));
     
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -998,25 +997,25 @@ int InitializeProcessor (int num_gpu, bool transition, uint32_t WGA_CHUNK, uint3
     return NUM_DEVICES;
 }
 
-void SendWriteRequest (char* seq, size_t start_addr, uint32_t len){
+void SendRefWriteRequest (char* seq, size_t start_addr, uint32_t len){
 
-    seq_len = len;
+    ref_len = len;
     
     for(int g = 0; g < NUM_DEVICES; g++){
 
         check_cuda_setDevice(g, "SendRefWriteRequest");
 
-        char* d_seq_tmp;
-        check_cuda_malloc((void**)&d_seq_tmp, len*sizeof(char), "d_seq_tmp"); 
+        char* d_ref_seq_tmp;
+        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "d_ref_seq_tmp"); 
 
-        check_cuda_memcpy((void*)d_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "seq");
+        check_cuda_memcpy((void*)d_ref_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "seq");
 
-        check_cuda_malloc((void**)&d_seq[g], len*sizeof(char), "seq"); 
+        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "seq"); 
         check_cuda_malloc((void**)&d_seq_rc[g], len*sizeof(char), "seq_rc"); 
 
-        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_seq_tmp, d_seq[g], d_seq_rc[g]);
+        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g], d_seq_rc[g]);
 
-        check_cuda_free((void*)d_seq_tmp, "d_seq_tmp");
+        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
     }
 }
 
@@ -1026,7 +1025,7 @@ void clearRef(){
 
         check_cuda_setDevice(g, "clearRef");
 
-        check_cuda_free((void*)d_seq[g], "d_seq");
+        check_cuda_free((void*)d_ref_seq[g], "d_ref_seq");
         check_cuda_free((void*)d_seq_rc[g], "d_seq_rc");
         check_cuda_free((void*)d_index_table[g], "d_index_table");
         check_cuda_free((void*)d_pos_table[g], "d_pos_table");
@@ -1044,7 +1043,7 @@ void ShutdownProcessor(){
 }
 
 InitializeProcessor_ptr g_InitializeProcessor = InitializeProcessor;
-SendWriteRequest_ptr g_SendWriteRequest = SendWriteRequest;
+SendRefWriteRequest_ptr g_SendRefWriteRequest = SendRefWriteRequest;
 SeedAndFilter_ptr g_SeedAndFilter = SeedAndFilter;
 clearRef_ptr g_clearRef = clearRef;
 ShutdownProcessor_ptr g_ShutdownProcessor = ShutdownProcessor;
