@@ -103,7 +103,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         fclose(segmentFile);
 
-        cmd = "sort -Vk5,6 "+segment_filename+" -o "+segment_filename;
+        cmd = "sort -Vk4,5 "+segment_filename+" -o "+segment_filename;
 
         io_lock.lock();
         printf("%s\n", cmd.c_str());
