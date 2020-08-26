@@ -107,8 +107,8 @@ else
     if [ $mk -eq 1 ]; then
       echo "# segalign_repeat_masker end-of-file" >> $output_filename
     fi
-  fi
 
-  rm -rf $OUTPUT_FOLDER
+    rm -rf $OUTPUT_FOLDER
+  fi
 
 fi
