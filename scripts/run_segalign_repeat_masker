@@ -115,18 +115,6 @@ else
 
     rm -rf $OUTPUT_FOLDER
 
-  else
-
-    if [ $pc -eq 0 ]; then
-        echo "#name1  zstart1 end1  name2 zstart2+  end2+"
-    fi
-
-    for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename; done 
-
-    if [ $mk -eq 1 ] && [ $pc -eq 0 ]; then
-      echo "# segalign_repeat_masker end-of-file" 
-    fi
-
   fi
 
 fi
