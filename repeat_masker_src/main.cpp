@@ -69,14 +69,11 @@ int main(int argc, char** argv){
     po::options_description gapped_desc{"Gapped Extension Options"};
     gapped_desc.add_options()
         ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage");
-//        ("ydrop", po::value<int>(&cfg.ydrop)->default_value(9430), "y-drop value for gapped extension")
-//        ("gappedthresh", po::value<int>(&cfg.gappedthresh), "score threshold for gapped alignments")
-//        ("notrivial", po::bool_switch(&cfg.notrivial)->default_value(false), "Don't output a trivial self-alignment block if the target and query sequences are identical");
 
     po::options_description output_desc{"Output Options"};
     output_desc.add_options()
-//        ("format", po::value<std::string>(&cfg.output_format)->default_value("maf-"), "format of output file (same formats as provided by LASTZ) - lav, lav+text, axt, axt+, maf, maf+, maf-, sam, softsam, sam-, softsam-, cigar, BLASTN, differences, rdotplot, text")
         ("output", po::value<std::string>(&cfg.output), "output filename")
+        ("postprocess_cmd", po::value<std::string>(&cfg.cmd), "postprocessing command for each of the segment file of each query_interval, it is executed in parallel to reduce post-processing time")
         ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
 
     po::options_description system_desc{"System Options"};
@@ -110,6 +107,9 @@ int main(int argc, char** argv){
         if(!vm.count("help")){
             if(!vm.count("seq_file")){
                 fprintf(stderr, "You must specify a sequence file \n"); 
+                std::cout << vm.count("help") << std::endl;
+                std::cout << vm.count("seq_file") << std::endl;
+                std::cout << cfg.seq_filename << std::endl;
             }
         }
 
@@ -137,10 +137,10 @@ int main(int argc, char** argv){
         std::cerr << output_desc << std::endl;
         std::cerr << system_desc << std::endl;
 	
-	if(vm.count("help"))
+        if(vm.count("help"))
             return 0;
-	else
-	    return 1;
+        else
+            return 1;
     }
 
     cfg.seed.transition = !cfg.seed.transition;
@@ -165,9 +165,6 @@ int main(int argc, char** argv){
     }
 
     cfg.seed.kmer_size = GenerateShapePos(cfg.seed.shape);
-
-    if(vm.count("gappedthresh") == 0)
-        cfg.gappedthresh = cfg.hspthresh; 
 
     cfg.gapped = !cfg.gapped;
 
@@ -254,6 +251,11 @@ int main(int argc, char** argv){
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
     }
 
+    if(vm.count("postprocess_cmd"))
+        cfg.postprocess = true;
+    else
+        cfg.postprocess = false;
+
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
     tbb::task_scheduler_init init(cfg.num_threads);
@@ -266,8 +268,6 @@ int main(int argc, char** argv){
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
         fprintf(stderr, "Gapped %d\n",cfg.gapped);
-        fprintf(stderr, "ydrop %d\n", cfg.ydrop);
-        fprintf(stderr, "gapped threshold %d\n", cfg.gappedthresh);
 
         for(int i = 0; i < NUC; i++){
             for(int j = 0; j < NUC; j++){

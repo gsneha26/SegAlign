@@ -50,13 +50,11 @@ struct Configuration {
 
     // Extension parameters
     bool gapped;
-    int ydrop;
-    int gappedthresh;
-    bool notrivial;
 
     // Output parameters
-    std::string output_format;
     std::string output;
+    std::string cmd;
+    bool postprocess;
     bool markend;
 
     // System parameters

@@ -103,7 +103,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         fclose(segmentFile);
 
-        cmd = "sort -Vk4,5 "+segment_filename+" -o "+segment_filename;
+        if(cfg.postprocess){
+            std::string output_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".out"; 
+            cmd = "sort -Vk4,5 "+segment_filename+" | "+cfg.cmd+" > "+output_filename+" && rm "+segment_filename; 
+//            cmd = "sort -Vk4,5 "+segment_filename+" | "+cfg.cmd+" && rm "+segment_filename+" > "+output_filename; 
+        }
+        else
+            cmd = "sort -Vk4,5 "+segment_filename+" -o "+segment_filename;
 
         io_lock.lock();
         printf("%s\n", cmd.c_str());

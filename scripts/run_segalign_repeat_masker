@@ -14,12 +14,12 @@
 
 set -e
 
-optionalArguments=""
 optionalArguments1=""
 outf=0
 output_filename=""
 mk=0
 hp=0
+pc=0
 total_args=0
 
 args=("$@")
@@ -31,10 +31,6 @@ for ((i=0; i < $#; i++)){
 
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
-
-for ((i=1; i < $#; i++)){
-  optionalArguments="$optionalArguments ${args[$i]}"
-}
 
 for ((i=0; i < $total_args; i++))
 {
@@ -54,12 +50,18 @@ for ((i=0; i < $total_args; i++))
   if [[ "${split_args[$i]}" == *"--help"* ]]; then
     hp=1
   fi
+
+  if [[ "${split_args[$i]}" == *"--postprocess_cmd"* ]]; then
+    pc=1
+  fi
 }
 
 if [ $hp -eq 1 ]; then
   segalign_repeat_masker --help
+  
 elif [ $# -eq 0 ]; then
   segalign_repeat_masker
+
 else
   refPath=$(readlink -f $1)
 
@@ -67,7 +69,6 @@ else
     1>&2 echo "target file $refPath does not exist"
     (exit 4)
   fi
-
 
   if [ ! -w $PWD ]; then
     1>&2 echo "Cannot create output directory in $PWD because of permissions"
@@ -78,7 +79,7 @@ else
   mkdir -p $OUTPUT_FOLDER
 
   1>&2 echo ""
-  1>&2 echo "Executing: \"segalign_repeat_masker $refPath $optionalArguments\""
+  1>&2 echo "Executing: \"segalign_repeat_masker $@\""
 
   pids=""
   FAIL=0
@@ -88,33 +89,44 @@ else
   time {
     count=0
 
-    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign_repeat_masker $refPath $optionalArguments )
+    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign_repeat_masker "$@" )
     wait $pids || let "FAIL+=1"
   }
 
   if [ $FAIL -gt 0 ]; then
-
       1>&2 echo ""
       1>&2 echo "Error in sort!"
       (exit 6)
   fi
 
   if [ $outf -eq 1 ]; then
+
     touch $output_filename
 
-    echo "#name1  zstart1 end1  name2 zstart2+  end2+" >> $output_filename
+    if [ $pc -eq 0 ]; then
+        echo "#name1  zstart1 end1  name2 zstart2+  end2+" >> $output_filename
+    fi
+
     for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done 
-    if [ $mk -eq 1 ]; then
+
+    if [ $mk -eq 1 ] && [ $pc -eq 0 ]; then
       echo "# segalign_repeat_masker end-of-file" >> $output_filename
     fi
+
+    rm -rf $OUTPUT_FOLDER
+
   else
-    echo "#name1  zstart1 end1  name2 zstart2+  end2+"
+
+    if [ $pc -eq 0 ]; then
+        echo "#name1  zstart1 end1  name2 zstart2+  end2+"
+    fi
+
     for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename; done 
-    if [ $mk -eq 1 ]; then
+
+    if [ $mk -eq 1 ] && [ $pc -eq 0 ]; then
       echo "# segalign_repeat_masker end-of-file" 
     fi
-  fi
 
-  rm -rf $OUTPUT_FOLDER
+  fi
 
 fi
