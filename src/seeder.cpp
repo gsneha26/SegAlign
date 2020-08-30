@@ -37,10 +37,10 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    std::vector<segment> fw_segments;
-    std::vector<segment> rc_segments;
-    fw_segments.clear();
-    rc_segments.clear();
+    std::vector<segmentPair> fw_hsps;
+    std::vector<segmentPair> rc_hsps;
+    fw_hsps.clear();
+    rc_hsps.clear();
 
     fprintf (stderr, "Query block %u, interval %u/%u (%u:%u) with buffer %u\n", q_block_index, num_invoked, num_intervals, q_inter_start, q_inter_end, buffer);
 
@@ -75,10 +75,10 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
+                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
+                    fw_hsps.insert(fw_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
                 }
             }
@@ -110,10 +110,10 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
+                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
+                    rc_hsps.insert(rc_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
                 }
             }
@@ -123,5 +123,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions[buffer] += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(payload, fw_segments, rc_segments), token);
+    return printer_input(printer_payload(payload, fw_hsps, rc_hsps), token);
 }

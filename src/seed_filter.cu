@@ -11,7 +11,7 @@
 #include "store.h"
 #include "store_gpu.h"
 
-// Each segment is 16B
+// Each segmentPair is 16B
 // With 64MB for the HSPs array per 1GB GPU memory
 // With higher GPU memory, the size just linearly increases
 
@@ -38,22 +38,22 @@ std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
 uint32_t** d_done;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
 
-segment** d_hsp;
-std::vector<thrust::device_vector<segment> > d_hsp_vec;
+segmentPair** d_hsp;
+std::vector<thrust::device_vector<segmentPair> > d_hsp_vec;
 
-segment** d_hsp_reduced;
-std::vector<thrust::device_vector<segment> > d_hsp_reduced_vec;
+segmentPair** d_hsp_reduced;
+std::vector<thrust::device_vector<segmentPair> > d_hsp_reduced_vec;
 
 struct hspEqual{
     __host__ __device__
-        bool operator()(segment x, segment y){
+        bool operator()(segmentPair x, segmentPair y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
     }
 };
 
 struct hspComp{
     __host__ __device__
-        bool operator()(segment x, segment y){
+        bool operator()(segmentPair x, segmentPair y){
             if(x.query_start < y.query_start)
                 return true;
             else if(x.query_start == y.query_start){
@@ -154,7 +154,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segment* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segmentPair* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -202,7 +202,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 }
 
 __global__
-void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, segment* d_hsp, uint32_t* d_done){
+void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, segmentPair* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -624,7 +624,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 }
 
 __global__
-void compress_output (uint32_t* d_done, segment* d_hsp, segment* d_hsp_reduced, int num_hits){
+void compress_output (uint32_t* d_done, segmentPair* d_hsp, segmentPair* d_hsp_reduced, int num_hits){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -651,7 +651,7 @@ void compress_output (uint32_t* d_done, segment* d_hsp, segment* d_hsp_reduced, 
     }
 }
 
-std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
+std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
 
     uint32_t num_hits = 0;
     uint32_t total_anchors = 0;
@@ -696,7 +696,7 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
     limit_pos[num_iter-1] = num_seeds-1;
 
-    segment** h_hsp = (segment**) malloc(num_iter*sizeof(segment*));
+    segmentPair** h_hsp = (segmentPair**) malloc(num_iter*sizeof(segmentPair*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
 
     uint32_t start_seed_index = 0;
@@ -727,15 +727,15 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
                 
-                thrust::device_vector<segment>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                thrust::device_vector<segmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
                 total_anchors += num_anchors[i];
 
-                h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
+                h_hsp[i] = (segmentPair*) calloc(num_anchors[i], sizeof(segmentPair));
 
-                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(segment), cudaMemcpyDeviceToHost, "hsp_output");
+                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp[g], num_anchors[i]*sizeof(segmentPair), cudaMemcpyDeviceToHost, "hsp_output");
             }
 
             start_seed_index = limit_pos[i] + 1;
@@ -751,9 +751,9 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
         locker.unlock();
         cv.notify_one();
     }
-    std::vector<segment> gpu_filter_output;
+    std::vector<segmentPair> gpu_filter_output;
 
-    segment first_el;
+    segmentPair first_el;
     first_el.len = total_anchors;
     first_el.score = num_hits;
     gpu_filter_output.push_back(first_el);
@@ -803,13 +803,13 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
     d_done = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_done_vec.reserve(NUM_DEVICES);
 
-    d_hsp = (segment**) malloc(NUM_DEVICES*sizeof(segment*));
+    d_hsp = (segmentPair**) malloc(NUM_DEVICES*sizeof(segmentPair*));
     d_hsp_vec.reserve(NUM_DEVICES);
 
-    d_hsp_reduced = (segment**) malloc(NUM_DEVICES*sizeof(segment*));
+    d_hsp_reduced = (segmentPair**) malloc(NUM_DEVICES*sizeof(segmentPair*));
     d_hsp_reduced_vec.reserve(NUM_DEVICES);
 
-    segment zeroHsp;
+    segmentPair zeroHsp;
     zeroHsp.ref_start = 0;
     zeroHsp.query_start = 0;
     zeroHsp.len = 0;

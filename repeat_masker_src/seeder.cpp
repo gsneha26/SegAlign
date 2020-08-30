@@ -36,10 +36,10 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    std::vector<segment> fw_segments;
-    std::vector<segment> rc_segments;
-    fw_segments.clear();
-    rc_segments.clear();
+    std::vector<segmentPair> fw_hsps;
+    std::vector<segmentPair> rc_hsps;
+    fw_hsps.clear();
+    rc_hsps.clear();
 
     fprintf (stderr, "Chromosome block %u interval %u/%u (%lu:%lu) with ref (%u:%u) rc (%lu:%lu)\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc);
 
@@ -74,10 +74,10 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, false, ref_start, ref_end);
+                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, ref_start, ref_end);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    fw_segments.insert(fw_segments.end(), anchors.begin()+1, anchors.end());
+                    fw_hsps.insert(fw_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
                 }
             }
@@ -109,10 +109,10 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segment> anchors = g_SeedAndFilter(seed_offset_vector, true, ref_start, ref_end);
+                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, ref_start, ref_end);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    rc_segments.insert(rc_segments.end(), anchors.begin()+1, anchors.end());
+                    rc_hsps.insert(rc_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
                 }
             }
@@ -122,5 +122,5 @@ printer_input seeder_body::operator()(seeder_input input) {
     seeder_body::num_seeded_regions += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(block_data, num_invoked, fw_segments, rc_segments), token);
+    return printer_input(printer_payload(block_data, num_invoked, fw_hsps, rc_hsps), token);
 }

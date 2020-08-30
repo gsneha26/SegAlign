@@ -22,7 +22,7 @@ struct Seed_config {
     bool transition;
 };
 
-struct segment {
+struct segmentPair {
     uint32_t ref_start;
     uint32_t query_start;
     uint32_t len;
@@ -92,7 +92,7 @@ struct seed_interval {
     uint32_t buffer;
 };
 
-typedef std::vector<segment> hsp_output; 
+typedef std::vector<segmentPair> hsp_output; 
 typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
 typedef tbb::flow::tuple <seeder_payload, hsp_output, hsp_output> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;

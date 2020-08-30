@@ -14,8 +14,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     size_t token  = get<1>(input);
 
     auto &seeder_payload = get<0>(payload);
-    auto &fw_segments    = get<1>(payload);
-    auto &rc_segments    = get<2>(payload);
+    auto &fw_hsps    = get<1>(payload);
+    auto &rc_hsps    = get<2>(payload);
 
     auto &block_data    = get<0>(seeder_payload);
     auto &interval_data = get<1>(seeder_payload);
@@ -42,9 +42,9 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     std::string err_filename;
     std::string cmd;
 
-    uint32_t fw_hsps  = fw_segments.size();
-    uint32_t rc_hsps  = rc_segments.size();
-    uint32_t num_hsps = fw_hsps + rc_hsps;
+    uint32_t fw_num_hsps  = fw_hsps.size();
+    uint32_t rc_num_hsps  = rc_hsps.size();
+    uint32_t num_hsps = fw_num_hsps + rc_num_hsps;
 
     if(num_hsps > 0){
 
@@ -67,13 +67,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         std::string out_str;
         FILE* segmentFile;
 
-        if(fw_hsps > 0){
+        if(fw_num_hsps > 0){
 
             base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(q_block_index)+".r"+std::to_string(r_block_start)+".plus"; 
             segment_filename = base_filename+".segments";
             segmentFile = fopen(segment_filename.c_str(), "w");
 
-            for (auto e: fw_segments) {
+            for (auto e: fw_hsps) {
                 seg_r_start = e.ref_start + r_block_start;
                 seg_q_start = q_block_start + e.query_start;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
@@ -122,13 +122,13 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         curr_q_chr_start = rc_q_chr_start[curr_q_chr_index];
         curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
 
-        if(rc_hsps > 0){
+        if(rc_num_hsps > 0){
             base_filename = "tmp"+std::to_string(index)+".block"+std::to_string(q_block_index)+".r"+std::to_string(r_block_start)+".minus"; 
             segment_filename = base_filename+".segments";
             segmentFile = fopen(segment_filename.c_str(), "w");
 
-            for(int r = rc_segments.size()-1; r >= 0; r--){
-                auto e =  rc_segments[r];
+            for(int r = rc_hsps.size()-1; r >= 0; r--){
+                auto e =  rc_hsps[r];
                 seg_r_start = e.ref_start + r_block_start;
                 seg_q_start = e.query_start + q_block_start;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
