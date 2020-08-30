@@ -731,14 +731,6 @@ std::vector<segment> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bo
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
-                thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspDiagComp());
-                
-                thrust::device_vector<segment>::iterator result_end2 = thrust::unique_copy(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], d_hsp_reduced_vec[g].begin(),  hspDiagEqual());
-
-                num_anchors[i] = thrust::distance(d_hsp_reduced_vec[g].begin(), result_end2), num_anchors[i];
-
-                thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspFinalComp());
-
                 total_anchors += num_anchors[i];
 
                 h_hsp[i] = (segment*) calloc(num_anchors[i], sizeof(segment));
