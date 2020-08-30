@@ -138,8 +138,8 @@ else
   if [ $outf -eq 1 ]; then
     touch $output_filename
 
-    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename && rm $filename >> $output_filename; done
-    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename && rm $filename >> $output_filename; done
+    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename && rm $filename; done
+    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename && rm $filename; done
     if [ $mk -eq 1 ]; then
       echo "# segalign end-of-file" >> $output_filename
     fi

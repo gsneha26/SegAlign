@@ -87,68 +87,11 @@ static inline void check_cuda_free(void* buf, const char* tag) {
         exit(14);
     }
 }
-	 
-struct hspDiagEqual{
-    __host__ __device__
-        bool operator()(segment x, segment y){
-        return ( ( (x.ref_start - x.query_start) == (y.ref_start - y.query_start) ) &&  ( ( (x.ref_start >= y.ref_start) && ( (x.ref_start + x.len) <= (y.ref_start + y.len) )  ) || ( ( y.ref_start >= x.ref_start ) && ( (y.ref_start + y.len) <= (x.ref_start + x.len) ) ) ) );
-    }
-};
-
-struct hspDiagComp{
-    __host__ __device__
-        bool operator()(segment x, segment y){
-            if((x.ref_start - x.query_start) < (y.ref_start - y.query_start))
-                return true;
-            else if((x.ref_start - x.query_start) == (y.ref_start - y.query_start)){
-                if(x.ref_start < y.ref_start)
-                    return true;
-                else if(x.ref_start == y.ref_start){
-                    if(x.query_start < y.query_start)
-                        return true;
-                    else if(x.query_start == y.query_start){
-                        if(x.score > y.score)
-                            return true;
-                        else
-                            return false;
-                    }
-                    else
-                        return false;
-                }
-                else
-                    return false;
-            }
-            else 
-                return false;
-    }
-};
 
 struct hspEqual{
     __host__ __device__
         bool operator()(segment x, segment y){
         return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
-    }
-};
-
-struct hspFinalComp{
-    __host__ __device__
-        bool operator()(segment x, segment y){
-            if(x.query_start < y.query_start)
-                return true;
-            else if(x.query_start == y.query_start){
-                if(x.score > y.score)
-                    return true;
-                else if(x.score == y.score){
-                    if(x.ref_start > y.ref_start)
-                        return true;
-                    else
-                        return false;
-                }
-                else
-                    return false;
-            }
-            else
-                return false;
     }
 };
 
@@ -554,7 +497,6 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 }
             }
             __syncwarp();
-
         }
 
         __syncwarp();
@@ -706,7 +648,6 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 }
             }
             __syncwarp();
-
         }
 
         //////////////////////////////////////////////////////////////////
