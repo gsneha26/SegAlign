@@ -16,6 +16,7 @@ A Scalable GPU System for Pairwise Whole Genome Alignments based on LASTZ's seed
     - [Running a test](#test)
 - [How to run SegAlign repeat masker](#run_rm)
     - [Running a test](#test_rm)
+- [Citing SegAlign](#cite_segalign)
 
 ## <a name="overview"></a> Overview
 
@@ -95,3 +96,7 @@ The dependencies can be installed with the given script as follows, which might 
     $ twoBitToFa ce11.2bit ce11.fa
     $ run_segalign_repeat_masker ce11.fa --output=ce11.seg
 ```
+
+## <a name="cite_segalign"></a> Citing SegAlign
+
+Goenka, S. D., Turakhia, Y., Paten, B., Horowitz, M., "SegAlign: A Scalable GPU-Based Whole Genome Aligner," SC20: International Conference for High Performance Computing, Networking, Storage and Analysis, Atlanta, GA, USA, 2020. 
