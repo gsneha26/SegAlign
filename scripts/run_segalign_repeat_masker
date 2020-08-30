@@ -34,10 +34,6 @@ total_args=${#split_args[@]}
 
 for ((i=0; i < $total_args; i++))
 {
-  if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
-    ng=1
-  fi
-
   if [[ "${split_args[$i]}" == *"--output"* ]]; then
     outf=1
     output_filename=$(readlink -f ${split_args[$(($i+1))]})
@@ -58,7 +54,7 @@ for ((i=0; i < $total_args; i++))
 
 if [ $hp -eq 1 ]; then
   segalign_repeat_masker --help
-  
+
 elif [ $# -eq 0 ]; then
   segalign_repeat_masker
 
@@ -79,7 +75,7 @@ else
   mkdir -p $OUTPUT_FOLDER
 
   1>&2 echo ""
-  1>&2 echo "Executing: \"segalign_repeat_masker $@\""
+  1>&2 echo "Executing: \"segalign_repeat_masker $refPath ${@:2:$#-1}\""
 
   pids=""
   FAIL=0
@@ -89,19 +85,23 @@ else
   time {
     count=0
 
-    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign_repeat_masker "$@" )
+    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign_repeat_masker $refPath "${@:2:$#-1}" )
     wait $pids || let "FAIL+=1"
   }
 
   if [ $FAIL -gt 0 ]; then
       1>&2 echo ""
-      1>&2 echo "Error in sort!"
+      if [ $pc -eq 0 ]; then
+          1>&2 echo "Error in sort!"
+      else
+          1>&2 echo "Error in sort or post-processing command!"
+      fi
       (exit 6)
   fi
 
   if [ $outf -eq 1 ]; then
 
-    touch $output_filename
+    > $output_filename
 
     if [ $pc -eq 0 ]; then
         echo "#name1  zstart1 end1  name2 zstart2+  end2+" >> $output_filename
