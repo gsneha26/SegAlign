@@ -78,7 +78,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 seg_q_start = q_block_start + e.query_start;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
-                if(seg_q_start < curr_q_chr_start && seg_q_start >= curr_q_chr_end){
+                if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
                     q_index = std::upper_bound(q_chr_start.cbegin(), q_chr_start.cend(), seg_q_start) - q_chr_start.cbegin() - 1;
                     curr_q_chr_index = q_index;
                     curr_q_chr = q_chr_name[curr_q_chr_index];
@@ -133,7 +133,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 seg_q_start = e.query_start + q_block_start;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
-                if(seg_q_start < curr_q_chr_start && seg_q_start >= curr_q_chr_end){
+                if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
                     q_index = std::upper_bound(rc_q_chr_start.cbegin(), rc_q_chr_start.cend(), seg_q_start) - rc_q_chr_start.cbegin() - 1;
                     curr_q_chr_index = q_index;
                     curr_q_chr = rc_q_chr_name[curr_q_chr_index];
