@@ -52,9 +52,6 @@ struct Configuration {
     int hspthresh;
     bool noentropy;
 
-    // Extension parameters
-    bool gapped;
-
     // Output parameters
     std::string output;
     std::string cmd;

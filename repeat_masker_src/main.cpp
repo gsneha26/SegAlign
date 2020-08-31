@@ -66,10 +66,6 @@ int main(int argc, char** argv){
         ("hspthresh", po::value<int>(&cfg.hspthresh)->default_value(3000), "segment score threshold for high scoring pairs")
         ("noentropy", po::bool_switch(&cfg.noentropy)->default_value(false), "don't adjust low score segment pair scores using entropy factor after filtering stage");
 
-    po::options_description gapped_desc{"Gapped Extension Options"};
-    gapped_desc.add_options()
-        ("nogapped", po::bool_switch(&cfg.gapped)->default_value(false), "don't perform gapped extension stage");
-
     po::options_description output_desc{"Output Options"};
     output_desc.add_options()
         ("output", po::value<std::string>(&cfg.output), "output filename")
@@ -90,7 +86,6 @@ int main(int argc, char** argv){
     all_options.add(scoring_desc);
     all_options.add(seeding_desc);
     all_options.add(ungapped_desc);
-    all_options.add(gapped_desc);
     all_options.add(output_desc);
     all_options.add(system_desc);
     all_options.add(hidden);
@@ -114,26 +109,10 @@ int main(int argc, char** argv){
         }
 
         fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n\n"); 
-//        std::string last = "";
-//        int rep = 0;
-//        for(int i = 0; i < p.max_total_count(); i++){
-//            const std::string &n = p.name_for_position(i);
-//            if(n == last){
-//                if(!rep) std::cerr << " ...";
-//                if(rep++ > 1000) break;
-//            }
-//            else{
-//                std::cerr << " " << n;
-//                last = n;
-//                rep = 0;
-//            }
-//        }
-//        std::cerr << std::endl;
         std::cerr << desc << std::endl;
         std::cerr << scoring_desc << std::endl;
         std::cerr << seeding_desc << std::endl;
         std::cerr << ungapped_desc << std::endl;
-        std::cerr << gapped_desc << std::endl;
         std::cerr << output_desc << std::endl;
         std::cerr << system_desc << std::endl;
 	
@@ -165,8 +144,6 @@ int main(int argc, char** argv){
     }
 
     cfg.seed.kmer_size = GenerateShapePos(cfg.seed.shape);
-
-    cfg.gapped = !cfg.gapped;
 
     int ambiguous_reward = -100;
     int ambiguous_penalty = -100;
@@ -267,7 +244,6 @@ int main(int argc, char** argv){
         fprintf(stderr, "Transition %d\n", cfg.seed.transition);
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
-        fprintf(stderr, "Gapped %d\n",cfg.gapped);
 
         for(int i = 0; i < NUC; i++){
             for(int j = 0; j < NUC; j++){
