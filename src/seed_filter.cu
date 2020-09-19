@@ -764,10 +764,15 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
             }
+
+            if(num_anchors[it] > 0){
+                free(h_hsp[it]);
+            }
         }
-        free(h_hsp);
     }
     
+    free(h_hsp);
+    free(num_anchors);
     free(tmp_offset);
     return gpu_filter_output;
 }
