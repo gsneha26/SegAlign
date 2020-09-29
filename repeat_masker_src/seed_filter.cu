@@ -688,7 +688,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 }
 
 __global__
-void compress_output (uint32_t* d_done, segmentPair* d_hsp, segmentPair* d_hsp_reduced, int num_hits){
+void compress_output (uint32_t* d_done, segmentPair* d_hsp, segmentPair* d_hsp_reduced, int num_hits, bool rev, uint32_t len){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -701,15 +701,20 @@ void compress_output (uint32_t* d_done, segmentPair* d_hsp, segmentPair* d_hsp_r
 
     for (uint32_t id = start; id < num_hits; id += stride) {
         index = d_done[id];
+        segmentPair output = d_hsp[id];
+
+        if(rev)
+            output.query_start = len - 1 - (output.query_start + output.len);
+
 
         if(id > 0){
             if(index > d_done[id-1]){
-                d_hsp_reduced[index-1] = d_hsp[id];
+                d_hsp_reduced[index-1] = output;
             }
         }
         else{
             if(index == 1){
-                d_hsp_reduced[0] = d_hsp[0];
+                d_hsp_reduced[0] = output;
             }
         }
     }
@@ -787,7 +792,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
             check_cuda_memcpy((void*)&num_anchors[i], (void*)(d_done[g]+iter_num_hits-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_anchors");
 
             if(num_anchors[i] > 0){
-                compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits);
+                compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits, rev, ref_len);
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
                 
