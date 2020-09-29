@@ -1,4 +1,5 @@
 #include "graph.h"
+#include <algorithm>
 #include "store.h"
 #include "ntcoding.h"
 #include "seed_filter.h"
@@ -40,20 +41,24 @@ printer_input seeder_body::operator()(seeder_input input) {
     std::vector<segmentPair> rc_hsps;
     fw_hsps.clear();
     rc_hsps.clear();
+    int32_t start;
+    int32_t end;
 
     fprintf (stderr, "Chromosome block %u interval %u/%u (%lu:%lu) with ref (%u:%u) rc (%lu:%lu)\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc);
 
-    if(cfg.strand == "plus" || cfg.strand == "both"){
-        for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
+    for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
-            //end position
-            uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos);
+        //chunk limit positions
+        start = i;
+        end = std::min(start + cfg.wga_chunk_size, end_pos);
+
+        if(cfg.strand == "plus" || cfg.strand == "both"){
 
             std::vector<uint64_t> seed_offset_vector;
             seed_offset_vector.clear();
 
             //start to end position in the chunk
-            for (uint32_t j = i; j < e; j++) {
+            for (uint32_t j = start; j < end; j++) {
 
                 kmer_index = GetKmerIndexAtPos(seq_DRAM->buffer, block_start+j, cfg.seed.size);
                 if (kmer_index != ((uint32_t) 1 << 31)) {
@@ -82,15 +87,17 @@ printer_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
-    }
 
-    if(cfg.strand == "minus" || cfg.strand == "both"){
-        for (uint32_t i = start_pos_rc; i < end_pos_rc; i += cfg.wga_chunk_size) {
-            uint32_t e = std::min(i + cfg.wga_chunk_size, end_pos_rc);
+        if(cfg.strand == "minus" || cfg.strand == "both"){
+
+            //chunk limit positions
+            start = block_len - 1 - end;
+            end = std::min(start + cfg.wga_chunk_size, end_pos_rc);
 
             std::vector<uint64_t> seed_offset_vector;
             seed_offset_vector.clear();
-            for (uint32_t j = i; j < e; j++) {
+
+            for (uint32_t j = start; j < end; j++) {
                 kmer_index = GetKmerIndexAtPos(seq_rc_DRAM->buffer, (rc_block_start+j), cfg.seed.size);
                 if (kmer_index != ((uint32_t) 1 << 31)) {
                     seed_offset = (kmer_index << 32) + j;
@@ -112,8 +119,10 @@ printer_input seeder_body::operator()(seeder_input input) {
                 std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, ref_start, ref_end);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    rc_hsps.insert(rc_hsps.end(), anchors.begin()+1, anchors.end());
+                    rc_hsps.insert(rc_hsps.end(), anchors.rbegin(), anchors.rend()-1);
                     seeder_body::num_hsps += anchors.size()-1;
+//                    if(start_pos > 0)
+//                        printf("%u %u %u %u %u\n", i, start, end, rc_hsps.size(), anchors.size()-1);
                 }
             }
         }

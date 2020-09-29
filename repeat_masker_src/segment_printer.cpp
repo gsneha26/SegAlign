@@ -80,8 +80,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
         if(rc_num_hsps > 0){
 
-            for(int r = rc_hsps.size()-1; r >= 0; r--){
-                auto e =  rc_hsps[r];
+            for (auto e: rc_hsps) {
                 seg_r_start = block_start + e.ref_start;
                 seg_q_start = block_start + (block_len -1 - (e.query_start + e.len));
                 r_index = std::upper_bound(chr_start.cbegin(), chr_start.cend(), seg_r_start) - chr_start.cbegin() - 1;
