@@ -51,7 +51,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    int* int_count = (int*) calloc(2*block_len, sizeof(int)); 
+    uint8_t* int_count = (uint8_t*) calloc(MAX_COUNT_LEN, sizeof(uint8_t)); 
 
     std::vector<segmentPair> total_hsps;
     total_hsps.clear();
@@ -143,6 +143,7 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
 
+        /*
         if(total_hsps.size() > new_num_hsps){
             old_num_hsps = new_num_hsps;
             new_num_hsps = total_hsps.size();
@@ -155,10 +156,24 @@ printer_input seeder_body::operator()(seeder_input input) {
                 }
             }
         }
+        */
+
+        if(total_hsps.size() > 0){
+
+            std::sort(total_hsps.begin(), total_hsps.end()-1, sort_hsp);
+            for(int i = 0; i < total_hsps.size(); i++){
+                segmentPair hsp = total_hsps[i];
+                for(int j = hsp.query_start; j < (hsp.query_start + hsp.len); j++){
+                    int_count[j]++;
+                }
+            }
+
+            total_hsps.clear();
+        }
     }
 
-    total_hsps.clear();
-    total_hsps.shrink_to_fit();
+//    total_hsps.clear();
+//    total_hsps.shrink_to_fit();
 
     std::vector<Segment> total_intervals;
     total_intervals.clear();
