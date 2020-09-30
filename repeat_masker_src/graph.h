@@ -27,6 +27,11 @@ struct segmentPair {
     int score;
 };
 
+struct Segment {
+    uint32_t query_start;
+    uint32_t len;
+};
+
 struct Configuration {
     //Input files/folder name
     std::string seq_filename;
@@ -85,8 +90,9 @@ struct seed_interval {
 };
 
 typedef std::vector<segmentPair> hsp_output; 
+typedef std::vector<Segment> interval_output; 
 typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
-typedef tbb::flow::tuple <seq_block, int, hsp_output, hsp_output> printer_payload;
+typedef tbb::flow::tuple <seq_block, int, interval_output> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
 typedef tbb::flow::tuple <printer_payload, size_t> printer_input;
 typedef tbb::flow::multifunction_node<printer_input, tbb::flow::tuple<size_t>> printer_node;

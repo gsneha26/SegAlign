@@ -51,6 +51,8 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
+    int* int_count = (int*) calloc(2*block_len, sizeof(int)); 
+
     std::vector<segmentPair> total_hsps;
     total_hsps.clear();
 
@@ -141,14 +143,58 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
 
-        old_num_hsps = new_num_hsps;
-        new_num_hsps = total_hsps.size();
+        if(total_hsps.size() > new_num_hsps){
+            old_num_hsps = new_num_hsps;
+            new_num_hsps = total_hsps.size();
 
-        std::sort(total_hsps.begin()+old_num_hsps, total_hsps.end()-1, sort_hsp);
+            std::sort(total_hsps.begin()+old_num_hsps, total_hsps.end()-1, sort_hsp);
+            for(int i = old_num_hsps; i < new_num_hsps; i++){
+                segmentPair hsp = total_hsps[i];
+                for(int j = hsp.query_start; j < (hsp.query_start + hsp.len); j++){
+                    int_count[j]++;
+                }
+            }
+        }
     }
+
+    total_hsps.clear();
+    total_hsps.shrink_to_fit();
+
+    std::vector<Segment> total_intervals;
+    total_intervals.clear();
+
+    int run = 0;
+    int query_start = 0;
+    int len = 0;
+
+    if(total_hsps.size() > 0){
+        for(int i = 0; i < 2*block_len; i++){
+            if(int_count[i] > 16){
+//                printf("%d\n", i);
+                if(run == 0){
+                    run = 1;
+                    query_start = i;
+                }
+                len++;
+            }
+            else{
+                if(run == 1){
+                    run = 0;
+                    Segment s;
+                    s.query_start = query_start;
+                    s.len = len;
+                    total_intervals.push_back(s);
+                }
+                query_start = 0;
+                len = 0;
+            }
+        }
+    }
+
+    free(int_count);
 
     seeder_body::num_seeded_regions += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(block_data, num_invoked, total_hsps, total_hsps), token);
+    return printer_input(printer_payload(block_data, num_invoked, total_intervals), token);
 }

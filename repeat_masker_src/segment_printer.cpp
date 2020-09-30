@@ -27,8 +27,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
     
     uint32_t num_hsps  = out_hsps.size();
 
-    size_t r_index;
-    size_t seg_r_start;
     size_t q_index;
     size_t seg_q_start;
 
@@ -49,8 +47,6 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         segmentFile = fopen(segment_filename.c_str(), "w");
 
         for (auto e: out_hsps) {
-            seg_r_start = block_start + e.ref_start;
-            r_index     = std::upper_bound(chr_start.cbegin(), chr_start.cend(), seg_r_start) - chr_start.cbegin() - 1;
             seg_q_start = block_start + e.query_start;
 
             if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
@@ -61,19 +57,11 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 curr_q_chr_end   = curr_q_chr_start + chr_len[curr_q_chr_index];
             }
 
-            out_str = chr_name[r_index] + '\t' + std::to_string(seg_r_start-chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\n";
-            fprintf(segmentFile, "%s", out_str.c_str());
+//            out_str = curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\n";
+            fprintf(segmentFile, "%s\t%lu\t%lu\n", curr_q_chr.c_str(), seg_q_start-curr_q_chr_start, seg_q_start+e.len+1-curr_q_chr_start);
         }
 
         fclose(segmentFile);
-
-        if(cfg.postprocess){
-            std::string output_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".out"; 
-            cmd = "sort -Vk4,5 "+segment_filename+" | "+cfg.cmd+" > "+output_filename+" && rm "+segment_filename; 
-//            cmd = "sort -Vk4,5 "+segment_filename+" | "+cfg.cmd+" && rm "+segment_filename+" > "+output_filename; 
-        }
-        else
-            cmd = "sort -Vk4,5 "+segment_filename+" -o "+segment_filename;
 
         io_lock.lock();
         printf("%s\n", cmd.c_str());
