@@ -51,27 +51,22 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    std::vector<segmentPair> out_hsps;
-    out_hsps.clear();
     std::vector<segmentPair> total_hsps;
     total_hsps.clear();
 
-//    std::vector<segmentPair> fw_hsps;
-//    std::vector<segmentPair> rc_hsps;
-//    fw_hsps.clear();
-//    rc_hsps.clear();
     int32_t start;
     int32_t end;
 
+    uint32_t old_num_hsps = 0;
+    uint32_t new_num_hsps = 0;
+
     fprintf (stderr, "Chromosome block %u interval %u/%u (%lu:%lu) with ref (%u:%u) rc (%lu:%lu)\n", block_index, num_invoked, num_intervals, block_start+start_pos, block_start+end_pos, ref_start, ref_end, rc_block_start+start_pos_rc, rc_block_start+end_pos_rc);
 
-//    for (uint32_t i = start_pos; i < cfg.wga_chunk_size; i += cfg.wga_chunk_size) {
     for (uint32_t i = start_pos; i < end_pos; i += cfg.wga_chunk_size) {
 
         //chunk limit positions
         start = i;
         end = std::min(start + cfg.wga_chunk_size, end_pos);
-        printf("%u %u\n", start, end);
 
         if(cfg.strand == "plus" || cfg.strand == "both"){
 
@@ -103,7 +98,7 @@ printer_input seeder_body::operator()(seeder_input input) {
                 std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, ref_start, ref_end);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    out_hsps.insert(out_hsps.end(), anchors.begin()+1, anchors.end());
+                    total_hsps.insert(total_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
                 }
             }
@@ -140,21 +135,20 @@ printer_input seeder_body::operator()(seeder_input input) {
                 std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, ref_start, ref_end);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
-                    out_hsps.insert(out_hsps.end(), anchors.rbegin(), anchors.rend()-1);
+                    total_hsps.insert(total_hsps.end(), anchors.rbegin(), anchors.rend()-1);
                     seeder_body::num_hsps += anchors.size()-1;
-//                    if(start_pos > 0)
-//                        printf("%u %u %u %u %u\n", i, start, end, out_hsps.size(), anchors.size()-1);
                 }
             }
         }
 
-        std::sort(out_hsps.begin(), out_hsps.end(), sort_hsp);
-        total_hsps.insert(total_hsps.end(), out_hsps.begin(), out_hsps.end());
-        out_hsps.clear();
+        old_num_hsps = new_num_hsps;
+        new_num_hsps = total_hsps.size();
+
+        std::sort(total_hsps.begin()+old_num_hsps, total_hsps.end()-1, sort_hsp);
     }
 
     seeder_body::num_seeded_regions += 1;
     seeder_body::total_xdrop += 1;
 
-    return printer_input(printer_payload(block_data, num_invoked, total_hsps, out_hsps), token);
+    return printer_input(printer_payload(block_data, num_invoked, total_hsps, total_hsps), token);
 }
