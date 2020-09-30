@@ -143,21 +143,6 @@ printer_input seeder_body::operator()(seeder_input input) {
             }
         }
 
-        /*
-        if(total_hsps.size() > new_num_hsps){
-            old_num_hsps = new_num_hsps;
-            new_num_hsps = total_hsps.size();
-
-            std::sort(total_hsps.begin()+old_num_hsps, total_hsps.end()-1, sort_hsp);
-            for(int i = old_num_hsps; i < new_num_hsps; i++){
-                segmentPair hsp = total_hsps[i];
-                for(int j = hsp.query_start; j < (hsp.query_start + hsp.len); j++){
-                    int_count[j]++;
-                }
-            }
-        }
-        */
-
         if(total_hsps.size() > 0){
 
             std::sort(total_hsps.begin(), total_hsps.end()-1, sort_hsp);
@@ -179,7 +164,7 @@ printer_input seeder_body::operator()(seeder_input input) {
     int len = 0;
 
     for(int i = 0; i < MAX_COUNT_LEN; i++){
-        if(int_count[i] > 16){
+        if(int_count[i] >= cfg.M){
             if(run == 0){
                 run = 1;
                 query_start = i;

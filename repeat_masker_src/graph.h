@@ -60,8 +60,7 @@ struct Configuration {
 
     // Output parameters
     std::string output;
-    std::string cmd;
-    bool postprocess;
+    uint32_t M;
     bool markend;
 
     // System parameters
@@ -107,7 +106,7 @@ struct seeder_body{
 	printer_input operator()(seeder_input input);
 };
 
-struct segment_printer_body{
+struct interval_printer_body{
 	void operator()(printer_input input, printer_node::output_ports_type & op);
 };
 
