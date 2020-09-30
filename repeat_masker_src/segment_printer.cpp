@@ -43,7 +43,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         std::string out_str;
         FILE* segmentFile;
 
-        segment_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".segments"; 
+        segment_filename = "tmp"+std::to_string(index)+".block"+std::to_string(block_index)+".intervals"; 
         segmentFile = fopen(segment_filename.c_str(), "w");
 
         for (auto e: out_hsps) {
@@ -57,15 +57,10 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 curr_q_chr_end   = curr_q_chr_start + chr_len[curr_q_chr_index];
             }
 
-//            out_str = curr_q_chr + '\t' +  std::to_string(seg_q_start-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\n";
             fprintf(segmentFile, "%s\t%lu\t%lu\n", curr_q_chr.c_str(), seg_q_start-curr_q_chr_start, seg_q_start+e.len+1-curr_q_chr_start);
         }
 
         fclose(segmentFile);
-
-        io_lock.lock();
-        printf("%s\n", cmd.c_str());
-        io_lock.unlock();
     }
 
     get<0>(op).try_put(token);

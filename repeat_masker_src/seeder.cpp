@@ -167,13 +167,9 @@ printer_input seeder_body::operator()(seeder_input input) {
                     int_count[j]++;
                 }
             }
-
             total_hsps.clear();
         }
     }
-
-//    total_hsps.clear();
-//    total_hsps.shrink_to_fit();
 
     std::vector<Segment> total_intervals;
     total_intervals.clear();
@@ -182,27 +178,24 @@ printer_input seeder_body::operator()(seeder_input input) {
     int query_start = 0;
     int len = 0;
 
-    if(total_hsps.size() > 0){
-        for(int i = 0; i < 2*block_len; i++){
-            if(int_count[i] > 16){
-//                printf("%d\n", i);
-                if(run == 0){
-                    run = 1;
-                    query_start = i;
-                }
-                len++;
+    for(int i = 0; i < MAX_COUNT_LEN; i++){
+        if(int_count[i] > 16){
+            if(run == 0){
+                run = 1;
+                query_start = i;
             }
-            else{
-                if(run == 1){
-                    run = 0;
-                    Segment s;
-                    s.query_start = query_start;
-                    s.len = len;
-                    total_intervals.push_back(s);
-                }
-                query_start = 0;
-                len = 0;
+            len++;
+        }
+        else{
+            if(run == 1){
+                run = 0;
+                Segment s;
+                s.query_start = query_start;
+                s.len = len;
+                total_intervals.push_back(s);
             }
+            query_start = 0;
+            len = 0;
         }
     }
 
