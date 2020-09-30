@@ -95,21 +95,15 @@ fi
 
 # TBB
 cd $CURR
-REPOSRC=https://github.com/01org/tbb
-LOCALREPO=$CURR/tbb
-LOCALREPO_VC_DIR=$LOCALREPO/.git
-if [ ! -d $LOCALREPO_VC_DIR ]; then
-  git clone $REPOSRC $LOCALREPO
-else
-  cd $LOCALREPO
-  git pull $REPOSRC
-fi
+wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
+tar -xvf tbb2019_20191006oss_lin.tgz
+rm tbb2019_20191006oss_lin.tgz
 
 # SegAlign 
 cd $CURR
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb ..
+cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
 make -j $(nproc)
 sudo cp $CURR/build/segalign* /usr/local/bin	
 sudo cp $CURR/scripts/run_segalign* /usr/local/bin

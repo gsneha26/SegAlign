@@ -41,4 +41,4 @@ before_script:
     
 script: 
   - run_segalign --help
-  - run_segalign_repeat_masker --help
+  - segalign_repeat_masker --help
