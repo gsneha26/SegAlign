@@ -68,8 +68,7 @@ int main(int argc, char** argv){
 
     po::options_description output_desc{"Output Options"};
     output_desc.add_options()
-        ("output", po::value<std::string>(&cfg.output), "output filename")
-        ("postprocess_cmd", po::value<std::string>(&cfg.cmd), "postprocessing command for each of the segment file of each query_interval, it is executed in parallel to reduce post-processing time")
+        ("M", po::value<uint32_t>(&cfg.M)->default_value(1), "report any position that is covered by at least this many alignments; the maximum allowed depth is 255")
         ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
 
     po::options_description system_desc{"System Options"};
@@ -108,7 +107,7 @@ int main(int argc, char** argv){
             }
         }
 
-        fprintf(stderr, "Usage: run_segalign_repeat_masker seq_file [options]\n\n"); 
+        fprintf(stderr, "Usage: segalign_repeat_masker seq_file [options]\n\n"); 
         std::cerr << desc << std::endl;
         std::cerr << scoring_desc << std::endl;
         std::cerr << seeding_desc << std::endl;
@@ -227,11 +226,6 @@ int main(int argc, char** argv){
         }
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
     }
-
-    if(vm.count("postprocess_cmd"))
-        cfg.postprocess = true;
-    else
-        cfg.postprocess = false;
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
@@ -448,7 +442,7 @@ int main(int argc, char** argv){
     fprintf(stderr, "\nStart alignment ...\n");
     tbb::flow::graph align_graph;
 
-    printer_node printer(align_graph, tbb::flow::unlimited, segment_printer_body());
+    printer_node printer(align_graph, tbb::flow::unlimited, interval_printer_body());
 
     tbb::flow::function_node<seeder_input, printer_input> seeder(align_graph, tbb::flow::unlimited, seeder_body());
 
