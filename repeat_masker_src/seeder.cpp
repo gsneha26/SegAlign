@@ -1,8 +1,10 @@
 #include "graph.h"
 #include <algorithm>
+#include <assert.h>
 #include "store.h"
 #include "ntcoding.h"
 #include "seed_filter.h"
+#include "tbb/scalable_allocator.h"
 
 std::atomic<uint64_t> seeder_body::num_seed_hits(0);
 std::atomic<uint64_t> seeder_body::num_seeds(0);
@@ -20,8 +22,7 @@ bool sort_hsp(segmentPair x, segmentPair y){
         else
             return false;
     }
-    else
-        return false;
+    return false;
 }
 
 printer_input seeder_body::operator()(seeder_input input) {
@@ -51,10 +52,14 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    uint8_t* int_count = (uint8_t*) calloc(MAX_COUNT_LEN, sizeof(uint8_t)); 
-
     std::vector<segmentPair> total_hsps;
     total_hsps.clear();
+
+    uint8_t* int_count;
+    int_count = (uint8_t*) scalable_calloc(block_len, sizeof(uint8_t)); 
+
+    std::vector<Segment> total_intervals;
+    total_intervals.clear();
 
     int32_t start;
     int32_t end;
@@ -145,9 +150,8 @@ printer_input seeder_body::operator()(seeder_input input) {
 
         if(total_hsps.size() > 0){
 
-            std::sort(total_hsps.begin(), total_hsps.end()-1, sort_hsp);
-            for(int i = 0; i < total_hsps.size(); i++){
-                segmentPair hsp = total_hsps[i];
+            std::sort(total_hsps.begin(), total_hsps.end(), sort_hsp);
+	    for (auto hsp: total_hsps) {
                 for(int j = hsp.query_start; j < (hsp.query_start + hsp.len); j++){
                     int_count[j]++;
                 }
@@ -156,14 +160,11 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    std::vector<Segment> total_intervals;
-    total_intervals.clear();
-
     int run = 0;
     int query_start = 0;
     int len = 0;
 
-    for(int i = 0; i < MAX_COUNT_LEN; i++){
+    for(int i = 0; i < block_len; i++){
         if(int_count[i] >= cfg.M){
             if(run == 0){
                 run = 1;
@@ -184,7 +185,7 @@ printer_input seeder_body::operator()(seeder_input input) {
         }
     }
 
-    free(int_count);
+    scalable_free(int_count);
 
     seeder_body::num_seeded_regions += 1;
     seeder_body::total_xdrop += 1;
