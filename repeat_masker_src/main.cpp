@@ -69,7 +69,6 @@ int main(int argc, char** argv){
     po::options_description output_desc{"Output Options"};
     output_desc.add_options()
         ("M", po::value<uint32_t>(&cfg.M)->default_value(1), "report any position that is covered by at least this many alignments; the maximum allowed depth is 255")
-        ("output", po::value<std::string>(&cfg.output), "output filename")
         ("markend", po::bool_switch(&cfg.markend), "write a marker line just before completion");
 
     po::options_description system_desc{"System Options"};
