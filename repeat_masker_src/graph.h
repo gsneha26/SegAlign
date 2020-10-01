@@ -58,7 +58,6 @@ struct Configuration {
     bool noentropy;
 
     // Output parameters
-    std::string output;
     uint32_t M;
     bool markend;
 
