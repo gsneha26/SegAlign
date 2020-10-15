@@ -4,7 +4,7 @@
 [![License][license-badge]][license-link]
 [![Build Status](https://travis-ci.com/gsneha26/SegAlign.svg?branch=master)](https://travis-ci.com/gsneha26/SegAlign)
 
-![Alt text](logo.png| width=100)
+![](logo.png | width=100)
 
 # SegAlign 
 
