@@ -99,4 +99,4 @@ The dependencies can be installed with the given script as follows, which might 
 
 ## <a name="cite_segalign"></a> Citing SegAlign
 
-Goenka, Sneha D., Yatish Turakhia, Benedict Paten and Mark Horowitz. "SegAlign: A Scalable GPU-Based Whole Genome Aligner." In SC20: International Conference for High Performance Computing, Networking, Storage and Analysis. 
+Sneha D. Goenka, Yatish Turakhia, Benedict Paten and Mark Horowitz. "SegAlign: A Scalable GPU-Based Whole Genome Aligner." In SC20: International Conference for High Performance Computing, Networking, Storage and Analysis. 
