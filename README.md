@@ -4,7 +4,7 @@
 [![License][license-badge]][license-link]
 [![Build Status](https://travis-ci.com/gsneha26/SegAlign.svg?branch=master)](https://travis-ci.com/gsneha26/SegAlign)
 
-![GitHub Logo](logo.png)
+<img src="logo.png" width="500">
 
 A Scalable GPU System for Pairwise Whole Genome Alignments based on LASTZ's seed-filter-extend paradigm.
 
