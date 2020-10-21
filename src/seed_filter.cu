@@ -223,7 +223,8 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     __shared__ uint32_t left_extent[NUM_WARPS];
     __shared__ int extent[NUM_WARPS];
     __shared__ uint32_t tile[NUM_WARPS];
-    __shared__ double entropy[NUM_WARPS];
+    __shared__ float entropy[NUM_WARPS];
+    float log4 = log(4.0f);
 
     int thread_score;
     int max_thread_score;
@@ -588,11 +589,12 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
 
             if(lane_id == warp_size-1 && ((count[0]+count[1]+count[2]+count[3]) >= 20)){
 
-                entropy[warp_id] = 0.f;
+                float tmp_entropy = 0.f;
                 for(int i = 0; i < 4; i++){
-                    entropy[warp_id] += ((double) count[i])/((double) (extent[warp_id]+1)) * ((count[i] != 0) ? log(((double) count[i]) / ((double) (extent[warp_id]+1))): 0.f); 
+                    
+                    tmp_entropy += ((float) count[i])/((float) (extent[warp_id]+1)) * ((count[i] != 0) ? log(((float) count[i]) / ((float) (extent[warp_id]+1))): 0.f); 
                 }
-                entropy[warp_id] = -entropy[warp_id]/log(4.0f);
+                entropy[warp_id] = -tmp_entropy/log4;
             }
         }
         __syncwarp();
