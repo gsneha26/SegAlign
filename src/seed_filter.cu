@@ -115,9 +115,9 @@ struct hspComp{
                 if(x.ref_start < y.ref_start)
                     return true;
                 else if(x.ref_start == y.ref_start){
-                    if(x.length < y.length)
+                    if(x.len < y.len)
                         return true;
-                    else if(x.length == y.length){
+                    else if(x.len == y.len){
                         if(x.score > y.score)
                             return true;
                         else
