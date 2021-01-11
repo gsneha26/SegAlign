@@ -504,7 +504,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 }
             }
 
-            if(xdrop_done == 1){
+            if(xdrop_done){
                 max_thread_score = prev_max_score[warp_id];
                 max_pos = prev_max_pos[warp_id];
             }
