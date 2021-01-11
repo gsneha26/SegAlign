@@ -27,14 +27,16 @@ before_install:
   - make -j $(nproc)
   - PATH=${CURR}/bin/lastz-distrib-1.04.03/src/:${PATH}
   - cd ${CURR}
-  - git clone https://github.com/01org/tbb
+  - wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
+  - tar -xvf tbb2019_20191006oss_lin.tgz
+  - rm tbb2019_20191006oss_lin.tgz
 
 compiler: nvcc
 
 before_script:
     - mkdir build
     - cd build
-    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${CURR}/tbb ..
+    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
     - make -j $(nproc)
     - PATH=${CURR}/build/:${PATH}
     - PATH=${CURR}/scripts/:${PATH}
