@@ -1,4 +1,4 @@
 [submodule "vendor/GenomeWorks"]
 	path = vendor/GenomeWorks
-	url = https://github.com/clara-parabricks/GenomeWorks.git
+	url = https://github.com/gsneha26/GenomeWorks.git
 	branch = dev-v0.6.0
