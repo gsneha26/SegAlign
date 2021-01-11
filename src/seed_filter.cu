@@ -47,22 +47,22 @@ std::vector<thrust::device_vector<segmentPair> > d_hsp_reduced_vec;
 struct hspEqual{
     __host__ __device__
         bool operator()(segmentPair x, segmentPair y){
-        return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
+            return ( ( (x.ref_start - x.query_start) == (y.ref_start - y.query_start) ) &&  ( ( (x.ref_start >= y.ref_start) && ( (x.ref_start + x.len) <= (y.ref_start + y.len) )  ) || ( ( y.ref_start >= x.ref_start ) && ( (y.ref_start + y.len) <= (x.ref_start + x.len) ) ) ) );
     }
 };
 
 struct hspComp{
     __host__ __device__
         bool operator()(segmentPair x, segmentPair y){
-            if(x.query_start < y.query_start)
+            if((x.ref_start - x.query_start) < (y.ref_start - y.query_start))
                 return true;
-            else if(x.query_start == y.query_start){
-                if(x.len > y.len)
+            else if((x.ref_start - x.query_start) == (y.ref_start - y.query_start)){
+                if(x.ref_start < y.ref_start)
                     return true;
-                else if(x.len == y.len){
-                    if(x.ref_start < y.ref_start)
+                else if(x.ref_start == y.ref_start){
+                    if(x.len < y.len)
                         return true;
-                    else if(x.ref_start == y.ref_start){
+                    else if(x.len == y.len){
                         if(x.score > y.score)
                             return true;
                         else
@@ -74,7 +74,7 @@ struct hspComp{
                 else
                     return false;
             }
-            else 
+            else
                 return false;
     }
 };
@@ -763,6 +763,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
+                std::cout << h_hsp[it][i].ref_start << "," << h_hsp[it][i].query_start << "," << h_hsp[it][i].len << "," << h_hsp[it][i].score << std::endl;
             }
 
             if(num_anchors[it] > 0){
