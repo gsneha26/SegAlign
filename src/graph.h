@@ -7,6 +7,8 @@
 #include <vector>
 #include "parameters.h"
 
+#include <claraparabricks/genomeworks/cudaextender/extender.hpp>
+
 #define DEFAULT_SEQ_BLOCK_SIZE 500000000
 #define DEFAULT_LASTZ_INTERVAL 10000000
 #define DEFAULT_WGA_CHUNK 250000
@@ -14,6 +16,7 @@
 #define BUFFER_DEPTH 2
 
 using namespace tbb::flow;
+using namespace claraparabricks::genomeworks::cudaextender;
 
 struct Seed_config {
     std::string shape;
@@ -92,7 +95,7 @@ struct seed_interval {
     uint32_t buffer;
 };
 
-typedef std::vector<segmentPair> hsp_output; 
+typedef std::vector<ScoredSegmentPair> hsp_output; 
 typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
 typedef tbb::flow::tuple <seeder_payload, hsp_output, hsp_output> printer_payload;
 typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;

@@ -37,8 +37,8 @@ printer_input seeder_body::operator()(seeder_input input) {
     uint64_t transition_index;
     uint64_t seed_offset;
 
-    std::vector<segmentPair> fw_hsps;
-    std::vector<segmentPair> rc_hsps;
+    std::vector<ScoredSegmentPair> fw_hsps;
+    std::vector<ScoredSegmentPair> rc_hsps;
     fw_hsps.clear();
     rc_hsps.clear();
 
@@ -75,7 +75,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
+                std::vector<ScoredSegmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
                     fw_hsps.insert(fw_hsps.end(), anchors.begin()+1, anchors.end());
@@ -110,7 +110,7 @@ printer_input seeder_body::operator()(seeder_input input) {
 
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
-                std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
+                std::vector<ScoredSegmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, buffer);
                 seeder_body::num_seed_hits += anchors[0].score;
                 if(anchors.size() > 1){
                     rc_hsps.insert(rc_hsps.end(), anchors.begin()+1, anchors.end());
