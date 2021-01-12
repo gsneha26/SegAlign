@@ -16,20 +16,14 @@
 #define BUFFER_DEPTH 2
 
 using namespace tbb::flow;
-using namespace claraparabricks::genomeworks::cudaextender;
+using namespace claraparabricks::genomeworks;
+using namespace cudaextender;
 
 struct Seed_config {
     std::string shape;
     int size;
     int kmer_size;
     bool transition;
-};
-
-struct segmentPair {
-    uint32_t ref_start;
-    uint32_t query_start;
-    uint32_t len;
-    int score;
 };
 
 struct Configuration {

@@ -11,11 +11,17 @@
 #include "store.h"
 #include "store_gpu.h"
 
+#include <claraparabricks/genomeworks/utils/cudautils.hpp>
+using namespace cudautils;
+
 // Each segmentPair is 16B
 // With 64MB for the HSPs array per 1GB GPU memory
 // With higher GPU memory, the size just linearly increases
 
 #define MAX_HITS_PER_GB 4194304
+
+std::vector<std::unique_ptr<Extender>> ungapped_extender_;   
+std::vector<CudaStream> stream;
 
 int MAX_SEEDS;
 int MAX_HITS;
@@ -727,7 +733,7 @@ std::vector<ScoredSegmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_
 
                 thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
                 
-                thrust::device_vector<ScoredSegmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+                thrust::device_vector<ScoredSegmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(), hspEqual());
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
@@ -841,6 +847,12 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
         d_hsp_reduced_vec.emplace_back(MAX_HITS, zeroHsp);
         d_hsp_reduced[g] = thrust::raw_pointer_cast(d_hsp_reduced_vec.at(g).data());
+
+        const int64_t max_gpu_memory     = cudautils::find_largest_contiguous_device_memory_section();
+        DefaultDeviceAllocator allocator = create_default_device_allocator(max_gpu_memory);
+        stream.push_back(make_cuda_stream());
+
+        ungapped_extender_.push_back(create_extender(sub_mat, NUC2, input_xdrop, input_noentropy, stream[g].get(), g, allocator));
 
         available_gpus.push_back(g);
     }
