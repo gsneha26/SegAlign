@@ -95,16 +95,16 @@ fi
 
 # TBB
 cd $CURR
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
-tar -xvf tbb2019_20191006oss_lin.tgz
-rm tbb2019_20191006oss_lin.tgz
+wget https://github.com/oneapi-src/oneTBB/archive/2019_U9.tar.gz
+tar -xvzf 2019_U9.tar.gz
+rm 2019_U9.tar.gz
 
 # SegAlign 
 cd $CURR
 git submodule update --init --recursive
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../oneTBB-2019_U9 -DCMAKE_PREFIX_PATH=${PWD}/../oneTBB-2019_U9/cmake ..
 make -j $(nproc)
 sudo cp $CURR/build/segalign* /usr/local/bin	
 sudo cp $CURR/scripts/run_segalign* /usr/local/bin
