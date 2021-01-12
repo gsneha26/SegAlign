@@ -45,7 +45,7 @@ struct Configuration {
     // Scoring
     std::string scoring_file;
     std::string ambiguous;
-    int sub_mat[NUC2];
+    int sub_mat[ANUC2];
 
     // Seed parameters
     Seed_config seed;

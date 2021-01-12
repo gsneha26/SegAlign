@@ -3,6 +3,14 @@
 #include "seed_filter_interface.h"
 #include "store_gpu.h"
 
+#include <claraparabricks/genomeworks/cudaextender/extender.hpp>
+#include <claraparabricks/genomeworks/cudaextender/utils.hpp>
+#include <claraparabricks/genomeworks/utils/pinned_host_vector.hpp>
+#include <claraparabricks/genomeworks/utils/cudautils.hpp>
+using namespace claraparabricks::genomeworks;
+using namespace cudaextender;
+using namespace cudautils;
+
 // Control Variables
 std::mutex mu;
 std::condition_variable cv;
@@ -27,21 +35,21 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = X_NT;
+        char dst = X_NT1;
         if (ch == 'A')
-            dst = A_NT;
+            dst = A_NT1;
         else if (ch == 'C')
-            dst = C_NT;
+            dst = C_NT1;
         else if (ch == 'G')
-            dst = G_NT;
+            dst = G_NT1;
         else if (ch == 'T')
-            dst = T_NT;
+            dst = T_NT1;
         else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
-            dst = L_NT;
+            dst = L_NT1;
         else if ((ch == 'n') || (ch == 'N'))
-            dst = N_NT;
+            dst = N_NT1;
         else if (ch == '&')
-            dst = E_NT;
+            dst = E_NT1;
         dst_seq[i] = dst;
     }
 }
@@ -95,6 +103,11 @@ void SendRefWriteRequest (char* seq, size_t start_addr, uint32_t len){
         check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
 
         compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
+
+        char* target_s;
+        memcpy(target_s, seq + start_addr, len);
+        pinned_host_vector<int8_t> h_encoded_target(len);
+        encode_sequence(h_encoded_target.data(), target_s, len);
 
         check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
     }
