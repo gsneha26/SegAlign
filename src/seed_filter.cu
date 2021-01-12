@@ -763,7 +763,6 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
-                std::cout << h_hsp[it][i].ref_start << "," << h_hsp[it][i].query_start << "," << h_hsp[it][i].len << "," << h_hsp[it][i].score << std::endl;
             }
 
             if(num_anchors[it] > 0){
