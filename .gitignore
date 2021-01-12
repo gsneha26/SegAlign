@@ -1,5 +1,4 @@
-tbb*
-pstl*
+oneTBB*
 build/
 test/
 bin/
