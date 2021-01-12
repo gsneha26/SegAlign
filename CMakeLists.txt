@@ -4,6 +4,7 @@ project(segalign LANGUAGES CXX CUDA)
 project(segalign_repeat_masker LANGUAGES CXX CUDA)
 
 set(CMAKE_CUDA_COMPILER nvcc)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(CUDA 9.0 REQUIRED)
 
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
@@ -22,7 +23,9 @@ include_directories(${ZLIB_INCLUDE_DIR})
 find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_subdirectory(vendor/GenomeWorks ${CMAKE_CURRENT_BINARY_DIR}/GenomeWorks EXCLUDE_FROM_ALL)
+if (NOT TARGET cudaextender)
+    add_subdirectory(vendor/GenomeWorks EXCLUDE_FROM_ALL)
+endif()
 
 add_executable(segalign
     common/DRAM.cpp
@@ -53,7 +56,7 @@ set_target_properties(
     segalign_repeat_masker
     PROPERTIES 
       CUDA_SEPARABLE_COMPILATION ON
-      CUDA_STANDARD 11
+      CUDA_STANDARD 14
       )
 
 target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
