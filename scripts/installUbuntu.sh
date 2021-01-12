@@ -101,6 +101,7 @@ rm tbb2019_20191006oss_lin.tgz
 
 # SegAlign 
 cd $CURR
+git submodule update --init --recursive
 mkdir -p build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..

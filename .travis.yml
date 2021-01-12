@@ -4,6 +4,7 @@ os: linux
 dist: bionic
 
 before_install:
+  - git submodule update --init --recursive
   - sudo apt update 
   - sudo apt-get --yes install build-essential
   - sudo apt-get --yes install libboost-all-dev
