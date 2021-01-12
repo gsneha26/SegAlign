@@ -11,6 +11,8 @@
 #include "store.h"
 #include "store_gpu.h"
 
+#include <claraparabricks/genomeworks/cudaextender/utils.hpp>
+#include <claraparabricks/genomeworks/utils/pinned_host_vector.hpp>
 #include <claraparabricks/genomeworks/utils/cudautils.hpp>
 using namespace cudautils;
 
@@ -97,35 +99,35 @@ void compress_string_rev_comp (uint32_t len, char* src_seq, char* dst_seq, char*
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = X_NT;
-        char dst_rc = X_NT;
+        char dst = X_NT1;
+        char dst_rc = X_NT1;
         if (ch == 'A'){
-            dst = A_NT;
-            dst_rc = T_NT;
+            dst = A_NT1;
+            dst_rc = T_NT1;
         }
         else if (ch == 'C'){ 
-            dst = C_NT;
-            dst_rc = G_NT;
+            dst = C_NT1;
+            dst_rc = G_NT1;
         }
         else if (ch == 'G'){
-            dst = G_NT;
-            dst_rc = C_NT;
+            dst = G_NT1;
+            dst_rc = C_NT1;
         }
         else if (ch == 'T'){
-            dst = T_NT;
-            dst_rc = A_NT;
+            dst = T_NT1;
+            dst_rc = A_NT1;
         }
         else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't')){
-            dst = L_NT;
-            dst_rc = L_NT;
+            dst = L_NT1;
+            dst_rc = L_NT1;
         }
         else if ((ch == 'n') || (ch == 'N')){
-            dst = N_NT;
-            dst_rc = N_NT;
+            dst = N_NT1;
+            dst_rc = N_NT1;
         }
         else if (ch == '&'){
-            dst = E_NT;
-            dst_rc = E_NT;
+            dst = E_NT1;
+            dst_rc = E_NT1;
         }
         dst_seq[i] = dst;
         dst_seq_rc[len -1 -i] = dst_rc;
@@ -246,9 +248,9 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     uint32_t query_pos;
     int pos_offset;
 
-    __shared__ int sub_mat[NUC2];
+    __shared__ int sub_mat[ANUC2];
 
-    if(thread_id < NUC2){
+    if(thread_id < ANUC2){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
     __syncthreads();
@@ -310,7 +312,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
             if(ref_pos < ref_len && query_pos < query_len){
                 r_chr = d_ref_seq[ref_pos];
                 q_chr = d_query_seq[query_pos];
-                thread_score = sub_mat[r_chr*NUC+q_chr];
+                thread_score = sub_mat[r_chr*ANUC+q_chr];
             }
             __syncwarp();
 
@@ -462,7 +464,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 query_pos = query_loc[warp_id] - pos_offset;
                 r_chr = d_ref_seq[ref_pos];
                 q_chr = d_query_seq[query_pos];
-                thread_score = sub_mat[r_chr*NUC+q_chr];
+                thread_score = sub_mat[r_chr*ANUC+q_chr];
             }
 
 #pragma unroll
@@ -830,9 +832,9 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
         check_cuda_setDevice(g, "InitializeProcessor");
 
-        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
+        check_cuda_malloc((void**)&d_sub_mat[g], ANUC2*sizeof(int), "sub_mat"); 
 
-        check_cuda_memcpy((void*)d_sub_mat[g], (void*)sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice, "sub_mat");
+        check_cuda_memcpy((void*)d_sub_mat[g], (void*)sub_mat, ANUC2*sizeof(int), cudaMemcpyHostToDevice, "sub_mat");
 
         check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
 
@@ -864,6 +866,7 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
 
     for(int g = 0; g < NUM_DEVICES; g++){
 
+
         check_cuda_setDevice(g, "SendQueryWriteRequest");
 
         char* d_query_seq_tmp;
@@ -875,6 +878,11 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
         check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_rc_seq"); 
 
         compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
+
+        char* query_s;
+        memcpy(query_s, query_DRAM->buffer + start_addr, len);
+        pinned_host_vector<int8_t> h_encoded_query(len);
+        encode_sequence(h_encoded_query.data(), query_s, len);
 
         check_cuda_free((void*)d_query_seq_tmp, "d_query_seq_tmp");
     }
