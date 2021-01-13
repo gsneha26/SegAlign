@@ -17,7 +17,7 @@ std::condition_variable cv;
 std::vector<int> available_gpus;
 
 int NUM_DEVICES;
-char** d_ref_seq;
+int8_t** d_ref_seq;
 uint32_t ref_len;
 
 uint32_t** d_index_table;
@@ -79,7 +79,7 @@ int InitializeInterface (int num_gpu){
 
     fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
 
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
+    d_ref_seq = (int8_t**) malloc(NUM_DEVICES*sizeof(int8_t*));
     
     d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
     d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
@@ -95,21 +95,24 @@ void SendRefWriteRequest (char* seq, size_t start_addr, uint32_t len){
 
         check_cuda_setDevice(g, "SendRefWriteRequest");
 
-        char* d_ref_seq_tmp;
-        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp_ref_seq"); 
+//        const char* d_ref_seq_tmp;
+//        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp_ref_seq"); 
 
-        check_cuda_memcpy((void*)d_ref_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "ref_seq");
+//        check_cuda_memcpy((void*)d_ref_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "ref_seq");
 
         check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
 
-        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
+//        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
 
-        char* target_s;
-        memcpy(target_s, seq + start_addr, len);
+        char* target_s = (char *) malloc(len*sizeof(char));
+        std::memcpy(target_s, seq + start_addr, len);
         pinned_host_vector<int8_t> h_encoded_target(len);
         encode_sequence(h_encoded_target.data(), target_s, len);
 
-        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
+
+        check_cuda_memcpy((void*)d_ref_seq[g], h_encoded_target.data(), len*sizeof(char), cudaMemcpyHostToDevice, "ref_seq");
+
+//        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
     }
 }
 

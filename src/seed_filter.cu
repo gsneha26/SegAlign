@@ -34,8 +34,8 @@ int xdrop;
 int hspthresh;
 bool noentropy;
 
-char** d_query_seq;
-char** d_query_rc_seq;
+int8_t** d_query_seq;
+int8_t** d_query_rc_seq;
 uint32_t query_length[BUFFER_DEPTH];
 
 uint64_t** d_seed_offsets;
@@ -51,6 +51,9 @@ std::vector<thrust::device_vector<ScoredSegmentPair> > d_hsp_vec;
 
 ScoredSegmentPair** d_hsp_reduced;
 std::vector<thrust::device_vector<ScoredSegmentPair> > d_hsp_reduced_vec;
+
+std::vector<pinned_host_vector<int8_t>> h_encoded_query(BUFFER_DEPTH);
+
 
 struct hspEqual{
     __host__ __device__
@@ -210,7 +213,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 }
 
 __global__
-void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, ScoredSegmentPair* d_hsp, uint32_t* d_done){
+void find_hsps (const int8_t* __restrict__  d_ref_seq, const int8_t* __restrict__  d_query_seq, uint32_t ref_len, uint32_t query_len, int *d_sub_mat, bool noentropy, int xdrop, int hspthresh, int num_hits, ScoredSegmentPair* d_hsp, uint32_t* d_done){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -242,8 +245,8 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     int temp;
     short count[4];
     short count_del[4];
-    char r_chr;
-    char q_chr;
+    int8_t r_chr;
+    int8_t q_chr;
     uint32_t ref_pos;
     uint32_t query_pos;
     int pos_offset;
@@ -660,7 +663,7 @@ void compress_output (uint32_t* d_done, ScoredSegmentPair* d_hsp, ScoredSegmentP
 }
 
 std::vector<ScoredSegmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t buffer){
-
+    
     uint32_t num_hits = 0;
     uint32_t total_anchors = 0;
 
@@ -771,6 +774,7 @@ std::vector<ScoredSegmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_
 
             for(int i = 0; i < num_anchors[it]; i++){
                 gpu_filter_output.push_back(h_hsp[it][i]);
+                std::cout << h_hsp[it][i].seed_pair.target_position_in_read << "," << h_hsp[it][i].seed_pair.query_position_in_read << "," << h_hsp[it][i].length << "," << h_hsp[it][i].score << std::endl;
             }
 
             if(num_anchors[it] > 0){
@@ -805,8 +809,8 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
     d_sub_mat = (int**) malloc(NUM_DEVICES*sizeof(int*));
 
-    d_query_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
-    d_query_rc_seq = (char**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(char*));
+    d_query_seq = (int8_t**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(int8_t*));
+    d_query_rc_seq = (int8_t**) malloc(BUFFER_DEPTH*NUM_DEVICES*sizeof(int8_t*));
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
 
@@ -852,9 +856,9 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
         const int64_t max_gpu_memory     = cudautils::find_largest_contiguous_device_memory_section();
         DefaultDeviceAllocator allocator = create_default_device_allocator(max_gpu_memory);
-        stream.push_back(make_cuda_stream());
+//        stream.push_back(make_cuda_stream());
 
-        ungapped_extender_.push_back(create_extender(sub_mat, NUC2, input_xdrop, input_noentropy, stream[g].get(), g, allocator));
+    //    ungapped_extender_.push_back(create_extender(sub_mat, NUC2, input_xdrop, input_noentropy, stream[g].get(), g, allocator));
 
         available_gpus.push_back(g);
     }
@@ -869,23 +873,28 @@ void SendQueryWriteRequest (size_t start_addr, uint32_t len, uint32_t buffer){
 
         check_cuda_setDevice(g, "SendQueryWriteRequest");
 
-        char* d_query_seq_tmp;
-        check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
+//        char* d_query_seq_tmp;
+//        check_cuda_malloc((void**)&d_query_seq_tmp, len*sizeof(char), "tmp query_seq"); 
 
-        check_cuda_memcpy((void*)d_query_seq_tmp, (void*)(query_DRAM->buffer + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "query_seq");
+//        check_cuda_memcpy((void*)d_query_seq_tmp, (void*)(query_DRAM->buffer + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "query_seq");
 
         check_cuda_malloc((void**)&d_query_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_seq"); 
         check_cuda_malloc((void**)&d_query_rc_seq[buffer*NUM_DEVICES+g], len*sizeof(char), "query_rc_seq"); 
 
-        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
+//        compress_string_rev_comp <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_query_seq_tmp, d_query_seq[buffer*NUM_DEVICES+g], d_query_rc_seq[buffer*NUM_DEVICES+g]);
 
-        char* query_s;
+        char* query_s = (char*) malloc(len*sizeof(char));
         memcpy(query_s, query_DRAM->buffer + start_addr, len);
         pinned_host_vector<int8_t> h_encoded_query(len);
         encode_sequence(h_encoded_query.data(), query_s, len);
 
-        check_cuda_free((void*)d_query_seq_tmp, "d_query_seq_tmp");
+        check_cuda_memcpy((void*)d_query_seq[buffer*NUM_DEVICES+g], h_encoded_query.data(), len*sizeof(char), cudaMemcpyHostToDevice, "query_seq");
+
+        free(query_s);
+
+//        check_cuda_free((void*)d_query_seq_tmp, "d_query_seq_tmp");
     }
+
 }
 
 void ClearQuery(uint32_t buffer){
@@ -906,6 +915,11 @@ void ShutdownProcessor(){
     d_hsp_vec.clear();
     d_hsp_reduced_vec.clear();
 
+
+//    for(int g = 0; g < NUM_DEVICES; g++){
+
+//        ungapped_extender_[g].reset();
+//    }
     cudaDeviceReset();
 }
 
