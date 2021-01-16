@@ -3,8 +3,9 @@
 
 [![License][license-badge]][license-link]
 [![Build Status](https://travis-ci.com/gsneha26/SegAlign.svg?branch=master)](https://travis-ci.com/gsneha26/SegAlign)
+[![Published in SC20](https://img.shields.io/badge/published%20in-SC20-blue.svg)](https://doi.ieeecomputersociety.org/10.1109/SC41405.2020.00043)
 
-# SegAlign 
+<img src="logo.png" width="300">
 
 A Scalable GPU System for Pairwise Whole Genome Alignments based on LASTZ's seed-filter-extend paradigm.
 
@@ -99,4 +100,4 @@ The dependencies can be installed with the given script as follows, which might 
 
 ## <a name="cite_segalign"></a> Citing SegAlign
 
-Goenka, Sneha D., Yatish Turakhia, Benedict Paten and Mark Horowitz. "SegAlign: A Scalable GPU-Based Whole Genome Aligner." In SC20: International Conference for High Performance Computing, Networking, Storage and Analysis. 
+S. Goenka, Y. Turakhia, B. Paten and M. Horowitz,  "SegAlign: A Scalable GPU-Based Whole Genome Aligner," in 2020 SC20: International Conference for High Performance Computing, Networking, Storage and Analysis (SC), Atlanta, GA, US, 2020 pp. 540-552. doi: 10.1109/SC41405.2020.00043
