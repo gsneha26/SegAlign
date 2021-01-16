@@ -1,0 +1,6 @@
+[submodule "submodules/TBB"]
+	path = submodules/TBB
+	url = https://github.com/oneapi-src/oneTBB.git
+[submodule "submodules/lastz"]
+	path = submodules/lastz
+	url = https://github.com/lastz/lastz.git

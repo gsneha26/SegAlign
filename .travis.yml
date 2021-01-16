@@ -4,6 +4,7 @@ os: linux
 dist: bionic
 
 before_install:
+  - git submodule update --init --recursive
   - sudo apt update 
   - sudo apt-get --yes install build-essential
   - sudo apt-get --yes install libboost-all-dev
@@ -20,21 +21,17 @@ before_install:
   - LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
   - PATH=${CUDA_HOME}/bin:${PATH}
   - CURR=${PWD}
-  - wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
-  - gunzip lastz-1.04.03.tar.gz
-  - tar -xvf lastz-1.04.03.tar 
-  - cd ${CURR}/lastz-distrib-1.04.03/src
+  - cd ${CURR}/submodules/lastz/src
   - make -j $(nproc)
-  - PATH=${CURR}/bin/lastz-distrib-1.04.03/src/:${PATH}
+  - PATH=${CURR}/submodules/lastz/src/:${PATH}
   - cd ${CURR}
-  - git clone https://github.com/01org/tbb
 
 compiler: nvcc
 
 before_script:
-    - mkdir build
-    - cd build
-    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${CURR}/tbb ..
+    - mkdir ${CURR}/build
+    - cd ${CURR}/build
+    - cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../submodules/TBB -DCMAKE_PREFIX_PATH=${PWD}/../submodules/TBB/cmake ..
     - make -j $(nproc)
     - PATH=${CURR}/build/:${PATH}
     - PATH=${CURR}/scripts/:${PATH}

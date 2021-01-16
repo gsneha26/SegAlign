@@ -66,14 +66,9 @@ fi
 # LASTZ
 cd $CURR
 if [ -z "$(command -v lastz)" ]; then
-  mkdir bin
-  wget http://www.bx.psu.edu/~rsharris/lastz/lastz-1.04.03.tar.gz
-  gunzip lastz-1.04.03.tar.gz
-  tar -xvf lastz-1.04.03.tar 
-  cd $CURR/lastz-distrib-1.04.03/src
+  cd $CURR/submodules/lastz/src
   make -j $(nproc)
-  sudo cp $CURR/lastz-distrib-1.04.03/src/lastz /usr/local/bin/
-  rm -rf $CURR/lastz-distrib-1.04.03 $CURR/lastz-1.04.03.tar
+  sudo cp $CURR/submodules/lastz/src/lastz /usr/local/bin/
 fi
 
 # kentUtils - faToTwoBit
@@ -93,17 +88,11 @@ if [ -z "$(command -v twoBitToFa)" ]; then
   sudo mv twoBitToFa /usr/local/bin/
 fi
 
-# TBB
-cd $CURR
-wget https://github.com/oneapi-src/oneTBB/releases/download/2019_U9/tbb2019_20191006oss_lin.tgz
-tar -xvf tbb2019_20191006oss_lin.tgz
-rm tbb2019_20191006oss_lin.tgz
-
 # SegAlign 
 cd $CURR
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../tbb2019_20191006oss -DCMAKE_PREFIX_PATH=${PWD}/../tbb2019_20191006oss/cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release -DTBB_ROOT=${PWD}/../submodules/TBB -DCMAKE_PREFIX_PATH=${PWD}/../submodules/TBB/cmake ..
 make -j $(nproc)
 sudo cp $CURR/build/segalign* /usr/local/bin	
 sudo cp $CURR/scripts/run_segalign* /usr/local/bin
