@@ -47,22 +47,22 @@ std::vector<thrust::device_vector<segmentPair> > d_hsp_reduced_vec;
 struct hspEqual{
     __host__ __device__
         bool operator()(segmentPair x, segmentPair y){
-        return ((x.ref_start == y.ref_start) && (x.query_start == y.query_start) && (x.len == y.len) && (x.score == y.score));
+            return ( ( (x.ref_start - x.query_start) == (y.ref_start - y.query_start) ) &&  ( ( (x.ref_start >= y.ref_start) && ( (x.ref_start + x.len) <= (y.ref_start + y.len) )  ) || ( ( y.ref_start >= x.ref_start ) && ( (y.ref_start + y.len) <= (x.ref_start + x.len) ) ) ) );
     }
 };
 
 struct hspComp{
     __host__ __device__
         bool operator()(segmentPair x, segmentPair y){
-            if(x.query_start < y.query_start)
+            if((x.ref_start - x.query_start) < (y.ref_start - y.query_start))
                 return true;
-            else if(x.query_start == y.query_start){
-                if(x.len > y.len)
+            else if((x.ref_start - x.query_start) == (y.ref_start - y.query_start)){
+                if(x.ref_start < y.ref_start)
                     return true;
-                else if(x.len == y.len){
-                    if(x.ref_start < y.ref_start)
+                else if(x.ref_start == y.ref_start){
+                    if(x.len < y.len)
                         return true;
-                    else if(x.ref_start == y.ref_start){
+                    else if(x.len == y.len){
                         if(x.score > y.score)
                             return true;
                         else
@@ -74,7 +74,7 @@ struct hspComp{
                 else
                     return false;
             }
-            else 
+            else
                 return false;
     }
 };
@@ -504,7 +504,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 }
             }
 
-            if(xdrop_done == 1){
+            if(xdrop_done){
                 max_thread_score = prev_max_score[warp_id];
                 max_pos = prev_max_pos[warp_id];
             }
