@@ -4,3 +4,6 @@
 [submodule "submodules/lastz"]
 	path = submodules/lastz
 	url = https://github.com/lastz/lastz.git
+[submodule "submodules/GenomeWorks"]
+	path = submodules/GenomeWorks
+	url = https://github.com/gsneha26/GenomeWorks.git

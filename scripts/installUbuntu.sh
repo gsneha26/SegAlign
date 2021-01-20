@@ -27,6 +27,8 @@ echo $CURR
 
 set -x
 
+git submodule update --init --recursive
+
 # linux essentials
 sudo apt update 
 for pkg in cmake build-essential libboost-all-dev parallel zlib1g-dev wget git;

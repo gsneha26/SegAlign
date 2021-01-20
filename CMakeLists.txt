@@ -9,7 +9,7 @@ find_package(CUDA 9.0 REQUIRED)
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c -lboost_program_options")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -l c -lboost_program_options")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_52")
 
 include(${TBB_ROOT}/cmake/TBBBuild.cmake)
@@ -22,6 +22,10 @@ include_directories(${ZLIB_INCLUDE_DIR})
 
 find_package(Boost COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
+
+if (NOT TARGET cudaextender)
+    add_subdirectory(submodules/GenomeWorks EXCLUDE_FROM_ALL)
+endif()
 
 add_executable(segalign
     common/DRAM.cpp
@@ -45,14 +49,14 @@ add_executable(segalign_repeat_masker
     repeat_masker_src/main.cpp
     )
 
-set(LIBS rt stdc++ ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${ZLIB_LIBRARIES})
+set(LIBS rt stdc++ ${TBB_IMPORTED_TARGETS} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${ZLIB_LIBRARIES} cudaextender)
 
 set_target_properties(
     segalign 
     segalign_repeat_masker
     PROPERTIES 
       CUDA_SEPARABLE_COMPILATION ON
-      CUDA_STANDARD 11
+      CUDA_STANDARD 14
       )
 
 target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)
