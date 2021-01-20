@@ -27,21 +27,21 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = X_NT;
+        char dst = X_ANT;
         if (ch == 'A')
-            dst = A_NT;
+            dst = A_ANT;
         else if (ch == 'C')
-            dst = C_NT;
+            dst = C_ANT;
         else if (ch == 'G')
-            dst = G_NT;
+            dst = G_ANT;
         else if (ch == 'T')
-            dst = T_NT;
+            dst = T_ANT;
         else if ((ch == 'a') || (ch == 'c') || (ch == 'g') || (ch == 't'))
-            dst = L_NT;
+            dst = L_ANT;
         else if ((ch == 'n') || (ch == 'N'))
-            dst = N_NT;
+            dst = N_ANT;
         else if (ch == '&')
-            dst = E_NT;
+            dst = E_ANT;
         dst_seq[i] = dst;
     }
 }

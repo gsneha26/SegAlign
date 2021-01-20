@@ -9,12 +9,12 @@ int transition_pos[32];
 
 inline uint32_t NtChar2Int (char nt) {
     switch(nt) {
-        case 'A': return A_NT;
-        case 'C': return C_NT;
-        case 'G': return G_NT;
-        case 'T': return T_NT;
-        case 'N': return N_NT;
-        default: return N_NT;
+        case 'A': return A_ANT;
+        case 'C': return C_ANT;
+        case 'G': return G_ANT;
+        case 'T': return T_ANT;
+        case 'N': return N_ANT;
+        default: return N_ANT;
     }
 }
 
@@ -46,7 +46,7 @@ uint32_t GetKmerIndexAtPos (char* sequence, size_t pos, uint32_t seed_size) {
 
     for(int i = 0; i < seed_size; i++){
         nt[i] = NtChar2Int(sequence[pos+i]);
-        if (nt[i] == N_NT) {
+        if (nt[i] == N_ANT) {
             return INVALID_KMER;
         }
     }

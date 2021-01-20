@@ -165,66 +165,66 @@ int main(int argc, char** argv){
     if(vm.count("scoring") == 0){
 
         //ACGT
-        int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
+        int tmp_sub_mat[L_ANT][L_ANT] = {{   91, -114,  -31, -123},
                                  { -114,  100, -125,  -31},
                                  {  -31, -125,  100, -114},
                                  { -123,  -31, -114,  91}};
 
-        for(int i = 0; i < L_NT; i++){
-            for(int j = 0; j < L_NT; j++){
-                cfg.sub_mat[i*NUC+j] = tmp_sub_mat[i][j];
+        for(int i = 0; i < L_ANT; i++){
+            for(int j = 0; j < L_ANT; j++){
+                cfg.sub_mat[i*ANUC+j] = tmp_sub_mat[i][j];
             }
         }
 
         //lower case characters
-        for(int i = 0; i < L_NT; i++){
-            cfg.sub_mat[i*NUC+L_NT] = bad_score;
-            cfg.sub_mat[L_NT*NUC+i] = bad_score;
+        for(int i = 0; i < L_ANT; i++){
+            cfg.sub_mat[i*ANUC+L_ANT] = bad_score;
+            cfg.sub_mat[L_ANT*ANUC+i] = bad_score;
         }
-        cfg.sub_mat[L_NT*NUC+L_NT] = bad_score;
+        cfg.sub_mat[L_ANT*ANUC+L_ANT] = bad_score;
 
         //N
         if(ambiguous_field == "n" || ambiguous_field == "iupac"){
-            for(int i = 0; i < N_NT; i++){
-                cfg.sub_mat[i*NUC+N_NT] = ambiguous_penalty;
-                cfg.sub_mat[N_NT*NUC+i] = ambiguous_penalty;
+            for(int i = 0; i < N_ANT; i++){
+                cfg.sub_mat[i*ANUC+N_ANT] = ambiguous_penalty;
+                cfg.sub_mat[N_ANT*ANUC+i] = ambiguous_penalty;
             }
-            cfg.sub_mat[N_NT*NUC+N_NT] = ambiguous_reward;
+            cfg.sub_mat[N_ANT*ANUC+N_ANT] = ambiguous_reward;
         }
         else{
-            for(int i = 0; i < N_NT; i++){
-                cfg.sub_mat[i*NUC+N_NT] = bad_score;
-                cfg.sub_mat[N_NT*NUC+i] = bad_score;
+            for(int i = 0; i < N_ANT; i++){
+                cfg.sub_mat[i*ANUC+N_ANT] = bad_score;
+                cfg.sub_mat[N_ANT*ANUC+i] = bad_score;
             }
-            cfg.sub_mat[N_NT*NUC+N_NT] = bad_score;
+            cfg.sub_mat[N_ANT*ANUC+N_ANT] = bad_score;
         }
 
         //other IUPAC
         if(ambiguous_field == "iupac"){
-            for(int i = 0; i < X_NT; i++){
-                cfg.sub_mat[i*NUC+X_NT] = ambiguous_penalty;
-                cfg.sub_mat[X_NT*NUC+i] = ambiguous_penalty;
+            for(int i = 0; i < X_ANT; i++){
+                cfg.sub_mat[i*ANUC+X_ANT] = ambiguous_penalty;
+                cfg.sub_mat[X_ANT*ANUC+i] = ambiguous_penalty;
             }
-            cfg.sub_mat[X_NT*NUC+X_NT] = ambiguous_reward;
+            cfg.sub_mat[X_ANT*ANUC+X_ANT] = ambiguous_reward;
         }
         else{
-            for(int i = 0; i < L_NT; i++){
-                cfg.sub_mat[i*NUC+X_NT] = fill_score;
-                cfg.sub_mat[X_NT*NUC+i] = fill_score;
+            for(int i = 0; i < L_ANT; i++){
+                cfg.sub_mat[i*ANUC+X_ANT] = fill_score;
+                cfg.sub_mat[X_ANT*ANUC+i] = fill_score;
             }
 
-            for(int i = L_NT; i < X_NT; i++){
-                cfg.sub_mat[i*NUC+X_NT] = bad_score;
-                cfg.sub_mat[X_NT*NUC+i] = bad_score;
+            for(int i = L_ANT; i < X_ANT; i++){
+                cfg.sub_mat[i*ANUC+X_ANT] = bad_score;
+                cfg.sub_mat[X_ANT*ANUC+i] = bad_score;
             }
-            cfg.sub_mat[X_NT*NUC+X_NT] = fill_score;
+            cfg.sub_mat[X_ANT*ANUC+X_ANT] = fill_score;
         }
 
-        for(int i = 0; i < E_NT; i++){
-            cfg.sub_mat[i*NUC+E_NT] = -10*cfg.xdrop;
-            cfg.sub_mat[E_NT*NUC+i] = -10*cfg.xdrop;
+        for(int i = 0; i < E_ANT; i++){
+            cfg.sub_mat[i*ANUC+E_ANT] = -10*cfg.xdrop;
+            cfg.sub_mat[E_ANT*ANUC+i] = -10*cfg.xdrop;
         }
-        cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
+        cfg.sub_mat[E_ANT*ANUC+E_ANT] = -10*cfg.xdrop;
     }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
@@ -239,9 +239,9 @@ int main(int argc, char** argv){
         fprintf(stderr, "xdrop %d\n", cfg.xdrop);
         fprintf(stderr, "HSP threshold %d\n", cfg.hspthresh);
 
-        for(int i = 0; i < NUC; i++){
-            for(int j = 0; j < NUC; j++){
-                fprintf(stderr, "%d ", cfg.sub_mat[i*NUC+j]);
+        for(int i = 0; i < ANUC; i++){
+            for(int j = 0; j < ANUC; j++){
+                fprintf(stderr, "%d ", cfg.sub_mat[i*ANUC+j]);
             }
             fprintf(stderr, "\n");
         }

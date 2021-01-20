@@ -146,18 +146,18 @@ void rev_comp_string (uint32_t len, char* src_seq, char* dst_seq){
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst_rc = X_NT;
-        if (ch == A_NT){
-            dst_rc = T_NT;
+        char dst_rc = X_ANT;
+        if (ch == A_ANT){
+            dst_rc = T_ANT;
         }
-        else if (ch == C_NT){ 
-            dst_rc = G_NT;
+        else if (ch == C_ANT){ 
+            dst_rc = G_ANT;
         }
-        else if (ch == G_NT){
-            dst_rc = C_NT;
+        else if (ch == G_ANT){
+            dst_rc = C_ANT;
         }
-        else if (ch == T_NT){
-            dst_rc = A_NT;
+        else if (ch == T_ANT){
+            dst_rc = A_ANT;
         }
         else {
             dst_rc = ch;
@@ -286,9 +286,9 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
     uint32_t query_pos;
     int pos_offset;
 
-    __shared__ int sub_mat[NUC2];
+    __shared__ int sub_mat[ANUC2];
 
-    if(thread_id < NUC2){
+    if(thread_id < ANUC2){
         sub_mat[thread_id] = d_sub_mat[thread_id];
     }
     __syncthreads();
@@ -361,7 +361,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
             if(ref_pos < ref_len && query_pos < query_len){
                 r_chr = d_ref_seq[ref_pos];
                 q_chr = d_query_seq[query_pos];
-                thread_score = sub_mat[r_chr*NUC+q_chr];
+                thread_score = sub_mat[r_chr*ANUC+q_chr];
             }
             __syncwarp();
 
@@ -519,7 +519,7 @@ void find_hsps (const char* __restrict__  d_ref_seq, const char* __restrict__  d
                 query_pos = query_loc[warp_id] - pos_offset;
                 r_chr = d_ref_seq[ref_pos];
                 q_chr = d_query_seq[query_pos];
-                thread_score = sub_mat[r_chr*NUC+q_chr];
+                thread_score = sub_mat[r_chr*ANUC+q_chr];
             }
 
 #pragma unroll
@@ -900,9 +900,9 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
         check_cuda_setDevice(g, "InitializeProcessor");
 
-        check_cuda_malloc((void**)&d_sub_mat[g], NUC2*sizeof(int), "sub_mat"); 
+        check_cuda_malloc((void**)&d_sub_mat[g], ANUC2*sizeof(int), "sub_mat"); 
 
-        check_cuda_memcpy((void*)d_sub_mat[g], (void*)sub_mat, NUC2*sizeof(int), cudaMemcpyHostToDevice, "sub_mat");
+        check_cuda_memcpy((void*)d_sub_mat[g], (void*)sub_mat, ANUC2*sizeof(int), cudaMemcpyHostToDevice, "sub_mat");
 
         check_cuda_malloc((void**)&d_seed_offsets[g], MAX_SEEDS*sizeof(uint64_t), "seed_offsets");
 

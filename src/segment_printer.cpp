@@ -74,8 +74,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
             segmentFile = fopen(segment_filename.c_str(), "w");
 
             for (auto e: fw_hsps) {
-                seg_r_start = e.ref_start + r_block_start;
-                seg_q_start = q_block_start + e.query_start;
+                seg_r_start = e.seed_pair.target_position_in_read + r_block_start;
+                seg_q_start = q_block_start + e.seed_pair.query_position_in_read;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
                 if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
@@ -87,7 +87,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                     curr_q_chr_end = curr_q_chr_start + q_chr_len[curr_q_chr_index];
                 }
 
-                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n";
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.length+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.length+1-curr_q_chr_start) + "\t+\t" + std::to_string(e.score) + "\n";
                 fprintf(segmentFile, "%s", out_str.c_str());
             }
 
@@ -129,8 +129,8 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
 
             for(int r = rc_hsps.size()-1; r >= 0; r--){
                 auto e =  rc_hsps[r];
-                seg_r_start = e.ref_start + r_block_start;
-                seg_q_start = e.query_start + q_block_start;
+                seg_r_start = e.seed_pair.target_position_in_read + r_block_start;
+                seg_q_start = e.seed_pair.query_position_in_read + q_block_start;
                 r_index = std::upper_bound(r_chr_start.cbegin(), r_chr_start.cend(), seg_r_start) - r_chr_start.cbegin() - 1;
 
                 if(seg_q_start < curr_q_chr_start || seg_q_start >= curr_q_chr_end){
@@ -142,7 +142,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                     curr_q_chr_end = curr_q_chr_start + rc_q_chr_len[curr_q_chr_index];
                 }
 
-                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.len+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.len+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n";
+                out_str = r_chr_name[r_index] + '\t' + std::to_string(seg_r_start+1-r_chr_start[r_index]) + '\t' + std::to_string(seg_r_start+e.length+1-r_chr_start[r_index]) + '\t' + curr_q_chr + '\t' +  std::to_string(seg_q_start+1-curr_q_chr_start) + '\t' + std::to_string(seg_q_start+e.length+1-curr_q_chr_start) + "\t-\t" + std::to_string(e.score) + "\n";
                 fprintf(segmentFile, "%s", out_str.c_str());
             }
 
