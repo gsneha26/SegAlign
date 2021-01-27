@@ -5,6 +5,9 @@
 #include "store_gpu.h"
 #include <thrust/scan.h>
 
+std::vector<device_buffer<uint32_t>> d_index_table;  
+std::vector<device_buffer<uint32_t>> d_pos_table;
+
 void InclusivePrefixScan (uint32_t* data, uint32_t len) {
     int g;
     
@@ -36,13 +39,25 @@ void SendSeedPosTable (uint32_t* index_table, uint32_t index_table_size, uint32_
 
         check_cuda_setDevice(g, "SendSeedPosTable");
 
-        check_cuda_malloc((void**)&d_index_table[g], index_table_size*sizeof(uint32_t), "index_table"); 
+        d_index_table.push_back(device_buffer<uint32_t>(index_table_size,
+                                                        allocator_[g],
+                                                        stream_[g].get()));
 
-        check_cuda_memcpy((void*)d_index_table[g], (void*)index_table, index_table_size*sizeof(uint32_t), cudaMemcpyHostToDevice, "index_table");
+        d_pos_table.push_back(device_buffer<uint32_t>(num_index,
+                                                      allocator_[g],
+                                                      stream_[g].get()));
 
-        check_cuda_malloc((void**)&d_pos_table[g], num_index*sizeof(uint32_t), "pos_table"); 
+        check_cuda_memcpy(d_index_table[g].data(), 
+                          (void*)index_table, 
+                          index_table_size*sizeof(uint32_t),
+                          cudaMemcpyHostToDevice, 
+                          "index_table");
 
-        check_cuda_memcpy((void*)d_pos_table[g], (void*)pos_table, num_index*sizeof(uint32_t), cudaMemcpyHostToDevice, "pos_table");
+        check_cuda_memcpy(d_pos_table[g].data(), 
+                          (void*)pos_table, 
+                          num_index*sizeof(uint32_t), 
+                          cudaMemcpyHostToDevice, 
+                          "pos_table");
     }
 }
 

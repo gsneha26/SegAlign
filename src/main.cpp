@@ -733,6 +733,8 @@ int main(int argc, char** argv){
     
     align_graph.wait_for_all();
 
+    /*
+    */
     g_ShutdownProcessor();
 
     if(cfg.debug){

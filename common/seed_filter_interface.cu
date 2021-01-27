@@ -9,14 +9,12 @@ std::condition_variable cv;
 std::vector<int> available_gpus;
 
 int NUM_DEVICES;
-char** d_ref_seq;
-uint32_t ref_len;
 
-uint32_t** d_index_table;
-uint32_t** d_pos_table;
+std::vector<device_buffer<int8_t>> d_ref_seq;
+int32_t ref_len;
 
 __global__
-void compress_string (uint32_t len, char* src_seq, char* dst_seq){ 
+void compress_string (uint32_t len, char* src_seq, int8_t* dst_seq){ 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
     int grid_dim = gridDim.x;
@@ -27,7 +25,7 @@ void compress_string (uint32_t len, char* src_seq, char* dst_seq){
 
     for (uint32_t i = start; i < len; i += stride) {
         char ch = src_seq[i];
-        char dst = X_ANT;
+        int8_t dst = X_ANT;
         if (ch == 'A')
             dst = A_ANT;
         else if (ch == 'C')
@@ -71,11 +69,6 @@ int InitializeInterface (int num_gpu){
 
     fprintf(stderr, "Using %d GPU(s)\n", NUM_DEVICES);
 
-    d_ref_seq = (char**) malloc(NUM_DEVICES*sizeof(char*));
-    
-    d_index_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-    d_pos_table = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
-
     return NUM_DEVICES;
 }
 
@@ -87,29 +80,29 @@ void SendRefWriteRequest (char* seq, size_t start_addr, uint32_t len){
 
         check_cuda_setDevice(g, "SendRefWriteRequest");
 
-        char* d_ref_seq_tmp;
-        check_cuda_malloc((void**)&d_ref_seq_tmp, len*sizeof(char), "tmp_ref_seq"); 
+        device_buffer<char> d_ref_seq_tmp(len,
+                                            allocator_[g],
+                                            stream_[g].get());
 
-        check_cuda_memcpy((void*)d_ref_seq_tmp, (void*)(seq + start_addr), len*sizeof(char), cudaMemcpyHostToDevice, "ref_seq");
+        check_cuda_memcpy(d_ref_seq_tmp.data(), 
+                          (void*)(seq + start_addr), 
+                          len*sizeof(char), 
+                          cudaMemcpyHostToDevice, 
+                          "ref_seq");
 
-        check_cuda_malloc((void**)&d_ref_seq[g], len*sizeof(char), "ref_seq"); 
+        d_ref_seq.push_back(device_buffer<int8_t>(len, allocator_[g], stream_[g].get()));
 
-        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, d_ref_seq_tmp, d_ref_seq[g]);
-
-        check_cuda_free((void*)d_ref_seq_tmp, "d_ref_seq_tmp");
+        compress_string <<<MAX_BLOCKS, MAX_THREADS>>> (len, 
+                                                       d_ref_seq_tmp.data(), 
+                                                       d_ref_seq[g].data());
     }
 }
 
 void ClearRef(){
 
-    for(int g = 0; g < NUM_DEVICES; g++){
-
-        check_cuda_setDevice(g, "ClearRef");
-
-        check_cuda_free((void*)d_ref_seq[g], "d_ref_seq");
-        check_cuda_free((void*)d_index_table[g], "d_index_table");
-        check_cuda_free((void*)d_pos_table[g], "d_pos_table");
-    }
+    d_index_table.clear();
+    d_pos_table.clear();
+    d_ref_seq.clear();
 }
 
 InitializeInterface_ptr g_InitializeInterface = InitializeInterface;
