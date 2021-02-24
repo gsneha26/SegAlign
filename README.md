@@ -26,7 +26,7 @@ The system has been tested on all the AWS G3 and P3 GPU instances with AMI Ubunt
 * Clone SegAlign repository (https://github.com/gsneha26/SegAlign)
 
 ```
-    $ git clone https://github.com/gsneha26/SegAlign.git
+    $ git clone --recursive https://github.com/gsneha26/SegAlign.git
     $ export PROJECT_DIR=$PWD/SegAlign
 ```
 
