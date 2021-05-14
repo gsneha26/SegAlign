@@ -57,15 +57,18 @@ struct hspComp{
             if((x.ref_start - x.query_start) < (y.ref_start - y.query_start))
                 return true;
             else if((x.ref_start - x.query_start) == (y.ref_start - y.query_start)){
-                if(x.ref_start < y.ref_start)
-                    return true;
-                else if(x.ref_start == y.ref_start){
-                    if(x.len < y.len)
-                        return true;
-                    else if(x.len == y.len){
-                        if(x.score > y.score)
+		    if(x.ref_start < y.ref_start)
+                    	return true;
+                    else if(x.ref_start == y.ref_start){
+                    	if(x.len < y.len)
                             return true;
-                        else
+                    	else if(x.len == y.len){
+                            if(x.score > y.score)
+                                return true;
+                            else
+                                return false;
+                    	}
+                    	else
                             return false;
                     }
                     else
@@ -73,10 +76,35 @@ struct hspComp{
                 }
                 else
                     return false;
-            }
-            else
-                return false;
-    }
+       }
+};
+
+struct hspCompLastz{
+    __host__ __device__
+        bool operator()(segmentPair x, segmentPair y){
+            if(x.query_start < y.query_start)
+                return true;
+            else if(x.query_start == y.query_start){
+		    if(x.ref_start < y.ref_start)
+                    	return true;
+                    else if(x.ref_start == y.ref_start){
+                    	if(x.len < y.len)
+                            return true;
+                    	else if(x.len == y.len){
+                            if(x.score > y.score)
+                                return true;
+                            else
+                                return false;
+                    	}
+                    	else
+                            return false;
+                    }
+                    else
+                        return false;
+                }
+                else
+                    return false;
+       }
 };
 
 __global__
@@ -730,6 +758,8 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
                 thrust::device_vector<segmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
 
                 num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
+
+		thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspCompLastz());
 
                 total_anchors += num_anchors[i];
 
