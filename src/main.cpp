@@ -105,6 +105,7 @@ int main(int argc, char** argv){
         ("seq_block_size", po::value<uint32_t>(&cfg.seq_block_size)->default_value(DEFAULT_SEQ_BLOCK_SIZE), "LASTZ interval for ydrop - change only if you are a developer")
         ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "Specify number of GPUs to use - -1 if all the GPUs should be used")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
+        ("version", "print version")
         ("help", "Print help messages");
 
     po::options_description all_options;
@@ -128,13 +129,19 @@ int main(int argc, char** argv){
         po::notify(vm);
     }
     catch(std::exception &e){
+        if(vm.count("version")){
+            std::cerr << "SegAlign Version: " << VERSION << std::endl;
+            return 0;
+        }
+
         if(!vm.count("help")){
             if(!vm.count("target") || !vm.count("query")){
                 fprintf(stderr, "You must specify a target file and a query file\n"); 
             }
         }
 	
-        fprintf(stderr, "Usage: run_segalign target query [options]\n\n"); 
+        fprintf(stderr, "\nUsage: run_segalign target query [options]\n"); 
+        fprintf(stderr, "Version: %s\n\n", VERSION);
         std::cerr << desc << std::endl;
         std::cerr << scoring_desc << std::endl;
         std::cerr << seeding_desc << std::endl;
@@ -142,7 +149,7 @@ int main(int argc, char** argv){
         std::cerr << gapped_desc << std::endl;
         std::cerr << output_desc << std::endl;
         std::cerr << system_desc << std::endl;
-	    
+	
         if(vm.count("help"))
             return 0;
         else
