@@ -19,6 +19,7 @@ optionalArguments1=""
 output_filename=""
 mk=0
 hp=0
+outf=0
 total_args=0
 
 args=("$@")
@@ -52,10 +53,10 @@ for ((i=0; i < $total_args; i++)){
 }
 
 if [ $hp -eq 1 ]; then
-  segalign --help
+  segalign_repeat_masker --help
 
-elif [ $# -eq 1 ] || [ $# -eq 0 ]; then
-  segalign $1
+elif [ $# -eq 0 ]; then
+  segalign_repeat_masker $1
 
 else
   refPath=$(readlink -f $1)
