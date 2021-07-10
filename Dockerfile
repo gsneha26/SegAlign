@@ -2,7 +2,7 @@ FROM nvidia/cuda:10.2-devel-ubuntu18.04
 MAINTAINER Sneha D. Goenka, gsneha@stanford.edu
 
 USER root
-WORKDIR HOME
+WORKDIR /home
 
 RUN apt-get update && \
     apt-get -y install git cmake build-essential libboost-all-dev parallel zlib1g-dev wget && \ 
@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 RUN git clone --recursive https://github.com/gsneha26/SegAlign.git 
 WORKDIR SegAlign
-ENV PROJECT_DIR=/HOME/SegAlign
+ENV PROJECT_DIR=/home/SegAlign
 
 RUN wget http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64.v385/twoBitToFa && \
     chmod +x twoBitToFa && \

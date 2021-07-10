@@ -17,6 +17,9 @@ A Scalable GPU System for Pairwise Whole Genome Alignments based on LASTZ's seed
     - [Running a test](#test)
 - [How to run SegAlign repeat masker](#run_rm)
     - [Running a test](#test_rm)
+- [Running Docker Image](#docker)
+    - [Running segalign](#d_segalign)
+    - [Running segalign_repeat_masker](#d_segalign_rm)
 - [Citing SegAlign](#cite_segalign)
 
 ## <a name="overview"></a> Overview
@@ -96,6 +99,40 @@ cd test_rm
 wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
 twoBitToFa ce11.2bit ce11.fa
 run_segalign_repeat_masker ce11.fa --output=ce11.seg
+```
+
+## <a name="docker"></a> Running Docker Image
+### <a name="d_segalign"></a> Running segalign 
+```
+wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+wget https://hgdownload-test.gi.ucsc.edu/goldenPath/cb4/bigZips/cb4.2bit 
+sudo docker run -v $(pwd):/data -it gsneha/segalign:v0.1.2 \
+                           twoBitToFa \
+                           /data/ce11.2bit \
+                           /data/ce11.fa
+sudo docker run -v $(pwd):/data -it gsneha/segalign:v0.1.2 \
+                           twoBitToFa \
+                           /data/cb4.2bit \
+                           /data/cb4.fa
+sudo docker run --ipc=host --gpus all -v $(pwd):/data -it gsneha/segalign:v0.1.2 \
+                           run_segalign \
+                           /data/ce11.fa \
+                           /data/cb4.fa \
+                           --output=/data/ce11.cb4.maf
+```
+
+### <a name="d_segalign_rm"></a> Running segalign_repeat_masker
+
+```
+wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+sudo docker run -v $(pwd):/data -it gsneha/segalign:v0.1.2 \
+                           twoBitToFa \
+                           /data/ce11.2bit \
+                           /data/ce11.fa
+sudo docker run --ipc=host --gpus all -v $(pwd):/data -it gsneha/segalign:v0.1.2 \
+                           run_segalign_repeat_masker \
+                           /data/ce11.fa \
+                           --output=/data/ce11.seg
 ```
 
 ## <a name="cite_segalign"></a> Citing SegAlign
