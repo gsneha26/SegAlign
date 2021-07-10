@@ -44,58 +44,58 @@ The following dependencies are required by SegAlign:
 The dependencies can be installed with the given script as follows, which might take a while (only installs the dependencies not present already). This script requires sudo to install most packages at the system level. Using the `-c` option skips CUDA installation. 
 
 ```
-    $ cd $PROJECT_DIR
-    $ ./scripts/installUbuntu.sh
+    cd $PROJECT_DIR
+    ./scripts/installUbuntu.sh
 ```
 
 ## <a name="run"></a> How to run SegAlign
 * Run SegAlign
 
 ```
-    $ run_segalign target query [options]
+    run_segalign target query [options]
 ```
 
 * For a list of options 
 
 ```
-    $ run_segalign --help
+    run_segalign --help
 ```
 
 ### <a name="test"></a> Running a test
 
 ```
-    $ cd $PROJECT_DIR
-    $ mkdir test
-    $ cd test
-    $ wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
-    $ wget https://hgdownload-test.gi.ucsc.edu/goldenPath/cb4/bigZips/cb4.2bit 
-    $ twoBitToFa ce11.2bit ce11.fa
-    $ twoBitToFa cb4.2bit cb4.fa
-    $ run_segalign ce11.fa cb4.fa --output=ce11.cb4.maf
+    cd $PROJECT_DIR
+    mkdir test
+    cd test
+    wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+    wget https://hgdownload-test.gi.ucsc.edu/goldenPath/cb4/bigZips/cb4.2bit 
+    twoBitToFa ce11.2bit ce11.fa
+    twoBitToFa cb4.2bit cb4.fa
+    run_segalign ce11.fa cb4.fa --output=ce11.cb4.maf
 ```
 
 ## <a name="run_rm"></a> How to run SegAlign repeat masker
 * Run SegAlign repeat masker
 
 ```
-    $ run_segalign_repeat_masker sequence [options]
+    run_segalign_repeat_masker sequence [options]
 ```
 
 * For a list of options 
 
 ```
-    $ run_segalign_repeat_masker --help
+    run_segalign_repeat_masker --help
 ```
 
 ### <a name="test_rm"></a> Running a test
 
 ```
-    $ cd $PROJECT_DIR
-    $ mkdir test_rm
-    $ cd test_rm
-    $ wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
-    $ twoBitToFa ce11.2bit ce11.fa
-    $ run_segalign_repeat_masker ce11.fa --output=ce11.seg
+    cd $PROJECT_DIR
+    mkdir test_rm
+    cd test_rm
+    wget https://hgdownload.soe.ucsc.edu/goldenPath/ce11/bigZips/ce11.2bit
+    twoBitToFa ce11.2bit ce11.fa
+    run_segalign_repeat_masker ce11.fa --output=ce11.seg
 ```
 
 ## <a name="cite_segalign"></a> Citing SegAlign
