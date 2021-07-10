@@ -37,8 +37,7 @@ for ((i=2; i < $#; i++)){
   optionalArguments="$optionalArguments ${args[$i]}"
 }
 
-for ((i=0; i < $total_args; i++))
-{
+for ((i=0; i < $total_args; i++)){
   if [[ "${split_args[$i]}" == *"--nogapped"* ]]; then
     ng=1
   fi
@@ -111,49 +110,88 @@ else
   cd $OUTPUT_FOLDER
 
   time {
-    count=0
+  count=0
 
-    while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
+  while IFS= read -r line; do eval "$line" & pids="$pids $!"; count=$((count+1)); while [ $count -gt $(nproc) ]; do count=0; running=""; for pid in $pids; do if ps -p $pid > /dev/null; then count=$((count+1)); running="$running $pid"; fi; done; pids=$running; done; done < <(stdbuf -oL segalign $refPath $queryPath $DATA_FOLDER $optionalArguments )
     wait $pids || let "FAIL+=1"
   }
 
   rm -rf $DATA_FOLDER
 
-  if [ $ng -eq 0 ]; then
-    err_lines=$(grep FAILURE *.err | wc -l)
+  if [ $count -gt 0 ]; then
+    if [ $ng -eq 0 ]; then
 
-    if [ $err_lines -gt 0 ] || [ $FAIL -gt 0 ]; then
-      1>&2 echo ""
-      1>&2 echo "Error in LASTZ process!"
-      1>&2 cat *.err
-      (exit 6)
+      if [ $(ls *.err | wc -l) -gt 0 ]; then
+        err_lines=$(grep FAILURE *.err | wc -l)
+
+        if [ $err_lines -gt 0 ] || [ $FAIL -gt 0 ]; then
+          1>&2 echo ""
+          1>&2 echo "Error in LASTZ process!"
+          1>&2 cat *.err
+          (exit 6)
+        fi
+
+        for i in *.err; 
+        do 
+          rm $i; 
+        done
+      fi
+
+      if [ $(ls *.segments | wc -l) -gt 0 ]; then
+        for i in *.segments; 
+        do 
+          rm $i; 
+        done
+      fi
     fi
-  fi
 
-  if [ $ng -eq 0 ]; then
-    for i in *.segments *.err; 
-    do 
-      rm $i; 
-    done
-  fi
 
-  if [ $outf -eq 1 ]; then
+    if [ $outf -eq 1 ]; then
 
-    > $output_filename
+      > $output_filename
 
-    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename && rm $filename; done
-    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename >> $output_filename && rm $filename; done
-    if [ $mk -eq 1 ]; then
-      echo "# segalign end-of-file" >> $output_filename
+      if [ $(ls tmp*.plus.* | wc -l) -gt 0 ]; then
+        for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; 
+        do 
+          cat $filename >> $output_filename && rm $filename; 
+        done
+      fi
+
+      if [ $(ls tmp*.minus.* | wc -l) -gt 0 ]; then
+        for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; 
+        do 
+          cat $filename >> $output_filename && rm $filename; 
+        done
+      fi
+
+      if [ $mk -eq 1 ]; then
+        echo "# segalign end-of-file" >> $output_filename
+      fi
+
+    else
+
+      if [ $(ls tmp*.plus.* | wc -l) -gt 0 ]; then
+        for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; 
+        do 
+          cat $filename && rm $filename; 
+        done
+      fi
+
+      if [ $(ls tmp*.minus.* | wc -l) -gt 0 ]; then
+        for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; 
+        do 
+          cat $filename && rm $filename; 
+        done
+      fi
+
+      if [ $mk -eq 1 ]; then
+        echo "# segalign end-of-file" 
+      fi
+
     fi
   else
-    for filename in `for i in tmp*.plus.*; do echo $i; done | sort -V`; do cat $filename && rm $filename; done
-    for filename in `for i in tmp*.minus.*; do echo $i; done | sort -V`; do cat $filename && rm $filename; done
-    if [ $mk -eq 1 ]; then
-      echo "# segalign end-of-file" 
-    fi
+    echo "No alignment generated"
   fi
 
   rm -rf $OUTPUT_FOLDER
-
 fi
