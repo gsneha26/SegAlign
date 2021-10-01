@@ -41,7 +41,7 @@ The following dependencies are required by SegAlign:
   * libboost-all-dev
   * parallel
   * zlib
-  * LASTZ 1.04.03
+  * LASTZ 1.04.15
   * faToTwoBit, twoBitToFa (from kentUtils)
 
 The dependencies can be installed with the given script as follows, which might take a while (only installs the dependencies not present already). This script requires sudo to install most packages at the system level. Using the `-c` option skips CUDA installation [the CUDA toolkit binaries should be in `$PATH` for SegAlign]. 
