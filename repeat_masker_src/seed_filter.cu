@@ -752,7 +752,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
     check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_hits");
     
-    int num_iter = num_hits/MAX_HITS+1;
+    int num_iter = num_hits/MAX_HITS+2;
     uint32_t iter_hit_limit = MAX_HITS;
     thrust::device_vector<uint32_t> limit_pos (num_iter); 
 
@@ -764,6 +764,10 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     }
 
     limit_pos[num_iter-1] = num_seeds-1;
+
+    if(limit_pos[num_iter-1] == limit_pos[num_iter-2]){
+	    num_iter--;
+    }
 
     segmentPair** h_hsp = (segmentPair**) malloc(num_iter*sizeof(segmentPair*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
@@ -778,45 +782,45 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
             iter_num_seeds = limit_pos[i] + 1 - start_seed_index;
             iter_num_hits  = d_hit_num_vec[g][limit_pos[i]] - start_hit_val;
 
-            find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end);
+	    find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end);
 
-            if(rev){
-                find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_seq_rc[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
-            }
-            else{
-                find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_ref_seq[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
-            }
+	    if(rev){
+		    find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_seq_rc[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
+	    }
+	    else{
+		    find_hsps <<<1024, BLOCK_SIZE>>> (d_ref_seq[g], d_ref_seq[g], ref_len, ref_len, d_sub_mat[g], noentropy, xdrop, hspthresh, iter_num_hits, d_hsp[g], d_done[g]);
+	    }
 
-            thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
+	    thrust::inclusive_scan(d_done_vec[g].begin(), d_done_vec[g].begin() + iter_num_hits, d_done_vec[g].begin());
 
-            check_cuda_memcpy((void*)&num_anchors[i], (void*)(d_done[g]+iter_num_hits-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_anchors");
+	    check_cuda_memcpy((void*)&num_anchors[i], (void*)(d_done[g]+iter_num_hits-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_anchors");
 
-            if(num_anchors[i] > 0){
-                compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits, rev, ref_len);
+	    if(num_anchors[i] > 0){
+		    compress_output <<<MAX_BLOCKS, MAX_THREADS>>>(d_done[g], d_hsp[g], d_hsp_reduced[g], iter_num_hits, rev, ref_len);
 
-                thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
-                
-                thrust::device_vector<segmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
+		    thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspComp());
 
-                num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
+		    thrust::device_vector<segmentPair>::iterator result_end = thrust::unique_copy(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], d_hsp_vec[g].begin(),  hspEqual());
 
-                thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspDiagComp());
-                
-                thrust::device_vector<segmentPair>::iterator result_end2 = thrust::unique_copy(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], d_hsp_reduced_vec[g].begin(),  hspDiagEqual());
+		    num_anchors[i] = thrust::distance(d_hsp_vec[g].begin(), result_end), num_anchors[i];
 
-                num_anchors[i] = thrust::distance(d_hsp_reduced_vec[g].begin(), result_end2), num_anchors[i];
+		    thrust::stable_sort(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], hspDiagComp());
 
-                thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspFinalComp());
+		    thrust::device_vector<segmentPair>::iterator result_end2 = thrust::unique_copy(d_hsp_vec[g].begin(), d_hsp_vec[g].begin()+num_anchors[i], d_hsp_reduced_vec[g].begin(),  hspDiagEqual());
 
-                total_anchors += num_anchors[i];
+		    num_anchors[i] = thrust::distance(d_hsp_reduced_vec[g].begin(), result_end2), num_anchors[i];
 
-                h_hsp[i] = (segmentPair*) calloc(num_anchors[i], sizeof(segmentPair));
+		    thrust::stable_sort(d_hsp_reduced_vec[g].begin(), d_hsp_reduced_vec[g].begin()+num_anchors[i], hspFinalComp());
 
-                check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp_reduced[g], num_anchors[i]*sizeof(segmentPair), cudaMemcpyDeviceToHost, "hsp_output");
-            }
+		    total_anchors += num_anchors[i];
 
-            start_seed_index = limit_pos[i] + 1;
-            start_hit_val = d_hit_num_vec[g][limit_pos[i]];
+		    h_hsp[i] = (segmentPair*) calloc(num_anchors[i], sizeof(segmentPair));
+
+		    check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp_reduced[g], num_anchors[i]*sizeof(segmentPair), cudaMemcpyDeviceToHost, "hsp_output");
+	    }
+
+	    start_seed_index = limit_pos[i] + 1;
+	    start_hit_val = d_hit_num_vec[g][limit_pos[i]];
         }
     }
 
