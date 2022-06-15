@@ -711,7 +711,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
     check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_hits");
     
-    int num_iter = num_hits/MAX_HITS+1;
+    int num_iter = num_hits/MAX_HITS+2;
     uint32_t iter_hit_limit = MAX_HITS;
     thrust::device_vector<uint32_t> limit_pos (num_iter); 
 
@@ -723,6 +723,10 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     }
 
     limit_pos[num_iter-1] = num_seeds-1;
+
+    if(limit_pos[num_iter-1] == limit_pos[num_iter-2]){
+	    num_iter--;
+    }
 
     segmentPair** h_hsp = (segmentPair**) malloc(num_iter*sizeof(segmentPair*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
