@@ -759,8 +759,10 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     for(int i = 0; i < num_iter-1; i++){
         thrust::device_vector<uint32_t>::iterator result_end = thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, iter_hit_limit);
         uint32_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
-        iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
         limit_pos[i] = pos;
+        iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
+	if(iter_hit_limit > num_hits)
+		iter_hit_limit = num_hits;
     }
 
     limit_pos[num_iter-1] = num_seeds-1;
