@@ -726,6 +726,10 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     uint32_t total_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
+    if(num_seeds > MAX_SEEDS){
+	    printf("MAX_SEEDS exceeded\n");
+    }
+
     assert(num_seeds <= MAX_SEEDS);
 
     uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
@@ -752,8 +756,18 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
     check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_hits");
     
-    int num_iter = num_hits/MAX_HITS+2;
-    uint32_t iter_hit_limit = MAX_HITS;
+    int num_iter;
+    uint32_t iter_hit_limit;
+
+    if(num_hits < MAX_HITS){
+	    num_iter = 2;
+	    iter_hit_limit = num_hits;
+    }
+    else{
+	    num_iter = num_hits/MAX_HITS+2;
+	    iter_hit_limit = MAX_HITS;
+    }
+
     thrust::device_vector<uint32_t> limit_pos (num_iter); 
 
     for(int i = 0; i < num_iter-1; i++){
