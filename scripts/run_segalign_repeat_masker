@@ -33,7 +33,9 @@ split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
 
 for ((i=2; i < $#; i++)){
-  optionalArguments="$optionalArguments ${args[$i]}"
+  if [[ "${args[$i]}" != *"--output"* ]]; then
+    optionalArguments="$optionalArguments ${args[$i]}"
+  fi
 }
 
 for ((i=0; i < $total_args; i++)){
@@ -94,7 +96,7 @@ else
 
       for filename in `for i in tmp*.*; do echo $i; done | sort -V`; do cat $filename>> $output_filename; done
 
-      if [ $mk -eq 1 ] && [ $pc -eq 0 ]; then
+      if [ $mk -eq 1 ] ; then
           echo "# segalign_repeat_masker end-of-file" >> $output_filename
       fi
 

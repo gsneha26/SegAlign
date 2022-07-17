@@ -30,8 +30,8 @@ char** d_seq_rc;
 
 uint64_t** d_seed_offsets;
 
-uint32_t** d_hit_num_array;
-std::vector<thrust::device_vector<uint32_t> > d_hit_num_vec;
+uint64_t** d_hit_num_array;
+std::vector<thrust::device_vector<uint64_t> > d_hit_num_vec;
 
 uint32_t** d_done;
 std::vector<thrust::device_vector<uint32_t> > d_done_vec;
@@ -167,7 +167,7 @@ void rev_comp_string (uint32_t len, char* src_seq, char* dst_seq){
 }
 
 __global__
-void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint32_t* seed_hit_num){
+void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, uint64_t* seed_offsets, uint64_t* seed_hit_num){
 
     int thread_id = threadIdx.x;
     int block_dim = blockDim.x;
@@ -177,7 +177,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
     int stride = block_dim * grid_dim;
     uint32_t start = block_dim * block_id + thread_id;
 
-    uint32_t num_seed_hit;
+    uint64_t num_seed_hit;
     uint32_t seed;
     
     for (uint32_t id = start; id < num_seeds; id += stride) {
@@ -194,7 +194,7 @@ void find_num_hits (int num_seeds, const uint32_t* __restrict__ d_index_table, u
 }
 
 __global__
-void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint32_t* seed_hit_num, int num_hits, segmentPair* d_hsp, uint32_t start_seed_index, uint32_t start_hit_index, uint32_t ref_start, uint32_t ref_end){
+void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __restrict__ d_pos_table, uint64_t*  d_seed_offsets, uint32_t seed_size, uint64_t* seed_hit_num, uint64_t num_hits, segmentPair* d_hsp, uint32_t start_seed_index, uint64_t start_hit_index, uint32_t ref_start, uint32_t ref_end){
 
     int thread_id = threadIdx.x;
     int block_id = blockIdx.x;
@@ -208,7 +208,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
 
     __shared__ uint32_t ref_loc[NUM_WARPS];
     __shared__ uint32_t query_loc;
-    __shared__ uint32_t seed_hit_prefix;
+    __shared__ uint64_t seed_hit_prefix;
 
     if(thread_id == 0){
         seed_offset = d_seed_offsets[block_id+start_seed_index];
@@ -221,6 +221,7 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
         if (seed > 0){
             start = d_index_table[seed-1];
         }
+
         seed_hit_prefix = seed_hit_num[block_id+start_seed_index]; 
     }
     __syncthreads();
@@ -229,8 +230,8 @@ void find_hits (const uint32_t* __restrict__  d_index_table, const uint32_t* __r
     for (int id1 = start; id1 < end; id1 += NUM_WARPS) {
         if(id1+warp_id < end){ 
             if(lane_id == 0){ 
-                ref_loc[warp_id]   = d_pos_table[id1+warp_id] + seed_size;
-                int dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
+                ref_loc[warp_id] = d_pos_table[id1+warp_id] + seed_size;
+                uint64_t dram_address = seed_hit_prefix -id1 - warp_id+start-1-start_hit_index;
 
                 d_hsp[dram_address].ref_start = ref_loc[warp_id];
                 d_hsp[dram_address].query_start = query_loc; 
@@ -722,8 +723,8 @@ void compress_output (uint32_t* d_done, segmentPair* d_hsp, segmentPair* d_hsp_r
 
 std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector, bool rev, uint32_t ref_start, uint32_t ref_end){
 
-    uint32_t num_hits = 0;
-    uint32_t total_anchors = 0;
+    uint64_t num_hits = 0;
+    uint64_t total_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
     if(num_seeds > MAX_SEEDS){
@@ -754,25 +755,25 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 
     thrust::inclusive_scan(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin() + num_seeds, d_hit_num_vec[g].begin());
 
-    check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_hits");
+    check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint64_t), cudaMemcpyDeviceToHost, "num_hits");
     
-    int num_iter;
-    uint32_t iter_hit_limit;
+    uint32_t num_iter;
+    uint64_t iter_hit_limit;
 
     if(num_hits < MAX_HITS){
 	    num_iter = 2;
 	    iter_hit_limit = num_hits;
     }
     else{
-	    num_iter = num_hits/MAX_HITS+2;
+	    num_iter = (uint32_t) (num_hits/MAX_HITS+2);
 	    iter_hit_limit = MAX_HITS;
     }
 
-    thrust::device_vector<uint32_t> limit_pos (num_iter); 
+    thrust::device_vector<uint64_t> limit_pos (num_iter); 
 
     for(int i = 0; i < num_iter-1; i++){
-        thrust::device_vector<uint32_t>::iterator result_end = thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, iter_hit_limit);
-        uint32_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
+        thrust::device_vector<uint64_t>::iterator result_end = thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, iter_hit_limit);
+        uint64_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
         limit_pos[i] = pos;
         iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
 	if(iter_hit_limit > num_hits)
@@ -789,13 +790,14 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));
 
     uint32_t start_seed_index = 0;
-    uint32_t start_hit_val = 0;
-    uint32_t iter_num_seeds, iter_num_hits;
+    uint32_t iter_num_seeds;
+    uint64_t start_hit_val = 0;
+    uint64_t iter_num_hits;
 
     if(num_hits > 0){
         
         for(int i = 0; i < num_iter; i++){
-            iter_num_seeds = limit_pos[i] + 1 - start_seed_index;
+            iter_num_seeds = (uint32_t) limit_pos[i] + 1 - start_seed_index;
             iter_num_hits  = d_hit_num_vec[g][limit_pos[i]] - start_hit_val;
 
 	    find_hits <<<iter_num_seeds, BLOCK_SIZE>>> (d_index_table[g], d_pos_table[g], d_seed_offsets[g], seed_size, d_hit_num_array[g], iter_num_hits, d_hsp[g], start_seed_index, start_hit_val, ref_start, ref_end);
@@ -835,7 +837,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 		    check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp_reduced[g], num_anchors[i]*sizeof(segmentPair), cudaMemcpyDeviceToHost, "hsp_output");
 	    }
 
-	    start_seed_index = limit_pos[i] + 1;
+	    start_seed_index = limit_pos[i]+1;
 	    start_hit_val = d_hit_num_vec[g][limit_pos[i]];
         }
     }
@@ -851,8 +853,12 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     std::vector<segmentPair> gpu_filter_output;
 
     segmentPair first_el;
-    first_el.len = total_anchors;
-    first_el.score = num_hits;
+
+    first_el.ref_start = ((num_hits << 32) >> 32);
+    first_el.query_start = (num_hits >> 32);
+
+    first_el.len = ((total_anchors << 32) >> 32);
+    first_el.score = (total_anchors >> 32);
     gpu_filter_output.push_back(first_el);
 
     if(total_anchors > 0){
@@ -898,7 +904,7 @@ void InitializeProcessor (bool transition, uint32_t WGA_CHUNK, uint32_t input_se
 
     d_seed_offsets = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
 
-    d_hit_num_array = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));
+    d_hit_num_array = (uint64_t**) malloc(NUM_DEVICES*sizeof(uint64_t*));
     d_hit_num_vec.reserve(NUM_DEVICES);
 
     d_done = (uint32_t**) malloc(NUM_DEVICES*sizeof(uint32_t*));

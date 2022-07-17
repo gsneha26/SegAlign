@@ -103,7 +103,8 @@ printer_input seeder_body::operator()(seeder_input input) {
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
                 std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, false, ref_start, ref_end);
-                seeder_body::num_seed_hits += anchors[0].score;
+		uint64_t curr_hits = ((uint64_t)anchors[0].query_start << 32) + anchors[0].ref_start; 
+                seeder_body::num_seed_hits += curr_hits;
                 if(anchors.size() > 1){
                     total_hsps.insert(total_hsps.end(), anchors.begin()+1, anchors.end());
                     seeder_body::num_hsps += anchors.size()-1;
@@ -140,7 +141,8 @@ printer_input seeder_body::operator()(seeder_input input) {
             if(seed_offset_vector.size() > 0){
                 seeder_body::num_seeds += seed_offset_vector.size();
                 std::vector<segmentPair> anchors = g_SeedAndFilter(seed_offset_vector, true, ref_start, ref_end);
-                seeder_body::num_seed_hits += anchors[0].score;
+		uint64_t curr_hits = ((uint64_t)anchors[0].query_start << 32) + anchors[0].ref_start; 
+                seeder_body::num_seed_hits += curr_hits;
                 if(anchors.size() > 1){
                     total_hsps.insert(total_hsps.end(), anchors.rbegin(), anchors.rend()-1);
                     seeder_body::num_hsps += anchors.size()-1;
