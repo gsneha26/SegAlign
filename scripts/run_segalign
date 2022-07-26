@@ -189,8 +189,6 @@ else
       fi
 
     fi
-  else
-    echo "No alignment generated"
   fi
 
   rm -rf $OUTPUT_FOLDER
