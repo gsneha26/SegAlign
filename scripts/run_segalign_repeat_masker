@@ -32,9 +32,11 @@ for ((i=0; i < $#; i++)){
 split_args=( $optionalArguments1 )
 total_args=${#split_args[@]}
 
-for ((i=2; i < $#; i++)){
+for ((i=1; i < $#; i++)){
   if [[ "${args[$i]}" != *"--output"* ]]; then
     optionalArguments="$optionalArguments ${args[$i]}"
+  else
+    i=$(( i+1 ))
   fi
 }
 

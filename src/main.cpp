@@ -14,6 +14,7 @@
 #include "seed_filter_interface.h"
 #include "seed_filter.h"
 #include "store.h"
+#include "scoring.h"
 
 namespace po = boost::program_options;
 
@@ -202,13 +203,14 @@ int main(int argc, char** argv){
         ambiguous_penalty = 0;
     }
 
-    if(vm.count("scoring") == 0){
+    int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
+                                   { -114,  100, -125,  -31},
+                                   {  -31, -125,  100, -114},
+                                   { -123,  -31, -114,   91}};
 
-        //ACGT
-        int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
-                                 { -114,  100, -125,  -31},
-                                 {  -31, -125,  100, -114},
-                                 { -123,  -31, -114,  91}};
+    if(vm.count("scoring")) {
+        load_scoring_matrix(tmp_sub_mat, (char *) cfg.scoring_file.c_str());
+    }
 
         for(int i = 0; i < L_NT; i++){
             for(int j = 0; j < L_NT; j++){
@@ -265,7 +267,6 @@ int main(int argc, char** argv){
             cfg.sub_mat[E_NT*NUC+i] = -10*cfg.xdrop;
         }
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
-    }
 
     cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
     cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
