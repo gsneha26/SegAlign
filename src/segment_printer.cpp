@@ -104,7 +104,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
+                    cmd = cmd+" --scores=" + cfg.scoring_file;
                 cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
@@ -159,7 +159,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
+                    cmd = cmd+" --scores=" + cfg.scoring_file;
                 cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
