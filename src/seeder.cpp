@@ -11,11 +11,11 @@ std::atomic<uint32_t> seeder_body::num_seeded_regions[BUFFER_DEPTH]={};
 
 printer_input seeder_body::operator()(seeder_input input) {
 
-    auto &payload = get<0>(input);
-    size_t token  = get<1>(input);
+    auto &payload = std::get<0>(input);
+    size_t token  = std::get<1>(input);
 
-    auto &block_data    = get<0>(payload);
-    auto &interval_data = get<1>(payload);
+    auto &block_data    = std::get<0>(payload);
+    auto &interval_data = std::get<1>(payload);
 
     int r_block_index    = block_data.r_index;
     int q_block_index    = block_data.q_index;

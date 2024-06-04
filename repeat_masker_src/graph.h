@@ -11,28 +11,26 @@
 #define DEFAULT_LASTZ_INTERVAL 10000000
 #define DEFAULT_WGA_CHUNK 250000
 
-using namespace tbb::flow;
-
-struct Seed_config {
+typedef struct Seed_config {
     std::string shape;
     int size;
     int kmer_size;
     bool transition;
-};
+} Seed_config;
 
-struct segmentPair {
+typedef struct segmentPair {
     uint32_t ref_start;
     uint32_t query_start;
     uint32_t len;
     int score;
-};
+} segmentPair;
 
-struct Segment {
+typedef struct Segment {
     uint32_t query_start;
     uint32_t len;
-};
+} Segment;
 
-struct Configuration {
+typedef struct Configuration {
     //Input files/folder name
     std::string seq_filename;
 
@@ -68,43 +66,43 @@ struct Configuration {
     int num_gpu;
     int num_threads;
     bool debug;
-};
+} Configuration;
 
 extern Configuration cfg;
 
-struct seq_block {
+typedef struct seq_block {
   int index;
   size_t start;
   uint32_t len;
-};
+} seq_block;
 
-struct seed_interval {
+typedef struct seed_interval {
     uint32_t start;
     uint32_t end;
     uint32_t ref_start;
     uint32_t ref_end;
     uint32_t num_invoked;
     uint32_t num_intervals;
-};
+} seed_interval;
 
 typedef std::vector<segmentPair> hsp_output; 
 typedef std::vector<Segment> interval_output; 
-typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
-typedef tbb::flow::tuple <seq_block, int, interval_output> printer_payload;
-typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
-typedef tbb::flow::tuple <printer_payload, size_t> printer_input;
-typedef tbb::flow::multifunction_node<printer_input, tbb::flow::tuple<size_t>> printer_node;
+typedef std::tuple<seq_block, seed_interval> seeder_payload;
+typedef std::tuple<seq_block, int, interval_output> printer_payload;
+typedef std::tuple<seeder_payload, size_t> seeder_input;
+typedef std::tuple <printer_payload, size_t> printer_input;
+typedef tbb::flow::multifunction_node<printer_input, std::tuple<size_t>> printer_node;
 
-struct seeder_body{
+typedef struct seeder_body {
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
     static std::atomic<uint32_t> total_xdrop;
     static std::atomic<uint32_t> num_seeded_regions;
 	printer_input operator()(seeder_input input);
-};
+} seeder_body;
 
-struct interval_printer_body{
+typedef struct interval_printer_body {
 	void operator()(printer_input input, printer_node::output_ports_type & op);
-};
+} interval_printer_body;
 

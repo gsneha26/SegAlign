@@ -7,12 +7,12 @@
 
 void interval_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
 
-    auto &payload = get<0>(input); 
-    size_t token  = get<1>(input);
+    auto &payload = std::get<0>(input); 
+    size_t token  = std::get<1>(input);
  
-    auto &block_data  = get<0>(payload);
-    auto &index       = get<1>(payload);
-    auto &out_intervals    = get<2>(payload);
+    auto &block_data  = std::get<0>(payload);
+    auto &index       = std::get<1>(payload);
+    auto &out_intervals    = std::get<2>(payload);
 
     int block_index    = block_data.index;
     size_t block_start = block_data.start;
@@ -61,5 +61,5 @@ void interval_printer_body::operator()(printer_input input, printer_node::output
         fclose(intervalFile);
     }
 
-    get<0>(op).try_put(token);
+    std::get<0>(op).try_put(token);
 };

@@ -99,7 +99,8 @@ void RevComp(char* dst_buffer, char* src_buffer, size_t rc_start, size_t start, 
             case '&': dst_buffer[r++] = '&';
                       break;
 
-            default: printf("Bad Nt char! '%c' %lu\n", src_buffer[i], i);
+            default: printf("Bad Nt char! '%c' %lu\n", src_buffer[i-1], i-1);
+
         }
     }
 }

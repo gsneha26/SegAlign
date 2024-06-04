@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <tbb/reader_writer_lock.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
 #include "kseq.h"
 #include "zlib.h"
 #include "graph.h"
@@ -231,9 +231,7 @@ int main(int argc, char** argv){
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
     }
 
-    cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
-    cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
-    tbb::task_scheduler_init init(cfg.num_threads);
+    tbb::global_control(tbb::global_control::max_allowed_parallelism, cfg.num_threads);
 
     if(cfg.debug){
         fprintf(stderr, "seq_file %s\n", cfg.seq_filename.c_str());
@@ -526,12 +524,12 @@ int main(int argc, char** argv){
 
             if(blocks_sent < total_r_blocks) {
                 if (block_intervals_invoked < block_intervals_num) {
-                    seq_block& curr_block = get<0>(op);
+                    seq_block& curr_block = std::get<0>(op);
                     curr_block.start = send_block_start;
                     curr_block.len   = send_block_len;
                     curr_block.index = blocks_sent; 
 
-                    seed_interval& inter = get<1>(op);
+                    seed_interval& inter = std::get<1>(op);
                     seed_interval curr_inter = interval_list[prev_intervals_invoked + block_intervals_invoked++];
                     inter.start     = curr_inter.start;
                     inter.end       = curr_inter.end;

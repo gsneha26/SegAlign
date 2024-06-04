@@ -5,9 +5,8 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <tbb/reader_writer_lock.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
 #include "kseq.h"
 #include "zlib.h"
 #include "graph.h"
@@ -324,9 +323,7 @@ int main(int argc, char** argv){
 
 
 
-    //cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
-    //cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
-    tbb::task_scheduler_init init(cfg.num_threads);
+    tbb::global_control(tbb::global_control::max_allowed_parallelism, cfg.num_threads);
 
     if(cfg.debug){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
@@ -413,7 +410,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_q_chr++;
 
-        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
+        if(seq_block_len > cfg.seq_block_size){
 
             query_block_len.push_back(seq_block_len);
             if(seq_block_len > query_max_block_len)
@@ -569,7 +566,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_r_chr++;
 
-        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
+        if(seq_block_len > cfg.seq_block_size){
 
             ref_block_len.push_back(seq_block_len);
 
@@ -762,7 +759,7 @@ int main(int argc, char** argv){
 
             if(q_blocks_invoked < total_q_blocks) {
                 if (block_intervals_invoked < block_intervals_num) {
-                    seq_block& curr_block = get<0>(op);
+                    seq_block& curr_block = std::get<0>(op);
                     curr_block.r_index  = r_blocks_sent; 
                     curr_block.q_index  = q_blocks_invoked; 
                     curr_block.r_start  = send_r_block_start;
@@ -770,7 +767,7 @@ int main(int argc, char** argv){
                     curr_block.r_len    = send_r_block_len;
                     curr_block.q_len    = invoke_q_len-cfg.seed.size;
 
-                    seed_interval& curr_inter = get<1>(op);
+                    seed_interval& curr_inter = std::get<1>(op);
                     seed_interval inter = interval_list[completed_intervals + block_intervals_invoked++];
                     curr_inter.start = inter.start;
                     curr_inter.end   = inter.end;
