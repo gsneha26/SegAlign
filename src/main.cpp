@@ -19,7 +19,10 @@
 
 #include <errno.h>
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <sched.h>
 
 namespace po = boost::program_options;
@@ -198,7 +201,7 @@ int main(int argc, char** argv){
 
     if (total_cpus != -1) {
         if (cfg.num_threads == -1) {
-            cfg.num_threads = total_cpus
+            cfg.num_threads = total_cpus;
         }
 
         if (cfg.num_threads > total_cpus) {
