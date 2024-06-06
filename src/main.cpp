@@ -75,18 +75,6 @@ int available_cpus(void) {
     return(value);
 }
 
-int omp_num_threads(void) {
-    const char *env_var_name = "OMP_NUM_THREADS";
-    char *env_var_value = NULL;
-    int value = -1;
-
-    if ((env_var_value = getenv(env_var_name)) != NULL) {
-        value = atoi((const char *) env_var_value);
-    }
-
-    return(value);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -192,21 +180,12 @@ int main(int argc, char** argv){
     }
 
     int total_cpus = available_cpus();
-    int env_threads = omp_num_threads();
 
-    if (cfg.num_threads == -1) {
-        cfg.num_threads = env_threads;
+    if (total_cpus > 0 && (cfg.num_threads < 0 || cfg.num_threads > total_cpus)) {
+        cfg.num_threads = total_cpus;
     }
 
-    if (total_cpus != -1) {
-        if (cfg.num_threads == -1) {
-            cfg.num_threads = total_cpus;
-        }
-
-        if (cfg.num_threads > total_cpus) {
-            cfg.num_threads = total_cpus;
-        }
-    }
+    fprintf(stderr, "\ncfg.num_threads = %d\n", cfg.num_threads);
 
     cfg.seed.transition = !cfg.seed.transition;
     if(cfg.seed_shape == "12of19"){
@@ -319,11 +298,7 @@ int main(int argc, char** argv){
         }
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
 
-
-
-
-
-    tbb::global_control(tbb::global_control::max_allowed_parallelism, cfg.num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, cfg.num_threads);
 
     if(cfg.debug){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
