@@ -1,4 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -o errexit
+
+is_gzipped () {
+    local pathname="$1"
+    local rc=0
+
+    value=$(od -N 2 -t x1 "$pathname" \
+            | awk '$1 == "0000000" {print toupper($2) "\n" toupper($3)}' \
+            | sort \
+            | tr -d '\n')
+
+    if [ "$value" = "1F8B" ]; then
+        rc=1
+    fi
+
+    echo "$rc"
+}
 
 #custom error code
 #4 - file not found
@@ -11,8 +29,6 @@
 #12 - Error with cudaMalloc in GPU part
 #13 - Error with cudaMemcpy in GPU part
 #14 - Error with cudaFree in GPU part
-
-set -e
 
 optionalArguments=""
 optionalArguments1=""
@@ -97,8 +113,17 @@ else
     cd $DATA_FOLDER
     1>&2 echo ""
     1>&2 echo "Converting fasta files to 2bit format"
-    faToTwoBit $refPath ref.2bit
-    faToTwoBit $queryPath query.2bit
+    if [ "$(is_gzipped $refPath)" = "1" ]; then
+        faToTwoBit <(gzip -dc $refPath) ref.2bit
+    else
+        faToTwoBit $refPath ref.2bit
+    fi
+
+    if [ "$(is_gzipped $queryPath)" = "1" ]; then
+        faToTwoBit <(gzip -dc $queryPath) query.2bit
+    else
+        faToTwoBit $queryPath query.2bit
+    fi
   fi
 
   1>&2 echo ""

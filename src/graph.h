@@ -13,23 +13,21 @@
 
 #define BUFFER_DEPTH 2
 
-using namespace tbb::flow;
-
-struct Seed_config {
+typedef struct Seed_config {
     std::string shape;
     int size;
     int kmer_size;
     bool transition;
-};
+} Seed_config;
 
-struct segmentPair {
+typedef struct segmentPair {
     uint32_t ref_start;
     uint32_t query_start;
     uint32_t len;
     int score;
-};
+} segmentPair;
 
-struct Configuration {
+typedef struct Configuration {
     //Input files/folder name
     std::string reference_filename;
     std::string query_filename;
@@ -71,44 +69,44 @@ struct Configuration {
     int num_gpu;
     int num_threads;
     bool debug;
-};
+} Configuration;
 
 extern Configuration cfg;
 
-struct seq_block {
+typedef struct seq_block {
   int r_index;
   int q_index;
   size_t r_start;
   size_t q_start;
   uint32_t r_len;
   uint32_t q_len;
-};
+} seq_block;
 
-struct seed_interval {
+typedef struct seed_interval {
     uint32_t start;
     uint32_t end;
     uint32_t num_invoked;
     uint32_t num_intervals;
     uint32_t buffer;
-};
+} seed_interval;
 
 typedef std::vector<segmentPair> hsp_output; 
-typedef tbb::flow::tuple <seq_block, seed_interval> seeder_payload;
-typedef tbb::flow::tuple <seeder_payload, hsp_output, hsp_output> printer_payload;
-typedef tbb::flow::tuple <seeder_payload, size_t> seeder_input;
-typedef tbb::flow::tuple <printer_payload, size_t> printer_input;
-typedef tbb::flow::multifunction_node<printer_input, tbb::flow::tuple<size_t>> printer_node;
+typedef std::tuple<seq_block, seed_interval> seeder_payload;
+typedef std::tuple<seeder_payload, hsp_output, hsp_output> printer_payload;
+typedef std::tuple<seeder_payload, size_t> seeder_input;
+typedef std::tuple<printer_payload, size_t> printer_input;
+typedef tbb::flow::multifunction_node<printer_input, std::tuple<size_t>> printer_node;
 
-struct seeder_body{
+typedef struct seeder_body {
 	static std::atomic<uint64_t> num_seed_hits;
 	static std::atomic<uint64_t> num_seeds;
 	static std::atomic<uint64_t> num_hsps;
     static std::atomic<uint32_t> total_xdrop;
     static std::atomic<uint32_t> num_seeded_regions[BUFFER_DEPTH];
 	printer_input operator()(seeder_input input);
-};
+} seeder_body;
 
-struct segment_printer_body{
+typedef struct segment_printer_body {
 	void operator()(printer_input input, printer_node::output_ports_type & op);
-};
+} segment_printer_body;
 

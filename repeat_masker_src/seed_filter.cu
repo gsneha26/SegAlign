@@ -4,6 +4,7 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include <thrust/sort.h>
 #include "cuda_utils.h"
 #include "parameters.h"
 #include "seed_filter.h"
@@ -727,7 +728,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     uint64_t total_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
-    if(num_seeds > MAX_SEEDS){
+    if (num_seeds > MAX_SEEDS) {
 	    printf("MAX_SEEDS exceeded\n");
     }
 
@@ -760,11 +761,10 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     uint32_t num_iter;
     uint64_t iter_hit_limit;
 
-    if(num_hits < MAX_HITS){
+    if (num_hits < MAX_HITS) {
 	    num_iter = 2;
-	    iter_hit_limit = num_hits;
-    }
-    else{
+        iter_hit_limit = num_hits;
+    } else{
 	    num_iter = (uint32_t) (num_hits/MAX_HITS+2);
 	    iter_hit_limit = MAX_HITS;
     }
@@ -776,13 +776,14 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
         uint64_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
         limit_pos[i] = pos;
         iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
-	if(iter_hit_limit > num_hits)
-		iter_hit_limit = num_hits;
+        if (iter_hit_limit > num_hits) {
+            iter_hit_limit = num_hits;
+        }
     }
 
     limit_pos[num_iter-1] = num_seeds-1;
 
-    if(limit_pos[num_iter-1] == limit_pos[num_iter-2]){
+    if (limit_pos[num_iter-1] == limit_pos[num_iter-2]) {
 	    num_iter--;
     }
 
@@ -837,7 +838,7 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
 		    check_cuda_memcpy((void*)h_hsp[i], (void*)d_hsp_reduced[g], num_anchors[i]*sizeof(segmentPair), cudaMemcpyDeviceToHost, "hsp_output");
 	    }
 
-	    start_seed_index = limit_pos[i]+1;
+	    start_seed_index = limit_pos[i] + 1;
 	    start_hit_val = d_hit_num_vec[g][limit_pos[i]];
         }
     }

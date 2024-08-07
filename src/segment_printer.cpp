@@ -10,15 +10,15 @@ std::mutex io_lock;
 
 void segment_printer_body::operator()(printer_input input, printer_node::output_ports_type & op){
 
-    auto &payload = get<0>(input); 
-    size_t token  = get<1>(input);
+    auto &payload = std::get<0>(input);
+    size_t token  = std::get<1>(input);
 
-    auto &seeder_payload = get<0>(payload);
-    auto &fw_hsps    = get<1>(payload);
-    auto &rc_hsps    = get<2>(payload);
+    auto &seeder_payload = std::get<0>(payload);
+    auto &fw_hsps    = std::get<1>(payload);
+    auto &rc_hsps    = std::get<2>(payload);
 
-    auto &block_data    = get<0>(seeder_payload);
-    auto &interval_data = get<1>(seeder_payload);
+    auto &block_data    = std::get<0>(seeder_payload);
+    auto &interval_data = std::get<1>(seeder_payload);
 
     int r_block_index = block_data.r_index - 1;
     int q_block_index = block_data.q_index;
@@ -104,7 +104,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
+                    cmd = cmd+" --scores=" + cfg.scoring_file;
                 cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
@@ -159,7 +159,7 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
                 if(cfg.notrivial)
                     cmd = cmd+" --notrivial";
                 if(cfg.scoring_file != "")
-                    cmd = cmd+" --scoring=" + cfg.scoring_file;
+                    cmd = cmd+" --scores=" + cfg.scoring_file;
                 cmd = cmd+" --segments="+segment_filename+" --output="+output_filename+" 2> "+err_filename;
 
                 io_lock.lock();
@@ -169,5 +169,5 @@ void segment_printer_body::operator()(printer_input input, printer_node::output_
         }
     }
 
-    get<0>(op).try_put(token);
+    std::get<0>(op).try_put(token);
 };

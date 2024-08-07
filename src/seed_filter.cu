@@ -4,6 +4,7 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/unique.h>
+#include <thrust/sort.h>
 #include "cuda_utils.h"
 #include "parameters.h"
 #include "seed_filter.h"
@@ -685,10 +686,6 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     uint32_t total_anchors = 0;
 
     uint32_t num_seeds = seed_offset_vector.size();
-    if(num_seeds > MAX_SEEDS){
-	    printf("MAX_SEEDS exceeded\n");
-    }
-
     assert(num_seeds <= MAX_SEEDS);
 
     uint64_t* tmp_offset = (uint64_t*) malloc(num_seeds*sizeof(uint64_t));
@@ -714,35 +711,19 @@ std::vector<segmentPair> SeedAndFilter (std::vector<uint64_t> seed_offset_vector
     thrust::inclusive_scan(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin() + num_seeds, d_hit_num_vec[g].begin());
 
     check_cuda_memcpy((void*)&num_hits, (void*)(d_hit_num_array[g]+num_seeds-1), sizeof(uint32_t), cudaMemcpyDeviceToHost, "num_hits");
-    
-    int num_iter;
-    uint32_t iter_hit_limit;
 
-    if(num_hits < MAX_HITS){
-	    num_iter = 2;
-	    iter_hit_limit = num_hits;
-    }
-    else{
-	    num_iter = num_hits/MAX_HITS+2;
-	    iter_hit_limit = MAX_HITS;
-    }
-
+    int num_iter = num_hits/MAX_HITS+1;
+    uint32_t iter_hit_limit = MAX_HITS;
     thrust::device_vector<uint32_t> limit_pos (num_iter); 
 
     for(int i = 0; i < num_iter-1; i++){
         thrust::device_vector<uint32_t>::iterator result_end = thrust::lower_bound(d_hit_num_vec[g].begin(), d_hit_num_vec[g].begin()+num_seeds, iter_hit_limit);
         uint32_t pos = thrust::distance(d_hit_num_vec[g].begin(), result_end)-1;
-        limit_pos[i] = pos;
         iter_hit_limit = d_hit_num_vec[g][pos]+MAX_HITS;
-	if(iter_hit_limit > num_hits)
-		iter_hit_limit = num_hits;
+        limit_pos[i] = pos;
     }
 
     limit_pos[num_iter-1] = num_seeds-1;
-
-    if(limit_pos[num_iter-1] == limit_pos[num_iter-2]){
-	    num_iter--;
-    }
 
     segmentPair** h_hsp = (segmentPair**) malloc(num_iter*sizeof(segmentPair*));
     uint32_t* num_anchors = (uint32_t*) calloc(num_iter, sizeof(uint32_t));

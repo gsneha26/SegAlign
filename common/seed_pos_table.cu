@@ -4,6 +4,7 @@
 #include "ntcoding.h"
 #include "store_gpu.h"
 #include <thrust/scan.h>
+#include <thrust/execution_policy.h>
 
 void InclusivePrefixScan (uint32_t* data, uint32_t len) {
     int g;

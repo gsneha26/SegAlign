@@ -1,19 +1,21 @@
 cmake_minimum_required (VERSION 3.8)
+cmake_policy(SET CMP0104 NEW)
+cmake_policy(SET CMP0128 NEW)
+cmake_policy(SET CMP0146 NEW)
 
-project(segalign LANGUAGES CXX CUDA)
-project(segalign_repeat_masker LANGUAGES CXX CUDA)
+execute_process(COMMAND bash "-c" "${CMAKE_SOURCE_DIR}/scripts/get-cuda-arches.bash" OUTPUT_VARIABLE SEGALIGN_CUDA_ARCHITECTURES)
+set(CMAKE_CUDA_ARCHITECTURES "${SEGALIGN_CUDA_ARCHITECTURES}")
+
+project(segalign LANGUAGES C CXX CUDA)
+project(segalign_repeat_masker LANGUAGES C CXX CUDA)
 
 set(CMAKE_CUDA_COMPILER nvcc)
-find_package(CUDA 9.0 REQUIRED)
 
 set(CMAKE_CUDA_COMPILER_ENV_VAR "CUDACXX")
 set(CMAKE_CUDA_HOST_COMPILER_ENV_VAR "CUDAHOSTCXX")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++11 -l c -lboost_program_options")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_52")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -std=c++14 -l c -lboost_program_options")
 
-include(${TBB_ROOT}/cmake/TBBBuild.cmake)
-tbb_build(TBB_ROOT ${TBB_ROOT} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
 find_package(TBB REQUIRED tbbmalloc tbbmalloc_proxy tbb_preview)
 
 find_package(ZLIB REQUIRED)
@@ -28,6 +30,9 @@ add_executable(segalign
     common/ntcoding.cpp
     common/seed_filter_interface.cu
     common/seed_pos_table.cu
+    common/utilities.c
+    common/dna_utilities.c
+    common/scoring.c
     src/seed_filter.cu
     src/seeder.cpp
     src/segment_printer.cpp
@@ -39,6 +44,9 @@ add_executable(segalign_repeat_masker
     common/ntcoding.cpp
     common/seed_filter_interface.cu
     common/seed_pos_table.cu
+    common/utilities.c
+    common/dna_utilities.c
+    common/scoring.c
     repeat_masker_src/seed_filter.cu
     repeat_masker_src/seeder.cpp
     repeat_masker_src/segment_printer.cpp
@@ -52,7 +60,7 @@ set_target_properties(
     segalign_repeat_masker
     PROPERTIES 
       CUDA_SEPARABLE_COMPILATION ON
-      CUDA_STANDARD 11
+      CUDA_STANDARD 14
       )
 
 target_compile_options(segalign PRIVATE -DTBB_SUPPRESS_DEPRECATED_MESSAGES)

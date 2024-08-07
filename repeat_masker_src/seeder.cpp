@@ -27,11 +27,11 @@ bool sort_hsp(segmentPair x, segmentPair y){
 
 printer_input seeder_body::operator()(seeder_input input) {
 
-    auto &payload = get<0>(input);
-    size_t token  = get<1>(input);
+    auto &payload = std::get<0>(input);
+    size_t token  = std::get<1>(input);
 
-    auto &block_data    = get<0>(payload);
-    auto &interval_data = get<1>(payload);
+    auto &block_data    = std::get<0>(payload);
+    auto &interval_data = std::get<1>(payload);
 
     size_t block_start = block_data.start;
     uint32_t block_len = block_data.len;

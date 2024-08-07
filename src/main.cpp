@@ -1,12 +1,12 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp> 
+#include <stdlib.h>
 #include <iostream>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <tbb/reader_writer_lock.h>
 #include <tbb/scalable_allocator.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
 #include "kseq.h"
 #include "zlib.h"
 #include "graph.h"
@@ -14,6 +14,15 @@
 #include "seed_filter_interface.h"
 #include "seed_filter.h"
 #include "store.h"
+#include "scoring.h"
+
+#include <errno.h>
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#include <sched.h>
 
 namespace po = boost::program_options;
 
@@ -52,6 +61,19 @@ std::vector<uint32_t> query_block_len;
 // ref 
 std::vector<size_t>   ref_block_start;
 std::vector<uint32_t> ref_block_len;
+
+////////////////////////////////////////////////////////////////////////////////
+
+int available_cpus(void) {
+    cpu_set_t mask;
+    int value = -1;
+
+    if (sched_getaffinity((pid_t) 0, sizeof(cpu_set_t), &mask) == 0) {
+        value = CPU_COUNT(&mask);
+    }
+
+    return(value);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,6 +126,7 @@ int main(int argc, char** argv){
         ("lastz_interval_size", po::value<uint32_t>(&cfg.lastz_interval_size)->default_value(DEFAULT_LASTZ_INTERVAL), "LASTZ interval for ydrop - change only if you are a developer")
         ("seq_block_size", po::value<uint32_t>(&cfg.seq_block_size)->default_value(DEFAULT_SEQ_BLOCK_SIZE), "LASTZ interval for ydrop - change only if you are a developer")
         ("num_gpu", po::value<int>(&cfg.num_gpu)->default_value(-1), "Specify number of GPUs to use - -1 if all the GPUs should be used")
+        ("num_threads", po::value<int>(&cfg.num_threads)->default_value(-1), "Specify number of CPU threads to use - -1 if all the CPU threads should be used")
         ("debug", po::bool_switch(&cfg.debug)->default_value(false), "print debug messages")
         ("version", "print version")
         ("help", "Print help messages");
@@ -156,6 +179,14 @@ int main(int argc, char** argv){
             return 1;
     }
 
+    int total_cpus = available_cpus();
+
+    if (total_cpus > 0 && (cfg.num_threads < 0 || cfg.num_threads > total_cpus)) {
+        cfg.num_threads = total_cpus;
+    }
+
+    fprintf(stderr, "\ncfg.num_threads = %d\n", cfg.num_threads);
+
     cfg.seed.transition = !cfg.seed.transition;
     if(cfg.seed_shape == "12of19"){
         cfg.seed.shape = "TTT0T00TT00T0T0TTTT"; 
@@ -202,13 +233,14 @@ int main(int argc, char** argv){
         ambiguous_penalty = 0;
     }
 
-    if(vm.count("scoring") == 0){
+    int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
+                                   { -114,  100, -125,  -31},
+                                   {  -31, -125,  100, -114},
+                                   { -123,  -31, -114,   91}};
 
-        //ACGT
-        int tmp_sub_mat[L_NT][L_NT] = {{   91, -114,  -31, -123},
-                                 { -114,  100, -125,  -31},
-                                 {  -31, -125,  100, -114},
-                                 { -123,  -31, -114,  91}};
+    if(vm.count("scoring")) {
+        load_scoring_matrix(tmp_sub_mat, (char *) cfg.scoring_file.c_str());
+    }
 
         for(int i = 0; i < L_NT; i++){
             for(int j = 0; j < L_NT; j++){
@@ -265,11 +297,8 @@ int main(int argc, char** argv){
             cfg.sub_mat[E_NT*NUC+i] = -10*cfg.xdrop;
         }
         cfg.sub_mat[E_NT*NUC+E_NT] = -10*cfg.xdrop;
-    }
 
-    cfg.num_threads = tbb::task_scheduler_init::default_num_threads();
-    cfg.num_threads = (cfg.num_threads == 1) ? 2 : cfg.num_threads;
-    tbb::task_scheduler_init init(cfg.num_threads);
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, cfg.num_threads);
 
     if(cfg.debug){
         fprintf(stderr, "Target %s\n", cfg.reference_filename.c_str());
@@ -356,7 +385,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_q_chr++;
 
-        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
+        if(seq_block_len > cfg.seq_block_size){
 
             query_block_len.push_back(seq_block_len);
             if(seq_block_len > query_max_block_len)
@@ -512,7 +541,7 @@ int main(int argc, char** argv){
         seq_block_len += seq_len;
         total_r_chr++;
 
-        if(seq_block_len > DEFAULT_SEQ_BLOCK_SIZE){
+        if(seq_block_len > cfg.seq_block_size){
 
             ref_block_len.push_back(seq_block_len);
 
@@ -705,7 +734,7 @@ int main(int argc, char** argv){
 
             if(q_blocks_invoked < total_q_blocks) {
                 if (block_intervals_invoked < block_intervals_num) {
-                    seq_block& curr_block = get<0>(op);
+                    seq_block& curr_block = std::get<0>(op);
                     curr_block.r_index  = r_blocks_sent; 
                     curr_block.q_index  = q_blocks_invoked; 
                     curr_block.r_start  = send_r_block_start;
@@ -713,7 +742,7 @@ int main(int argc, char** argv){
                     curr_block.r_len    = send_r_block_len;
                     curr_block.q_len    = invoke_q_len-cfg.seed.size;
 
-                    seed_interval& curr_inter = get<1>(op);
+                    seed_interval& curr_inter = std::get<1>(op);
                     seed_interval inter = interval_list[completed_intervals + block_intervals_invoked++];
                     curr_inter.start = inter.start;
                     curr_inter.end   = inter.end;
